@@ -58,6 +58,20 @@ function(picofuse_install_package NAME)
     file(GENERATE OUTPUT ${_capture_dir}/defines.txt CONTENT "$<TARGET_PROPERTY:${_static},COMPILE_DEFINITIONS>")
     file(GENERATE OUTPUT ${_capture_dir}/linkopts.txt CONTENT "$<TARGET_PROPERTY:${_static},LINK_OPTIONS>")
 
+    # bs2_default_library's compiled boot2 object reaches an in-tree
+    # executable only via CMake's real LINK_LIBRARIES forwarding through
+    # pico_standard_link (INTERFACE) -> ${_static} (STATIC) -> the final
+    # executable — never folded into ${_static}'s own archive, so
+    # install(TARGETS ...) alone won't carry it. Capture its build-tree path
+    # directly (rather than trying to discover it generically out of
+    # LINK_LIBRARIES) so it can be copied into the install tree and wired
+    # into this package's own Libs: below.
+    set(_boot2_object_file "")
+    if(TARGET bs2_default_library)
+        set(_boot2_object_file ${_capture_dir}/boot2.txt)
+        file(GENERATE OUTPUT ${_boot2_object_file} CONTENT "$<TARGET_OBJECTS:bs2_default_library>")
+    endif()
+
     install(TARGETS ${_static} ARCHIVE DESTINATION lib)
 
     list(JOIN _ARG_REQUIRES " " _requires_str)
@@ -88,6 +102,7 @@ function(picofuse_install_package NAME)
             INCLUDES_FILE [[${_capture_dir}/includes.txt]]
             DEFINES_FILE [[${_capture_dir}/defines.txt]]
             LINKOPTS_FILE [[${_capture_dir}/linkopts.txt]]
+            BOOT2_OBJECT_FILE [[${_boot2_object_file}]]
             SDK_SRC_DIR [[${PICO_SDK_PATH}/src]]
             BUILD_SDK_DIR [[${CMAKE_BINARY_DIR}/pico-sdk/src]]
             PROJECT_INCLUDE_DIR [[${CMAKE_SOURCE_DIR}/include]]

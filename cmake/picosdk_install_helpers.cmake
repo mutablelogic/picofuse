@@ -5,7 +5,7 @@
 # *generate* time via file(GENERATE) — the only point CMake can resolve a
 # target's fully-transitive INCLUDE_DIRECTORIES/COMPILE_DEFINITIONS/LINK_OPTIONS.
 function(picofuse_write_pkgconfig)
-    cmake_parse_arguments(_ARG "" "NAME;VERSION;DESCRIPTION;LIBRARY_FILE;INCLUDES_FILE;DEFINES_FILE;LINKOPTS_FILE;SDK_SRC_DIR;BUILD_SDK_DIR;PROJECT_INCLUDE_DIR;PREFIX;CPU_FLAGS;REQUIRES;REQUIRES_PRIVATE;REQUIRES_CAPTURE_DIRS;PUBLIC_HEADER_DIRS" "" ${ARGN})
+    cmake_parse_arguments(_ARG "" "NAME;VERSION;DESCRIPTION;LIBRARY_FILE;INCLUDES_FILE;DEFINES_FILE;LINKOPTS_FILE;BOOT2_OBJECT_FILE;SDK_SRC_DIR;BUILD_SDK_DIR;PROJECT_INCLUDE_DIR;PREFIX;CPU_FLAGS;REQUIRES;REQUIRES_PRIVATE;REQUIRES_CAPTURE_DIRS;PUBLIC_HEADER_DIRS" "" ${ARGN})
 
     # file(READ) + strip, not file(STRINGS): the captured content is already
     # a raw semicolon-separated CMake list (that's exactly what a list *is*
@@ -89,7 +89,23 @@ function(picofuse_write_pkgconfig)
         string(APPEND _cflags " ${_ARG_CPU_FLAGS}")
     endif()
 
-    set(_libs "-L\${libdir} -l${_ARG_NAME}")
+    # The boot2 object isn't a member of this package's own archive (see
+    # the capture site in picosdk_install.cmake for why) — it has to be
+    # copied out of the build tree as a standalone file and referenced by
+    # its new installed path directly on the link line, the same way a raw
+    # .o would be passed to any other link.
+    set(_boot2_libs "")
+    if(_ARG_BOOT2_OBJECT_FILE AND EXISTS "${_ARG_BOOT2_OBJECT_FILE}")
+        file(READ "${_ARG_BOOT2_OBJECT_FILE}" _boot2_object)
+        string(STRIP "${_boot2_object}" _boot2_object)
+        if(_boot2_object)
+            get_filename_component(_boot2_object_name "${_boot2_object}" NAME)
+            file(COPY "${_boot2_object}" DESTINATION "${_ARG_PREFIX}/lib/picosdk/boot2")
+            set(_boot2_libs "\${libdir}/picosdk/boot2/${_boot2_object_name} ")
+        endif()
+    endif()
+
+    set(_libs "-L\${libdir} ${_boot2_libs}-l${_ARG_NAME}")
     set(_script_dirs "")
     foreach(_opt IN LISTS _linkopts)
         if(NOT _opt)
