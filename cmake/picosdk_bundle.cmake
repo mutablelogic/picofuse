@@ -22,6 +22,14 @@ function(picofuse_add_pico_sdk_library TARGET)
         $<TARGET_PROPERTY:${TARGET}_usage_probe,INTERFACE_INCLUDE_DIRECTORIES>)
     target_compile_definitions(${TARGET}_static PUBLIC
         $<TARGET_PROPERTY:${TARGET}_usage_probe,INTERFACE_COMPILE_DEFINITIONS>)
+    # CMake's automatic "static library forwards its PRIVATE dependencies to
+    # whoever finally links it" special case only covers LINK_LIBRARIES (the
+    # other archives that also need linking) — raw linker flags set via
+    # target_link_options() on a PRIVATE dependency (e.g. pico_standard_link's
+    # own -T/--wrap/--gc-sections) stay private to it and never reach a real
+    # consumer like an executable without this same re-exposure.
+    target_link_options(${TARGET}_static PUBLIC
+        $<TARGET_PROPERTY:${TARGET}_usage_probe,INTERFACE_LINK_OPTIONS>)
 
     set_property(GLOBAL APPEND PROPERTY PICOFUSE_SDK_LIBRARIES ${TARGET}_static)
 endfunction()
@@ -64,6 +72,12 @@ function(picofuse_add_pico_sdk_bundle NAME)
         $<TARGET_PROPERTY:${NAME}_usage_probe,INTERFACE_INCLUDE_DIRECTORIES>)
     target_compile_definitions(${NAME}_static PUBLIC
         $<TARGET_PROPERTY:${NAME}_usage_probe,INTERFACE_COMPILE_DEFINITIONS>)
+    # See picofuse_add_pico_sdk_library() for why this is needed: PRIVATE
+    # link options (e.g. pico_standard_link's own -T/--wrap/--gc-sections)
+    # aren't part of CMake's automatic static-lib dependency forwarding,
+    # unlike LINK_LIBRARIES.
+    target_link_options(${NAME}_static PUBLIC
+        $<TARGET_PROPERTY:${NAME}_usage_probe,INTERFACE_LINK_OPTIONS>)
 
     set_property(GLOBAL APPEND PROPERTY PICOFUSE_SDK_LIBRARIES ${NAME}_static)
 endfunction()

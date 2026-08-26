@@ -24,10 +24,16 @@ set(_picosdk_install_dir ${CMAKE_CURRENT_LIST_DIR})
 # headers its own INTERFACE_INCLUDE_DIRECTORIES also happens to carry
 # (privately linking picosdk_static to build it pulls those in too).
 #
-# REQUIRES_PRIVATE (unlike REQUIRES) doesn't propagate its Cflags to a
-# consumer via pkg-config's own dependency resolution — appropriate for a
-# dependency needed to link (picosdk, for its symbols/wrap flags/linker
-# script) but whose headers aren't part of this package's own public API.
+# REQUIRES_PRIVATE (unlike REQUIRES) never becomes a pkg-config
+# Requires.private: line at all — pkgconf (the pkg-config implementation
+# actually in use) merges a private dependency's Cflags into a consumer's
+# normal --cflags output regardless, only gating its Libs behind --static,
+# which is backwards from what's needed here (picosdk's Libs, to link, but
+# not its Cflags/headers). It only drives dedup: this package's own
+# captured includes/defines/linkopts get REQUIRES_PRIVATE's subtracted out
+# so they aren't baked in twice. Getting picosdk's Libs onto a consumer is
+# handled explicitly by picofuse_executable.cmake instead, which
+# pkg_check_modules()s both packages directly.
 function(picofuse_install_package NAME)
     cmake_parse_arguments(_ARG "" "DESCRIPTION;VERSION" "REQUIRES;REQUIRES_PRIVATE;PUBLIC_HEADER_DIRS" ${ARGN})
     if(NOT _ARG_DESCRIPTION)

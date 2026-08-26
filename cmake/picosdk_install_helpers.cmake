@@ -145,12 +145,18 @@ function(picofuse_write_pkgconfig)
         endif()
     endforeach()
 
+    # No Requires.private: line: pkgconf (the pkg-config implementation
+    # actually in use) merges a private dependency's Cflags into a
+    # consumer's normal (non --static) --cflags output, while excluding
+    # its Libs unless --static is passed — the opposite of what a scoped
+    # package like picofuse_sys_pico needs (picosdk's Libs, to link, but
+    # not its Cflags/headers). Libs propagation is instead handled
+    # explicitly by picofuse_executable.cmake, which pkg_check_modules()s
+    # both packages directly; REQUIRES_PRIVATE here only drives the
+    # dedup subtraction above, never a pkg-config-level dependency.
     set(_requires_line "")
     if(_ARG_REQUIRES)
         string(APPEND _requires_line "Requires: ${_ARG_REQUIRES}\n")
-    endif()
-    if(_ARG_REQUIRES_PRIVATE)
-        string(APPEND _requires_line "Requires.private: ${_ARG_REQUIRES_PRIVATE}\n")
     endif()
 
     file(WRITE "${_ARG_PREFIX}/lib/pkgconfig/${_ARG_NAME}.pc"
