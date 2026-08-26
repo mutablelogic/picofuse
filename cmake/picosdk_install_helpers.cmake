@@ -5,7 +5,7 @@
 # *generate* time via file(GENERATE) — the only point CMake can resolve a
 # target's fully-transitive INCLUDE_DIRECTORIES/COMPILE_DEFINITIONS/LINK_OPTIONS.
 function(picofuse_write_pkgconfig)
-    cmake_parse_arguments(_ARG "" "NAME;VERSION;DESCRIPTION;LIBRARY_FILE;INCLUDES_FILE;DEFINES_FILE;LINKOPTS_FILE;SDK_SRC_DIR;BUILD_SDK_DIR;PROJECT_INCLUDE_DIR;PREFIX;CPU_FLAGS;REQUIRES;REQUIRES_CAPTURE_DIRS" "" ${ARGN})
+    cmake_parse_arguments(_ARG "" "NAME;VERSION;DESCRIPTION;LIBRARY_FILE;INCLUDES_FILE;DEFINES_FILE;LINKOPTS_FILE;SDK_SRC_DIR;BUILD_SDK_DIR;PROJECT_INCLUDE_DIR;PREFIX;CPU_FLAGS;REQUIRES;REQUIRES_PRIVATE;REQUIRES_CAPTURE_DIRS;PUBLIC_HEADER_DIRS" "" ${ARGN})
 
     # file(READ) + strip, not file(STRINGS): the captured content is already
     # a raw semicolon-separated CMake list (that's exactly what a list *is*
@@ -41,26 +41,40 @@ function(picofuse_write_pkgconfig)
         endforeach()
     endif()
 
-    # Every SDK module's own include/ dir already uses the final relative
-    # path (e.g. hardware/gpio.h), so copying each one's *contents* into the
-    # same destination merges them into a single consolidated tree with no
-    # restructuring — and the .pc file then only ever needs one -I. The
-    # project's own include/ dir is skipped here — it's handled separately
-    # below, selectively, since not everything under it is public API.
-    foreach(_dir IN LISTS _includes)
-        if(IS_DIRECTORY "${_dir}" AND NOT _dir STREQUAL "${_ARG_PROJECT_INCLUDE_DIR}")
-            file(COPY "${_dir}/" DESTINATION "${_ARG_PREFIX}/include")
-        endif()
-    endforeach()
-    # Only picofuse/ is the public API surface; runtime/ (e.g.
-    # runtime/stdout.h) is an internal detail of the pico backend, and
-    # lwipopts.h is our own build-time lwIP config — neither is meant for a
-    # downstream consumer to #include.
-    if(IS_DIRECTORY "${_ARG_PROJECT_INCLUDE_DIR}/picofuse")
-        file(COPY "${_ARG_PROJECT_INCLUDE_DIR}/picofuse" DESTINATION "${_ARG_PREFIX}/include")
+    # PUBLIC_HEADER_DIRS marks this as a *scoped* package (e.g.
+    # picofuse_sys_pico): its own public API is just those specific
+    # directories, not the whole SDK header surface — so, unlike the
+    # unscoped case below, it gets its own dedicated include root instead
+    # of dumping into (and pointing -I at) the shared includedir tree.
+    # Without that separation, any package whose own INCLUDE_DIRECTORIES
+    # happens to include the shared tree (true here, since
+    # picofuse_sys_pico privately links picosdk_static to build) would let
+    # a consumer reach raw SDK headers like hardware/gpio.h through it,
+    # even though that's not this package's actual API.
+    if(_ARG_PUBLIC_HEADER_DIRS)
+        separate_arguments(_public_header_dirs UNIX_COMMAND "${_ARG_PUBLIC_HEADER_DIRS}")
+        foreach(_hdr_dir IN LISTS _public_header_dirs)
+            if(IS_DIRECTORY "${_ARG_PROJECT_INCLUDE_DIR}/${_hdr_dir}")
+                file(COPY "${_ARG_PROJECT_INCLUDE_DIR}/${_hdr_dir}"
+                    DESTINATION "${_ARG_PREFIX}/lib/${_ARG_NAME}/include")
+            endif()
+        endforeach()
+        set(_cflags "-I\${libdir}/${_ARG_NAME}/include")
+    else()
+        # Every SDK module's own include/ dir already uses the final
+        # relative path (e.g. hardware/gpio.h), so copying each one's
+        # *contents* into the same destination merges them into a single
+        # consolidated tree with no restructuring — and the .pc file then
+        # only ever needs one -I. The project's own include/ dir is
+        # skipped here: an unscoped package (picosdk) has no business
+        # exposing picofuse/ as if it were its own API either.
+        foreach(_dir IN LISTS _includes)
+            if(IS_DIRECTORY "${_dir}" AND NOT _dir STREQUAL "${_ARG_PROJECT_INCLUDE_DIR}")
+                file(COPY "${_dir}/" DESTINATION "${_ARG_PREFIX}/include")
+            endif()
+        endforeach()
+        set(_cflags "-I\${includedir}")
     endif()
-
-    set(_cflags "-I\${includedir}")
     foreach(_define IN LISTS _defines)
         if(_define)
             # pkg-config runs Cflags/Libs through its own shell-like
@@ -133,7 +147,10 @@ function(picofuse_write_pkgconfig)
 
     set(_requires_line "")
     if(_ARG_REQUIRES)
-        set(_requires_line "Requires: ${_ARG_REQUIRES}\n")
+        string(APPEND _requires_line "Requires: ${_ARG_REQUIRES}\n")
+    endif()
+    if(_ARG_REQUIRES_PRIVATE)
+        string(APPEND _requires_line "Requires.private: ${_ARG_REQUIRES_PRIVATE}\n")
     endif()
 
     file(WRITE "${_ARG_PREFIX}/lib/pkgconfig/${_ARG_NAME}.pc"

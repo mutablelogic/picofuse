@@ -71,4 +71,7 @@ add_subdirectory(src/picofuse/sys/pico)
 # Installable package: lib/, include/, lib/pkgconfig/*.pc
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/picosdk_install.cmake)
 picofuse_install_package(picosdk DESCRIPTION "picofuse pico-sdk runtime bundle")
-picofuse_install_package(picofuse_sys_pico DESCRIPTION "picofuse/sys, UART-backed" REQUIRES picosdk)
+picofuse_install_package(picofuse_sys_pico DESCRIPTION "picofuse/sys, UART-backed"
+    REQUIRES_PRIVATE picosdk
+    PUBLIC_HEADER_DIRS picofuse
+)

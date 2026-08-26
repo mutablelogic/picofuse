@@ -3,17 +3,33 @@
 # list-file scope the way include()/add_subdirectory() do).
 set(_picosdk_install_dir ${CMAKE_CURRENT_LIST_DIR})
 
-# picofuse_install_package(NAME [DESCRIPTION <text>] [VERSION <ver>] [REQUIRES <pkg> ...])
+# picofuse_install_package(NAME [DESCRIPTION <text>] [VERSION <ver>]
+#                           [REQUIRES <pkg> ...] [REQUIRES_PRIVATE <pkg> ...]
+#                           [PUBLIC_HEADER_DIRS <subdir-of-project-include> ...])
 #
 # Installs <NAME>_static (built via picofuse_add_pico_sdk_library()/_bundle()/
 # picofuse_library()) as a standalone, pkg-config-discoverable package under
-# CMAKE_INSTALL_PREFIX: lib/lib<NAME>.a, its full transitive header set
-# merged into include/, whatever linker-script fragments it needs under
-# lib/picosdk/src, and lib/pkgconfig/<NAME>.pc capturing all of it. A
-# consumer elsewhere then just needs `pkg-config <NAME>` — nothing it
+# CMAKE_INSTALL_PREFIX: lib/lib<NAME>.a, whatever linker-script fragments it
+# needs under lib/picosdk/src, and lib/pkgconfig/<NAME>.pc capturing all of
+# it. A consumer elsewhere then just needs `pkg-config <NAME>` — nothing it
 # doesn't already carry.
+#
+# Without PUBLIC_HEADER_DIRS, this package is "unscoped": its full
+# transitive header set merges into the shared include/ tree, and its .pc
+# Cflags is a single -I there — appropriate for an SDK bundle like picosdk,
+# whose whole point is exposing that surface. With PUBLIC_HEADER_DIRS, only
+# those specific subdirectories of the project's own include/ get installed,
+# into a package-private lib/<NAME>/include instead — for a package like
+# picofuse_sys_pico whose own actual API is just picofuse/, not the raw SDK
+# headers its own INTERFACE_INCLUDE_DIRECTORIES also happens to carry
+# (privately linking picosdk_static to build it pulls those in too).
+#
+# REQUIRES_PRIVATE (unlike REQUIRES) doesn't propagate its Cflags to a
+# consumer via pkg-config's own dependency resolution — appropriate for a
+# dependency needed to link (picosdk, for its symbols/wrap flags/linker
+# script) but whose headers aren't part of this package's own public API.
 function(picofuse_install_package NAME)
-    cmake_parse_arguments(_ARG "" "DESCRIPTION;VERSION" "REQUIRES" ${ARGN})
+    cmake_parse_arguments(_ARG "" "DESCRIPTION;VERSION" "REQUIRES;REQUIRES_PRIVATE;PUBLIC_HEADER_DIRS" ${ARGN})
     if(NOT _ARG_DESCRIPTION)
         set(_ARG_DESCRIPTION "picofuse ${NAME}")
     endif()
@@ -39,13 +55,16 @@ function(picofuse_install_package NAME)
     install(TARGETS ${_static} ARCHIVE DESTINATION lib)
 
     list(JOIN _ARG_REQUIRES " " _requires_str)
+    list(JOIN _ARG_REQUIRES_PRIVATE " " _requires_private_str)
+    list(JOIN _ARG_PUBLIC_HEADER_DIRS " " _public_header_dirs_str)
 
     # A required package's own .pc already carries these via pkg-config's
-    # own dependency resolution (Requires:) — passing its capture dir lets
-    # picofuse_write_pkgconfig() subtract whatever it already provides,
-    # rather than duplicating it verbatim in this package's own Cflags/Libs.
+    # own dependency resolution (Requires:/Requires.private:) — passing its
+    # capture dir lets picofuse_write_pkgconfig() subtract whatever it
+    # already provides, rather than duplicating it verbatim in this
+    # package's own Cflags/Libs.
     set(_requires_capture_dirs "")
-    foreach(_req IN LISTS _ARG_REQUIRES)
+    foreach(_req IN LISTS _ARG_REQUIRES _ARG_REQUIRES_PRIVATE)
         list(APPEND _requires_capture_dirs "${CMAKE_BINARY_DIR}/picofuse_package/${_req}")
     endforeach()
     list(JOIN _requires_capture_dirs " " _requires_capture_dirs_str)
@@ -57,7 +76,9 @@ function(picofuse_install_package NAME)
             VERSION [[${_ARG_VERSION}]]
             DESCRIPTION [[${_ARG_DESCRIPTION}]]
             REQUIRES [[${_requires_str}]]
+            REQUIRES_PRIVATE [[${_requires_private_str}]]
             REQUIRES_CAPTURE_DIRS [[${_requires_capture_dirs_str}]]
+            PUBLIC_HEADER_DIRS [[${_public_header_dirs_str}]]
             INCLUDES_FILE [[${_capture_dir}/includes.txt]]
             DEFINES_FILE [[${_capture_dir}/defines.txt]]
             LINKOPTS_FILE [[${_capture_dir}/linkopts.txt]]
