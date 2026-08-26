@@ -7,7 +7,6 @@
  */
 
 #pragma once
-
 #include "panicf.h"
 
 /**
@@ -19,18 +18,18 @@
  * failure message, including the condition, file name, and line number.
  */
 #ifndef NDEBUG
-#define sys_assert(condition)                                                 \
-  do {                                                                        \
-    if (!(condition)) {                                                      \
-      sys_panicf("[ASSERT] FAIL: %s, file %s, line %d", #condition, __FILE__,\
-                 __LINE__);                                                  \
-    }                                                                        \
+#define sys_assert(condition)                                                  \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      sys_panicf("[ASSERT] FAIL: %s, file %s, line %d", #condition, __FILE__,  \
+                 __LINE__);                                                    \
+    }                                                                          \
   } while (0)
 #else
-#define sys_assert(condition)                                                 \
-  do {                                                                        \
-    if (!(condition)) {                                                      \
-      sys_panicf("[ASSERT] FAIL: %s", #condition);                           \
-    }                                                                        \
+#define sys_assert(condition)                                                  \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      sys_panicf("[ASSERT] FAIL: %s", #condition);                             \
+    }                                                                          \
   } while (0)
 #endif

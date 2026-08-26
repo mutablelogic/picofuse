@@ -4,7 +4,6 @@
  * @ingroup SystemFormat
  */
 #pragma once
-
 #include "printf.h"
 
 #ifdef __cplusplus

@@ -66,7 +66,7 @@ add_subdirectory(src/picofuse/sys/pico)
 
 # Some examples
 #add_subdirectory(examples/blink)
-#add_subdirectory(examples/helloworld)
+add_subdirectory(examples/helloworld)
 
 # Installable package: lib/, include/, lib/pkgconfig/*.pc
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/picosdk_install.cmake)
