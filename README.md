@@ -1,4 +1,4 @@
-# picofuse-test
+# picofuse
 
 ## Requirements
 
@@ -67,24 +67,3 @@ Installing produces, under each prefix:
   pulls in picosdk's own flags)
 - `lib/picosdk/src/` — the linker script fragments the `.pc` file's `Libs`
   point at
-
-## What's missing / left to do
-
-**Boot stage 2 is not part of the installed package yet.** RP2040 requires
-a padded, checksummed 256-byte second-stage bootloader image at the very
-start of flash; today it's only supplied automatically within *this*
-project's own CMake build (via a separate `bs2_default_library` target
-tied into `picofuse_executable`'s in-tree link), not folded into
-`libpicosdk.a` itself. Linking a real executable against the installed
-package (as in the Purpose example above) currently fails with:
-
-```text
-ld: ERROR: Pico second stage bootloader must be exactly 256 bytes in size for RP2040
-```
-
-Fixing this means compiling, padding, and checksumming the boot2 image as
-part of `picosdk`'s own build and either bundling the resulting object into
-`libpicosdk.a` or installing it as a linkable extra the `.pc` file
-references. RP2350 doesn't need this (it boots differently — no `.boot2`
-section at all), so this only blocks `pico`/`pico_w` packages, not
-`pico2`/`pico2_w`.

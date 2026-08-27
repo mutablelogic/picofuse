@@ -1,7 +1,5 @@
 picofuse_library(
     NAME picofuse-sys
-    LIBRARIES picosdk
-    HEADERS pico_stdlib_headers
     SOURCES
         init.c
         puts.c

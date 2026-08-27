@@ -9,6 +9,11 @@ void sys_init(void) {
 }
 
 void sys_exit(void) {
+  sys_puts("\n[HALT]\n");
   uart_deinit((uart_inst_t *)sys_stdout);
   sys_stdout = NULL;
+
+  while (1) {
+    /* no-op */
+  }
 }
