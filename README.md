@@ -154,5 +154,7 @@ This requires Docker, and writes the generated documentation into the
 
 ## Licensing
 
-This project is licensed under the [Apache License 2.0](LICENSE). Issues
-and pull requests are welcome.
+This project is licensed under the [Apache License 2.0](LICENSE). It
+builds against third-party components with their own licenses (BSD,
+MIT, Apache-2.0/GPL) - see [NOTICE.md](NOTICE.md) for details. Issues and pull
+requests are welcome.
