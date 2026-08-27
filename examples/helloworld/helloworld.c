@@ -4,6 +4,5 @@ int main(void) {
   sys_init();
   sys_puts("Hello, world!\n");
   sys_exit();
-  while (1) {
-  }
+  return 0;
 }

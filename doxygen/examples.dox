@@ -1,0 +1,11 @@
+/**
+ * @page examples Examples
+ *
+ * @brief Example applications included with picofuse.
+ *
+ * These examples are small, focused programs that show how the main library
+ * pieces fit together. Hardware examples focus on peripheral setup and I/O,
+ * while system examples demonstrate scheduling, queues, timers, and
+ * multicore coordination.
+ */
+ 

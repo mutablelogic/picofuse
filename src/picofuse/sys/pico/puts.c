@@ -6,6 +6,7 @@ void sys_puts(const char *str) {
   if (sys_stdout != NULL && str != NULL && *str != '\0') {
     uart_puts((uart_inst_t *)sys_stdout, str);
   }
+  /* TODO: FLUSH */
 }
 
 void sys_putch(const char ch) {
