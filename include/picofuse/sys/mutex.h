@@ -1,3 +1,20 @@
+/**
+ * @file sys/mutex.h
+ * @brief Defines mutex primitives for thread synchronization.
+ * @defgroup SystemSync Synchronization
+ * @ingroup System
+ *
+ * The SystemSync module groups the synchronization primitives - mutexes,
+ * condition variables, wait groups and atomic values - used to coordinate
+ * access to shared state across threads.
+ */
+
+/**
+ * @brief Mutex primitives.
+ * @defgroup SystemSyncMutex Mutex
+ * @ingroup SystemSync
+ */
+
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>
