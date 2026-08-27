@@ -22,4 +22,6 @@
 #include "sys/printf.h"
 #include "sys/random.h"
 #include "sys/sleep.h"
+#include "sys/thread.h"
 #include "sys/timestamp.h"
+#include "sys/waitgroup.h"

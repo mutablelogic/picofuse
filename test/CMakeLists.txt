@@ -68,3 +68,88 @@ picofuse_test(sys_013
 picofuse_test(sys_014
 	sys_014/main.c
 )
+
+# sys_thread_numcores/sys_thread_create(_on_core) + sys_waitgroup_*
+picofuse_test(sys_015
+	sys_015/main.c
+)
+
+# sys_atomic_inc under real concurrent load from many threads/cores at once
+picofuse_test(sys_016
+	sys_016/main.c
+)
+
+# sys_atomic_set_bits/clear_bits with distinct bits set/cleared concurrently
+picofuse_test(sys_017
+	sys_017/main.c
+)
+
+# sys_mutex_lock/unlock under real concurrent contention from many threads
+picofuse_test(sys_018
+	sys_018/main.c
+)
+
+# Multiple concurrent waiters on the same sys_waitgroup_t, all released together
+picofuse_test(sys_019
+	sys_019/main.c
+)
+
+# sys_waitgroup_add/done edge cases, non-blocking wait, and pool exhaustion
+picofuse_test(sys_020
+	sys_020/main.c
+)
+
+# Reusing the same sys_waitgroup_t across multiple add/dispatch/wait rounds
+picofuse_test(sys_021
+	sys_021/main.c
+)
+
+# sys_mutex_trylock, including real cross-thread contention
+picofuse_test(sys_022
+	sys_022/main.c
+)
+
+# sys_atomic_inc/sys_atomic_dec return-value correctness, single- and
+# multi-threaded
+picofuse_test(sys_023
+	sys_023/main.c
+)
+
+# Thread pool/capacity exhaustion: dispatch fails when full, succeeds again
+# once a slot frees up
+picofuse_test(sys_024
+	sys_024/main.c
+)
+
+# sys_thread_create/create_on_core correctness per the documented contract
+picofuse_test(sys_025
+	sys_025/main.c
+)
+
+# Basic sys_cond_* producer/consumer handoff across real threads/cores
+picofuse_test(sys_026
+	sys_026/main.c
+)
+
+# sys_cond_broadcast wakes every waiter, and signal/broadcast with no
+# waiters is a true no-op 
+picofuse_test(sys_027
+	sys_027/main.c
+)
+
+# sys_cond_signal/timedwait under a real waiter/signal-count imbalance
+# (more waiters than signals)
+picofuse_test(sys_028
+	sys_028/main.c
+)
+
+# Remaining sys_cond_* code paths: bare wait(), timedwait signaled-quickly,
+# timeout_ms=0, deinit's internal safety broadcast, pool exhaustion
+picofuse_test(sys_029
+	sys_029/main.c
+)
+
+# sys_waitgroup_deinit's safety net releases a genuinely-stranded waiter
+picofuse_test(sys_030
+	sys_030/main.c
+)

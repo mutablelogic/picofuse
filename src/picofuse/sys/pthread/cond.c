@@ -104,6 +104,8 @@ sys_cond_t *sys_cond_init(void) {
 void sys_cond_deinit(sys_cond_t *cond) {
   sys_assert(_sys_cond_valid(cond));
 
+  sys_cond_broadcast(cond);
+
   int lock_result = pthread_mutex_lock(&_sys_cond_pool_lock);
   sys_assert(lock_result == 0);
   if (lock_result != 0) {

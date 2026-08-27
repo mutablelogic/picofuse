@@ -2,22 +2,51 @@
 
 ## Motivation
 
-Picofuse is a hardware abstraction layer, targeting Raspberry Pi and Pico
-hardware, as well as Darwin and other Linux distributions for development
-purposes. It's also an event-driven library for developing small, C-based
-applications that use hardware features (GPIO, I2C, SPI, networking, and
-so on) in a more cross-hardware way - not quite "write once, run
-everywhere," but working towards applications that need only minimal
-changes to move between supported platforms.
+Picofuse is a software system for hardware-independent development of small
+event-driven applications. It provides a common interface for hardware
+peripherals and a build system that abstracts away the details of the
+underlying hardware. There are a variety of modules which define the abstraction.
 
-For the Pico embedded platform, a standalone, per-board "picofuse"
-installation is built - a compiled `libpicosdk.a` (plus the `picofuse/sys`
-runtime layer) together with its headers and `pkg-config` metadata,
+```mermaid
+block-beta
+  columns 5
+
+  block:top:5
+    columns 1
+    app["<b>app</b><br/>Application"]
+  end
+
+  net["<b>net</b><br/>Network"] fs["<b>fs</b><br/>Filesystem"] pix["<b>pix</b><br/>Graphics"] wav["<b>wav</b><br/>Audio"] hid["<b>hid</b><br/>Input devices"]
+
+  block:middle:5
+    columns 2
+    hw["<b>hw</b><br/>Hardware"]
+    dev["<b>dev</b><br/>Devices"]
+  end
+
+  block:bottom:5
+    columns 1
+    sys["<b>sys</b><br/>System"]
+  end
+```
+
+* `sys`: System-level functions.
+* `hw` : Hardware for peripherals such as GPIO, I2C, SPI, etc.
+* `dev` : Device implementation for specific components.
+* `net`: Network stack for TCP/IP communication.
+* `fs` : Filesystem abstraction for persistent storage.
+* `pix`: Graphics library for drawing on displays.
+* `wav`: Audio library for playing and recording sound.
+* `hid`: Human Interface Device library for handling input devices, such as keyboards, button and mice, plus sensor readings.
+* `app`: Application framework for event-driven programming.
+
+A standalone, per-board "picofuse"
+installation is built, together with its headers and `pkg-config` metadata,
 installed under a plain directory prefix (e.g. `/opt/picofuse/<board>`).
 A third party who only has that installed prefix - not this repository,
 not the pico-sdk source tree -
 can build a real `.elf` for that board using nothing but CMake, `pkg-config`
-and the ARM GNU toolchain, via the `picofuse_executable()` helper installed
+and the compiler toolchain, via the `picofuse_executable()` helper installed
 alongside the prefix (see [`examples/helloworld`](examples/helloworld)):
 
 ```cmake
@@ -39,15 +68,29 @@ cmake -S . -B build
 cmake --build build
 ```
 
-## Requirements
+The aim is that prototyping can be performed on a host computer, while deployment to the target hardware (such as Raspberry Pi or Pico)
+is seamless and requires minimal changes to the code.
 
-- The `third_party/pico-sdk` submodule (pinned to pico-sdk 2.3.0), which
+## Use
+
+(under development)
+
+* Download the picofuse library, which contains some supported boards, platforms and architectures.
+* Use the API documentation and examine the samples.
+
+## Development
+
+The following sections assume you are wishing to adapt or otherwise develop the picofuse library.
+
+### Requirements
+
+* The `third_party/pico-sdk` submodule (pinned to pico-sdk 2.3.0), which
   itself pulls in further submodules - tinyusb, btstack, cyw43-driver, lwip,
   mbedtls. `make` initializes it recursively as part of `configure`, so
   there's no need to run `git submodule update` manually.
-- An ARM GNU Toolchain (`arm-none-eabi-gcc` and friends) on `PATH`.
-- CMake 3.20+.
-- Python 3 (used by pico-sdk's own build for code generation and
+* An ARM GNU Toolchain (`arm-none-eabi-gcc` and friends) on `PATH`.
+* CMake 3.20+.
+* Python 3 (used by pico-sdk's own build for code generation and
   `picotool`).
 
 Pico targets are self-contained, thanks to the Pico SDK. For host builds
@@ -62,7 +105,7 @@ are only needed to enable the corresponding feature:
 | Mosquitto (optional, for MQTT support) | `brew install mosquitto` | `sudo apt install libmosquitto-dev` |
 | USB (optional, for USB support) | `brew install libusb pkgconf` | `sudo apt install libusb-1.0-0-dev` |
 
-## Build & Install
+### Build & Install
 
 Use `make` to configure and build:
 
@@ -110,19 +153,19 @@ make PICO_BOARD=pico BUILD_DIR=build-pico PREFIX=/opt/picofuse/pico install
 
 Installing produces, under the chosen prefix:
 
-- `lib/libpicosdk.a`, `lib/libpicofuse_sys_pico.a`
-- `include/` - every SDK module's headers merged into one consolidated tree,
+* `lib/libpicosdk.a`, `lib/libpicofuse_sys_pico.a`
+* `include/` - every SDK module's headers merged into one consolidated tree,
   plus `picofuse/` and `runtime/`
-- `lib/pkgconfig/picosdk.pc`, `lib/pkgconfig/picofuse_sys_pico.pc`
+* `lib/pkgconfig/picosdk.pc`, `lib/pkgconfig/picofuse_sys_pico.pc`
   (the latter `Requires: picosdk`, so pulling it in via `pkg-config` also
   pulls in picosdk's own flags)
-- `lib/picosdk/src/` - the linker script fragments the `.pc` file's `Libs`
+* `lib/picosdk/src/` - the linker script fragments the `.pc` file's `Libs`
   point at
 
 We'd like to provide pre-compiled per-board libraries (so consumers don't
 need to build pico-sdk themselves) soon.
 
-## Testing
+### Testing
 
 Run the test suite with:
 
