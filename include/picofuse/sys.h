@@ -13,6 +13,7 @@
 #pragma once
 #include "sys/assert.h"
 #include "sys/debugf.h"
+#include "sys/halt.h"
 #include "sys/init.h"
 #include "sys/mutex.h"
 #include "sys/panicf.h"

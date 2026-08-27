@@ -1,14 +1,15 @@
 picofuse_library(
     NAME picofuse-sys
     SOURCES
+        ../posix/halt.c
         ../posix/init.c
-        ../posix/panicf.c
         ../posix/puts.c
         ../posix/sleep.c
         ../posix/timestamp.c
         ../pthread/mutex.c
         ../printf/debugf.c
         ../printf/mutex.c
+        ../printf/panicf.c
         ../printf/printf.c
         ../printf/put.c
         ../printf/putc.c
