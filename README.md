@@ -30,7 +30,7 @@ block-beta
   end
 ```
 
-* `sys`: System-level functions.
+* `sys`: [System-level functions.](https://mutablelogic.github.io/picofuse/group__System.html)
 * `hw` : Hardware for peripherals such as GPIO, I2C, SPI, etc.
 * `dev` : Device implementation for specific components.
 * `net`: Network stack for TCP/IP communication.
