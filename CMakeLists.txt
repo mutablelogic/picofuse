@@ -33,6 +33,7 @@ if(DEFINED PICO_BOARD)
         pico_standard_binary_info
         pico_standard_link
         pico_sync
+        pico_rand
         pico_printf
         pico_crt0
         pico_runtime_init
