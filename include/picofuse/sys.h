@@ -18,5 +18,6 @@
 #include "sys/mutex.h"
 #include "sys/panicf.h"
 #include "sys/printf.h"
+#include "sys/random.h"
 #include "sys/sleep.h"
 #include "sys/timestamp.h"

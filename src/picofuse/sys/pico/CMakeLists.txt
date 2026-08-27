@@ -7,6 +7,7 @@ picofuse_library(
         halt.c
         mutex.c
         puts.c
+        random.c
         timestamp.c
         sleep.c
         ../printf/debugf.c

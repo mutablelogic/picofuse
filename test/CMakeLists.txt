@@ -63,3 +63,8 @@ picofuse_test(sys_012
 picofuse_test(sys_013
 	sys_013/main.c
 )
+
+# sys_random_uint32/sys_random_uint64 bit-coverage smoke test
+picofuse_test(sys_014
+	sys_014/main.c
+)

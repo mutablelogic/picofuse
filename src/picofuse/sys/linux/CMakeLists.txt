@@ -4,6 +4,7 @@ picofuse_library(
         ../posix/halt.c
         ../posix/init.c
         ../posix/puts.c
+        ../posix/random.c
         ../posix/sleep.c
         ../posix/timestamp.c
         ../pthread/mutex.c
