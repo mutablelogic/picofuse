@@ -7,6 +7,8 @@ event-driven applications. It provides a common interface for hardware
 peripherals and a build system that abstracts away the details of the
 underlying hardware. There are a variety of modules which define the abstraction.
 
+\cond DOXYGEN_EXCLUDE
+
 ```mermaid
 block-beta
   columns 5
@@ -28,7 +30,11 @@ block-beta
     columns 1
     sys["<b>sys</b><br/>System"]
   end
+
+  click sys href "https://mutablelogic.github.io/picofuse/group__System.html" "System-level functions"
 ```
+
+\endcond
 
 * `sys`: [System-level functions.](https://mutablelogic.github.io/picofuse/group__System.html)
 * `hw` : Hardware for peripherals such as GPIO, I2C, SPI, etc.
@@ -43,9 +49,15 @@ block-beta
 A standalone, per-board "picofuse"
 installation is built, together with its headers and `pkg-config` metadata,
 installed under a plain directory prefix (e.g. `/opt/picofuse/<board>`).
-A third party who only has that installed prefix - not this repository,
-not the pico-sdk source tree -
-can build a real `.elf` for that board using nothing but CMake, `pkg-config`
+
+## Use
+
+(under development)
+
+* Download the picofuse library, which contains some supported boards, platforms and architectures.
+* Use the API documentation and examine the samples.
+
+You can then build a real `.elf` for that board using nothing but CMake, `pkg-config`
 and the compiler toolchain, via the `picofuse_executable()` helper installed
 alongside the prefix (see [`examples/helloworld`](examples/helloworld)):
 
@@ -62,21 +74,19 @@ picofuse_executable(
 )
 ```
 
+The following shell commands set up the environment for building the example:
+
 ```sh
 export PKG_CONFIG_PATH=/opt/picofuse/<board>/lib/pkgconfig
+# Use -DPICO_BOARD=<board> to specify the target board
 cmake -S . -B build
+
+# Build
 cmake --build build
 ```
 
 The aim is that prototyping can be performed on a host computer, while deployment to the target hardware (such as Raspberry Pi or Pico)
-is seamless and requires minimal changes to the code.
-
-## Use
-
-(under development)
-
-* Download the picofuse library, which contains some supported boards, platforms and architectures.
-* Use the API documentation and examine the samples.
+is seamless and requires minimal changes to the code. The executable (or `.elf` file) will be located in the corresponding build directory, for flashing to the embedded device or executable on the host system.
 
 ## Development
 
