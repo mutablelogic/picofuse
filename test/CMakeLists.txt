@@ -58,3 +58,8 @@ picofuse_test(sys_011
 picofuse_test(sys_012
 	sys_012/main.c
 )
+
+# sys_sleep_ms/sys_timestamp_ms
+picofuse_test(sys_013
+	sys_013/main.c
+)

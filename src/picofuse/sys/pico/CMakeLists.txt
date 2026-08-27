@@ -6,6 +6,8 @@ picofuse_library(
         init.c
         panicf.c
         puts.c
+        timestamp.c
+        sleep.c
         ../printf/debugf.c
         ../printf/mutex.c
         ../printf/printf.c

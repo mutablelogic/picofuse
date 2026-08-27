@@ -2,7 +2,10 @@ picofuse_library(
     NAME picofuse-sys
     SOURCES
         ../posix/init.c
+        ../posix/panicf.c
         ../posix/puts.c
+        ../posix/sleep.c
+        ../posix/timestamp.c
         ../pthread/mutex.c
         ../printf/debugf.c
         ../printf/mutex.c
@@ -13,7 +16,6 @@ picofuse_library(
         ../printf/putf.c
         ../printf/puts.c
         ../printf/vprintf.c
-        ../posix/panicf.c
 )
 
 target_include_directories(picofuse-sys PRIVATE ${CMAKE_SOURCE_DIR}/include)
