@@ -30,8 +30,6 @@ block-beta
     columns 1
     sys["<b>sys</b><br/>System"]
   end
-
-  click sys href "https://mutablelogic.github.io/picofuse/group__System.html" "System-level functions"
 ```
 
 \endcond
