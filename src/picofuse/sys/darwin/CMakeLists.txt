@@ -8,6 +8,7 @@ picofuse_library(
         ../posix/sleep.c
         ../posix/timestamp.c
         ../pthread/mutex.c
+        ../pthread/cond.c
         ../printf/debugf.c
         ../printf/mutex.c
         ../printf/panicf.c
