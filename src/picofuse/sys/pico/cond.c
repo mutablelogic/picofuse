@@ -99,6 +99,24 @@ void sys_cond_deinit(sys_cond_t *cond) {
 
   sys_cond_broadcast(cond);
 
+  // Wait for every woken waiter to actually consume its permit and leave
+  // (waiters_count back to 0) before resetting the semaphore below.
+  // sem_release() and sem_reset() both go through the semaphore's own spin
+  // lock, so without this, a waiter that hasn't yet reacquired that lock to
+  // consume its permit could have it wiped out from under it by
+  // _sys_cond_deinit_handle()'s sem_reset(), stranding it forever.
+  uint64_t start = sys_timestamp_ms();
+  while (true) {
+    _sys_sync_pool_lock();
+    bool drained = cond->waiters_count == 0;
+    _sys_sync_pool_unlock();
+    if (drained) {
+      break;
+    }
+    sys_assert(sys_timestamp_ms() - start < 1000);
+    sys_sleep_ms(1);
+  }
+
   _sys_sync_pool_lock();
   if (!cond->init) {
     _sys_sync_pool_unlock();

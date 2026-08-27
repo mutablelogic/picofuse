@@ -7,6 +7,8 @@ picofuse_library(
         halt.c
         mutex.c
         cond.c
+        waitgroup.c
+        thread.c
         sync.c
         puts.c
         random.c

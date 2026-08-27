@@ -9,6 +9,8 @@ picofuse_library(
         ../posix/timestamp.c
         ../pthread/mutex.c
         ../pthread/cond.c
+        ../pthread/waitgroup.c
+        ../pthread/thread.c
         ../printf/debugf.c
         ../printf/mutex.c
         ../printf/panicf.c
