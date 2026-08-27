@@ -66,8 +66,10 @@ endfunction()
 
 # picofuse_test(<target> <source> ...)
 #
-# Builds a picofuse system test and registers it with CTest. The test target
-# can use the same native/Pico linkage behavior as picofuse_executable().
+# Builds a picofuse system test and registers it with CTest. <source> paths
+# are relative to the calling CMakeLists.txt's directory (CMAKE_CURRENT_SOURCE_DIR),
+# same as any other CMake SOURCES list. The test target can use the same
+# native/Pico linkage behavior as picofuse_executable().
 function(picofuse_test NAME)
     if(NOT NAME)
         message(FATAL_ERROR "picofuse_test: target name is required")
@@ -78,7 +80,7 @@ function(picofuse_test NAME)
 
     set(_sources)
     foreach(_source IN LISTS ARGN)
-        list(APPEND _sources "${CMAKE_CURRENT_SOURCE_DIR}/${NAME}/${_source}")
+        list(APPEND _sources "${CMAKE_CURRENT_SOURCE_DIR}/${_source}")
     endforeach()
 
     picofuse_executable(

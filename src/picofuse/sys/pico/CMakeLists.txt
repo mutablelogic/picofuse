@@ -4,10 +4,18 @@ picofuse_library(
     HEADERS pico_stdlib_headers
     SOURCES
         init.c
+        panicf.c
         puts.c
-        ../stub/debugf.c
-        ../stub/panicf.c
-        ../stub/printf.c
+        ../printf/debugf.c
+        ../printf/mutex.c
+        ../printf/printf.c
+        ../printf/put.c
+        ../printf/putc.c
+        ../printf/putd.c
+        ../printf/putf.c
+        ../printf/puts.c
+        ../printf/vprintf.c
+        ../stub/mutex.c
 )
 
 target_include_directories(picofuse-sys PRIVATE ${CMAKE_SOURCE_DIR}/include)

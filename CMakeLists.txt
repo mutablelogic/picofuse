@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 # Logic if building for a Pico board
 if(DEFINED PICO_BOARD)
-    # Point to the shared boards header directory at the root of the objc
-    # repository before including pico_sdk_init
+    # Point to the shared boards header directory
     set(PICO_BOARD_HEADER_DIRS "${CMAKE_CURRENT_LIST_DIR}/include/boards")
 
     # Load the Pico SDK toolchain before project() selects compilers.
@@ -18,8 +17,6 @@ if(DEFINED PICO_BOARD)
     include(${CMAKE_CURRENT_LIST_DIR}/cmake/picosdk_bundle.cmake)
     add_compile_definitions(PICO_TIME_DEFAULT_ALARM_POOL_DISABLED=1)
     add_compile_definitions(LIB_PICO_MULTICORE=1)
-    set(_pico_clib_interface_dir ${CMAKE_CURRENT_LIST_DIR}/third_party/pico-sdk/src/rp2_common/pico_clib_interface)
-    set(_pico_runtime_dir ${CMAKE_CURRENT_LIST_DIR}/third_party/pico-sdk/src/rp2_common/pico_runtime)
     set(_picosdk_targets
         hardware_gpio
         hardware_uart
@@ -46,6 +43,8 @@ if(DEFINED PICO_BOARD)
     endif()
 
     # Generate the combined Pico SDK bundle
+    set(_pico_clib_interface_dir ${CMAKE_CURRENT_LIST_DIR}/third_party/pico-sdk/src/rp2_common/pico_clib_interface)
+    set(_pico_runtime_dir ${CMAKE_CURRENT_LIST_DIR}/third_party/pico-sdk/src/rp2_common/pico_runtime)
     picofuse_add_pico_sdk_bundle(picosdk
         TARGETS ${_picosdk_targets}
         SOURCES

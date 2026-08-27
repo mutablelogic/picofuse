@@ -14,5 +14,6 @@
 #include "sys/assert.h"
 #include "sys/debugf.h"
 #include "sys/init.h"
+#include "sys/mutex.h"
 #include "sys/panicf.h"
 #include "sys/printf.h"
