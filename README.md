@@ -7,7 +7,7 @@ event-driven applications. It provides a common interface for hardware
 peripherals and a build system that abstracts away the details of the
 underlying hardware. There are a variety of modules which define the abstraction.
 
-\cond DOXYGEN_EXCLUDE
+<!-- DOXYGEN_EXCLUDE_START -->
 
 ```mermaid
 block-beta
@@ -32,7 +32,9 @@ block-beta
   end
 ```
 
-\endcond
+<!-- DOXYGEN_EXCLUDE_END -->
+
+<!-- DOXYGEN_MODULES_DIAGRAM -->
 
 * `sys`: [System-level functions.](https://mutablelogic.github.io/picofuse/group__System.html)
 * `hw` : Hardware for peripherals such as GPIO, I2C, SPI, etc.

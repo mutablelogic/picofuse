@@ -11,6 +11,7 @@ EXAMPLE_PATTERNS       = "*.h" "*.m" "*.c"
 USE_MDFILE_AS_MAINPAGE = README.md
 STRIP_FROM_PATH        = /data
 FILE_PATTERNS          = "*.h" "*.m" "*.c" "*.md" "*.dox"
+FILTER_PATTERNS        = "*README.md=/data/doxygen/mainpage_filter.sh"
 RECURSIVE              = YES
 OPTIMIZE_OUTPUT_FOR_C  = YES
 EXTRACT_STATIC         = YES
