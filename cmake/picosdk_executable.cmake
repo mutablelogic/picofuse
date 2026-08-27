@@ -64,6 +64,32 @@ function(picofuse_executable)
     endforeach()
 endfunction()
 
+# picofuse_test(<target> <source> ...)
+#
+# Builds a picofuse system test and registers it with CTest. The test target
+# can use the same native/Pico linkage behavior as picofuse_executable().
+function(picofuse_test NAME)
+    if(NOT NAME)
+        message(FATAL_ERROR "picofuse_test: target name is required")
+    endif()
+    if(NOT ARGN)
+        message(FATAL_ERROR "picofuse_test: at least one source file is required")
+    endif()
+
+    set(_sources)
+    foreach(_source IN LISTS ARGN)
+        list(APPEND _sources "${CMAKE_CURRENT_SOURCE_DIR}/${NAME}/${_source}")
+    endforeach()
+
+    picofuse_executable(
+        NAME ${NAME}
+        LIBRARIES picofuse-sys
+        SOURCES ${_sources}
+    )
+    target_include_directories(${NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${NAME}>)
+endfunction()
+
 # picofuse_library(NAME <target>
 #                   LIBRARIES <lib> ...
 #                   [HEADERS <headers-only-target> ...]

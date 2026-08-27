@@ -85,13 +85,18 @@ add_compile_options(
     "-DPICOFUSE_VERSION=\"${PROGRAM_VERSION}\""
 )
 
-# Compile picofuse modules
+# Libraries
 add_subdirectory(src/picofuse)
 
-# Some examples
+# Examples
 add_subdirectory(examples/helloworld)
-#add_subdirectory(examples/blink)
 
+
+# Tests
+include(CTest)
+add_subdirectory("test")
+
+# Install
 # Installable package: lib/, include/, lib/pkgconfig/*.pc
 #include(${CMAKE_CURRENT_LIST_DIR}/cmake/picosdk_install.cmake)
 #picofuse_install_package(picosdk DESCRIPTION "picofuse pico-sdk runtime bundle")
