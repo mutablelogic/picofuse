@@ -1,13 +1,6 @@
+#include "mutex.h"
 #include <picofuse/sys.h>
 #include <pthread.h>
-
-///////////////////////////////////////////////////////////////////////////////
-// TYPES
-
-struct sys_mutex_t {
-  pthread_mutex_t pmutex;
-  bool init;
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -18,11 +11,6 @@ static size_t _sys_mutex_pool_next_index = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 // FORWARD DECLARATIONS
-
-/** @brief Checks if a mutex is valid and initialized. */
-static inline bool _sys_mutex_valid(const sys_mutex_t *mutex) {
-  return mutex != NULL && mutex->init;
-}
 
 /** @brief Initializes the native pthread mutex stored in a pool slot. */
 static inline bool _sys_mutex_init_handle(sys_mutex_t *mutex) {
@@ -81,6 +69,11 @@ void sys_mutex_deinit(sys_mutex_t *mutex) {
 
   int lock_result = pthread_mutex_lock(&_sys_mutex_pool_lock);
   if (lock_result != 0) {
+    return;
+  }
+
+  if (!mutex->init) {
+    pthread_mutex_unlock(&_sys_mutex_pool_lock);
     return;
   }
 

@@ -1,6 +1,6 @@
 /**
  * @file sys.h
- * @brief Core system abstraction headers and process lifecycle
+ * @brief System abstraction headers and process lifecycle
  * hooks.
  * @defgroup System System Abstractions
  * @ingroup Picofuse
@@ -12,6 +12,8 @@
  */
 #pragma once
 #include "sys/assert.h"
+#include "sys/atomic.h"
+#include "sys/cond.h"
 #include "sys/debugf.h"
 #include "sys/halt.h"
 #include "sys/init.h"

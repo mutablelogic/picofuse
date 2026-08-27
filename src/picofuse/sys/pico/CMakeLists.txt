@@ -6,6 +6,8 @@ picofuse_library(
         init.c
         halt.c
         mutex.c
+        cond.c
+        sync.c
         puts.c
         random.c
         timestamp.c

@@ -1,4 +1,4 @@
-#include <pico/critical_section.h>
+#include "sync.h"
 #include <pico/mutex.h>
 #include <picofuse/sys.h>
 #include <stdbool.h>
@@ -14,7 +14,6 @@ struct sys_mutex_t {
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
-static critical_section_t _sys_mutex_pool_lock;
 static sys_mutex_t _sys_mutex_pool[SYS_MUTEX_CAPACITY] = {0};
 static size_t _sys_mutex_pool_index = 0;
 
@@ -32,22 +31,23 @@ static inline bool _sys_mutex_init_handle(sys_mutex_t *mutex) {
   return mutex_is_initialized(&mutex->pmutex);
 }
 
+/**
+ * @brief Deinitializes the native Pico mutex stored in a pool slot.
+ *
+ * Pico's mutex_t owns no external resources - mutex_init() assigns a fresh
+ * striped spin lock and fully resets state on reuse - so there is nothing to
+ * release here before the slot is returned to the pool.
+ */
+static inline void _sys_mutex_deinit_handle(sys_mutex_t *mutex) {
+  (void)mutex;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-/** @brief Initializes the Pico mutex pool lock. */
-void _sys_mutex_module_init(void) {
-  critical_section_init(&_sys_mutex_pool_lock);
-}
-
-/** @brief Deinitializes the Pico mutex pool lock. */
-void _sys_mutex_module_deinit(void) {
-  critical_section_deinit(&_sys_mutex_pool_lock);
-}
-
 /** @brief Allocates and initializes a mutex from the static pool. */
 sys_mutex_t *sys_mutex_init(void) {
-  critical_section_enter_blocking(&_sys_mutex_pool_lock);
+  _sys_sync_pool_lock();
 
   for (size_t offset = 0; offset < SYS_MUTEX_CAPACITY; offset++) {
     size_t index = (_sys_mutex_pool_index + offset) % SYS_MUTEX_CAPACITY;
@@ -59,16 +59,16 @@ sys_mutex_t *sys_mutex_init(void) {
     mutex->init = true;
     if (!_sys_mutex_init_handle(mutex)) {
       mutex->init = false;
-      critical_section_exit(&_sys_mutex_pool_lock);
+      _sys_sync_pool_unlock();
       return NULL;
     }
 
     _sys_mutex_pool_index = (index + 1) % SYS_MUTEX_CAPACITY;
-    critical_section_exit(&_sys_mutex_pool_lock);
+    _sys_sync_pool_unlock();
     return mutex;
   }
 
-  critical_section_exit(&_sys_mutex_pool_lock);
+  _sys_sync_pool_unlock();
   return NULL;
 }
 
@@ -78,9 +78,14 @@ void sys_mutex_deinit(sys_mutex_t *mutex) {
     return;
   }
 
-  critical_section_enter_blocking(&_sys_mutex_pool_lock);
+  _sys_sync_pool_lock();
+  if (!mutex->init) {
+    _sys_sync_pool_unlock();
+    return;
+  }
+  _sys_mutex_deinit_handle(mutex);
   mutex->init = false;
-  critical_section_exit(&_sys_mutex_pool_lock);
+  _sys_sync_pool_unlock();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
