@@ -1,0 +1,21 @@
+# Dockerfile to build a Debian Trixie environment for compilation and testing.
+# works with Docker on Macintosh, which can run both ARM64 and x86_64 images.
+#
+# BUILD DOCKER IMAGE (arm64/x86_64):
+#   docker buildx build -f docker/Dockerfile.trixie --build-arg PLATFORM=arm64 --tag trixie-builder .
+#   docker buildx build -f docker/Dockerfile.trixie --build-arg PLATFORM=x86_64 --tag trixie-builder .
+#
+# RUN TESTS (gcc/clang):
+#   docker run --rm -i -v $(pwd):/root trixie-builder bash -c "cd /root && make clean && CC=gcc make test"
+#   docker run --rm -i -v $(pwd):/root trixie-builder bash -c "cd /root && make clean && CC=clang make test"
+#
+ARG PLATFORM
+FROM --platform=$PLATFORM debian:trixie
+
+# Install build dependencies
+RUN apt update && apt upgrade -y && \
+    apt install -y --no-install-recommends build-essential cmake git clang gobjc \
+    libssl-dev libwpa-client-dev libmosquitto-dev libusb-1.0-0-dev
+
+# Set working directory
+WORKDIR /root
