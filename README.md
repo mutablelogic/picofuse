@@ -55,7 +55,7 @@ installed under a plain directory prefix (e.g. `/opt/picofuse/<board>`).
 (under development)
 
 * Download the picofuse library, which contains some supported boards, platforms and architectures.
-* Use the API documentation and examine the samples.
+* Use the [API documentation](https://mutablelogic.github.io/picofuse/) for reference, and examine the samples.
 
 You can then build a real `.elf` for that board using nothing but CMake, `pkg-config`
 and the compiler toolchain, via the `picofuse_executable()` helper installed
