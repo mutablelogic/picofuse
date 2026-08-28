@@ -1,13 +1,14 @@
 # Dockerfile to build a Debian Trixie environment for compilation and testing.
-# works with Docker on Macintosh, which can run both ARM64 and x86_64 images.
+# For example, to build and test for both ARM64 and x86_64 images, and gcc and
+# clang compilers.
 #
 # BUILD DOCKER IMAGE (arm64/x86_64):
 #   docker buildx build -f docker/Dockerfile.trixie --build-arg PLATFORM=arm64 --tag trixie-builder .
 #   docker buildx build -f docker/Dockerfile.trixie --build-arg PLATFORM=x86_64 --tag trixie-builder .
 #
 # RUN TESTS (gcc/clang):
-#   docker run --rm -i -v $(pwd):/root trixie-builder bash -c "cd /root && make clean && CC=gcc make test"
-#   docker run --rm -i -v $(pwd):/root trixie-builder bash -c "cd /root && make clean && CC=clang make test"
+#   docker run --rm -i -v $(pwd):/root trixie-builder bash -c "make clean && CC=gcc make test"
+#   docker run --rm -i -v $(pwd):/root trixie-builder bash -c "make clean && CC=clang make test"
 #
 ARG PLATFORM
 FROM --platform=$PLATFORM debian:trixie

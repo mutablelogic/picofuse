@@ -184,8 +184,8 @@ cd picofuse
 make test
 ```
 
-If you are on a Mac and want to run the tests using Docker, you can use the following commands
-to test on both gcc and clang compilers:
+If you are on a Mac and want to run the tests for different operating systems and architectures,
+you can use the following commands to test on both gcc and clang compilers:
 
 ```sh
 cd picofuse
