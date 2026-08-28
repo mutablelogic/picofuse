@@ -50,6 +50,13 @@ install: build
 	@${CMAKE} --install ${BUILD_DIR} --prefix ${PREFIX}
 
 ###############################################################################
+# CLEAN
+
+.PHONY: clean
+clean:
+	@rm -rf ${BUILD_DIR}
+
+###############################################################################
 # DOCUMENTATION
 
 .PHONY: doc

@@ -177,10 +177,26 @@ need to build pico-sdk themselves) soon.
 
 ### Testing
 
-Run the test suite with:
+Run the test suite on the host with:
 
 ```sh
+cd picofuse
 make test
+```
+
+If you are on a Mac and want to run the tests using Docker, you can use the following commands
+to test on both gcc and clang compilers:
+
+```sh
+cd picofuse
+
+# build
+ARCH=$(uname -m) # Use arm64 or x86_64 to build for different architectures
+docker buildx build -f docker/Dockerfile.trixie --build-arg PLATFORM=${ARCH} --tag trixie-builder .
+
+# test with different compilers
+docker run --rm -i -v $(pwd):/root trixie-builder bash -c "make clean && CC=gcc make test"
+docker run --rm -i -v $(pwd):/root trixie-builder bash -c "make clean && CC=clang make test"
 ```
 
 Note: tests do not yet run when cross-compiling for a Pico board
