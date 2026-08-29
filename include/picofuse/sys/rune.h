@@ -1,9 +1,19 @@
 /**
  * @file rune.h
  * @brief UTF-8 rune (Unicode code point) methods.
- * @defgroup SystemString UTF-8 String methods.
+ * @defgroup SystemData Data types and utilities
  * @ingroup System
+ *
+ * Runes and strings (rune.h, string.h), the flag-driven scanner built on
+ * them (scanner.h), and the stream I/O they read from (io.h).
  */
+
+/**
+ * @brief UTF-8 rune (Unicode code point) methods.
+ * @defgroup SystemDataRune Runes
+ * @ingroup SystemData
+ */
+
 #pragma once
 #include <picofuse/sys.h>
 #include <stdbool.h>
@@ -19,7 +29,7 @@ typedef int32_t rune_t;
 
 /**
  * @brief Sentinel value for a malformed UTF-8 sequence.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  *
  * This is the Unicode replacement character (U+FFFD), returned in `rune`
  * when the bytes at the current position do not form a valid UTF-8
@@ -30,37 +40,30 @@ typedef int32_t rune_t;
 
 /**
  * @brief Decode the next UTF-8 rune from a string.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  * @param str Pointer to a null-terminated UTF-8 string.
  * @param rune Pointer to store the decoded rune. Set to RUNE_ERROR on a
  * malformed sequence, or 0 if the string is exhausted.
- * @return Pointer to the byte following the consumed rune (pass this back
- * in as `str` for the next call), or NULL only when the string is
- * exhausted (the null terminator was reached). On a malformed sequence,
- * a non-NULL pointer is still returned, advanced by exactly one byte past
- * the offending lead byte (regardless of how many of its continuation
- * bytes were otherwise well-formed), so the caller can keep iterating.
- * This single-byte advance is what lets a genuine error be told apart
- * from a legitimately-encoded U+FFFD, which always advances by 3 bytes.
+ * @return Pointer to the byte following the consumed rune (pass this
+ * back in as `str` for the next call), or NULL once the string is
+ * exhausted. On a malformed sequence, the pointer still advances - by
+ * exactly one byte - so a decode loop can keep going after an error.
  */
 extern const char *sys_rune_next(const char *str, rune_t *rune);
 
 /**
  * @brief Count the runes in a UTF-8 string.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  * @param str Pointer to a null-terminated UTF-8 string, or NULL.
- * @return The number of runes decoded before the terminator, or 0 if
- * `str` is NULL or empty. Each malformed byte sequence counts as one rune
- * (RUNE_ERROR), the same as iterating with sys_rune_next() would count
- * it - this does not imply the string is well-formed UTF-8, only how
- * many sys_rune_next() steps it takes to reach the end. Use
- * sys_rune_valid() to check well-formedness.
+ * @return The number of runes decoded before the terminator (each
+ * malformed byte sequence counts as one), or 0 if `str` is NULL or
+ * empty. Use sys_rune_valid() to check well-formedness.
  */
 extern size_t sys_rune_count(const char *str);
 
 /**
  * @brief Check whether a string is well-formed UTF-8.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  * @param str Pointer to a null-terminated UTF-8 string, or NULL.
  * @return true if every byte sequence up to the terminator decodes
  * without error, or if `str` is NULL or empty; false if any malformed
@@ -78,14 +81,14 @@ extern bool sys_rune_valid(const char *str);
 
 /**
  * @brief Reports whether r is a decimal digit.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  */
 static inline bool sys_rune_is_digit(rune_t r) { return r >= '0' && r <= '9'; }
 
 /**
  * @brief Reports whether r is a space character (space, \\t, \\n, \\v, \\f,
  * \\r, U+0085 NEL, or U+00A0 NBSP).
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  */
 static inline bool sys_rune_is_space(rune_t r) {
   switch (r) {
@@ -105,7 +108,7 @@ static inline bool sys_rune_is_space(rune_t r) {
 
 /**
  * @brief Reports whether r is an uppercase letter.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  */
 static inline bool sys_rune_is_upper(rune_t r) {
   if (r >= 'A' && r <= 'Z') {
@@ -122,7 +125,7 @@ static inline bool sys_rune_is_upper(rune_t r) {
 
 /**
  * @brief Reports whether r is a lowercase letter.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  */
 static inline bool sys_rune_is_lower(rune_t r) {
   if (r >= 'a' && r <= 'z') {
@@ -142,7 +145,7 @@ static inline bool sys_rune_is_lower(rune_t r) {
 
 /**
  * @brief Reports whether r is a letter.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  */
 static inline bool sys_rune_is_alpha(rune_t r) {
   return sys_rune_is_upper(r) || sys_rune_is_lower(r);
@@ -150,13 +153,11 @@ static inline bool sys_rune_is_alpha(rune_t r) {
 
 /**
  * @brief Converts r to its uppercase form, if it has one.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  * @param r The rune to convert.
- * @return The uppercase form of r, within the same ASCII/Latin-1 range
- * that sys_rune_is_upper()/sys_rune_is_lower() recognize, or r unchanged
- * if it is not a lowercase letter in that range. Sharp s (U+00DF) and y
- * diaeresis (U+00FF) have no single-codepoint uppercase form within this
- * range and are returned unchanged.
+ * @return The uppercase form of r, or r unchanged if it has none (this
+ * includes sharp s and y diaeresis, which have no single-codepoint
+ * uppercase form).
  */
 static inline rune_t sys_rune_to_upper(rune_t r) {
   if (r >= 'a' && r <= 'z') {
@@ -173,11 +174,9 @@ static inline rune_t sys_rune_to_upper(rune_t r) {
 
 /**
  * @brief Converts r to its lowercase form, if it has one.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  * @param r The rune to convert.
- * @return The lowercase form of r, within the same ASCII/Latin-1 range
- * that sys_rune_is_upper()/sys_rune_is_lower() recognize, or r unchanged
- * if it is not an uppercase letter in that range.
+ * @return The lowercase form of r, or r unchanged if it has none.
  */
 static inline rune_t sys_rune_to_lower(rune_t r) {
   if (r >= 'A' && r <= 'Z') {
@@ -194,12 +193,11 @@ static inline rune_t sys_rune_to_lower(rune_t r) {
 
 /**
  * @brief Reports whether r is a punctuation character.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  *
- * This follows Unicode's Punctuation category rather than the C locale's
- * broader ispunct(): symbol-class ASCII characters (+ < = > ^ ` | ~ and
- * $) are not included, since Unicode classes those as Symbol, not
- * Punctuation.
+ * Follows Unicode's Punctuation category, not the C locale's broader
+ * ispunct() - math/currency/modifier symbols are sys_rune_is_symbol()
+ * instead.
  */
 static inline bool sys_rune_is_punct(rune_t r) {
   switch (r) {
@@ -240,14 +238,10 @@ static inline bool sys_rune_is_punct(rune_t r) {
 /**
  * @brief Reports whether r is a symbol character (math, currency, or
  * modifier symbols).
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  *
- * This is exactly the complement sys_rune_is_punct() carves out of the
- * printable ASCII/Latin-1 range: the ASCII characters excluded there
- * (+ < = > ^ ` | ~ and $) because Unicode classes them as Symbol rather
- * than Punctuation, plus their Latin-1 Supplement counterparts (currency
- * signs, not/degree/plus-minus signs, and spacing accent marks used as
- * standalone symbols).
+ * The complement of sys_rune_is_punct() within the printable
+ * ASCII/Latin-1 range - together they partition it.
  */
 static inline bool sys_rune_is_symbol(rune_t r) {
   switch (r) {
@@ -284,7 +278,7 @@ static inline bool sys_rune_is_symbol(rune_t r) {
 
 /**
  * @brief Reports whether r is a control character.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  */
 static inline bool sys_rune_is_control(rune_t r) {
   if (r >= 0x00 && r <= 0x1F) {
@@ -304,7 +298,7 @@ static inline bool sys_rune_is_control(rune_t r) {
 
 /**
  * @brief Classification of a rune, or of a maximal run of same-class runes.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  */
 typedef enum {
   sys_rune_other = 0, // unclassified - also covers RUNE_ERROR
@@ -318,38 +312,25 @@ typedef enum {
 
 /**
  * @brief Classify a single rune.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  * @param r The rune to classify.
- * @return The first matching classification, checked in the order space,
- * control, digit, alpha, punct, symbol; sys_rune_other if none match
- * (this includes RUNE_ERROR, and any codepoint outside the ASCII/Latin-1
- * range this module covers). space-before-control matters for '\t' '\n'
- * '\v' '\f' '\r' and NEL (U+0085): all six are both sys_rune_is_space()
- * and sys_rune_is_control() (they fall in the C0/C1 control ranges too),
- * and this order resolves them to sys_rune_space - ordinary whitespace,
- * not control characters. sys_rune_control ends up covering only the
- * remaining, genuinely non-whitespace control codes (NUL, DEL, escape,
- * and the rest of the C0/C1 ranges).
+ * @return The first matching classification (space, control, digit,
+ * alpha, punct, symbol, in that order), or sys_rune_other if none match.
+ * '\t' '\n' '\v' '\f' '\r' and NEL match both sys_rune_is_space() and
+ * sys_rune_is_control() - space wins, so sys_rune_control ends up
+ * covering only genuinely non-whitespace control codes.
  */
 extern sys_rune_class_t sys_rune_isa(rune_t r);
 
 /**
  * @brief Tokenizer state, grouping a stream into maximal runs of
  * same-class runes.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  *
- * Reads from the sys_iostream_t passed to sys_rune_tokenize_init(). When
- * a decoded rune turns out not to belong to the run being built, it's
- * given back to the stream with sys_iostream_seek() rather than kept
- * around here. Rather than copying each token's bytes into a buffer of
- * its own, this records only where the token starts and how long it is
- * - the stream itself is the storage, so there's no capacity limit and
- * no heap allocation. To read a token's actual text, seek the stream to
- * it->start (an absolute position - see sys_iostream_seek()) and read
- * it->bytes bytes; the stream's own position is left just past the end
- * of the token, ready for the next sys_rune_tokenize_next() call, so
- * seek back to that if you read the token's text and plan to keep
- * tokenizing.
+ * Reads from the sys_iostream_t given to sys_rune_tokenize_init().
+ * Records only where the current token starts and how long it is - the
+ * stream is the storage, so there's no capacity limit or allocation. Use
+ * sys_rune_tokenize_token() to read its actual text.
  */
 typedef struct sys_rune_tokenize_t {
   sys_iostream_t *stream; ///< source (private)
@@ -361,7 +342,7 @@ typedef struct sys_rune_tokenize_t {
 
 /**
  * @brief Initialize a tokenizer over a stream.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  * @param stream The stream to read runes from, or NULL.
  * @return An initialized tokenizer, positioned before the first token.
  */
@@ -369,34 +350,22 @@ extern sys_rune_tokenize_t sys_rune_tokenize_init(sys_iostream_t *stream);
 
 /**
  * @brief Advance to the next maximal run of same-class runes.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  * @param it Pointer to the tokenizer state.
  * @return true if a token was found (it->start, it->bytes, it->runes and
  * it->isa are populated), false if the stream is exhausted.
- *
- * Decoding from the stream has the same error-recovery behavior as
- * sys_rune_next() over an in-memory string: a malformed byte sequence is
- * reported as RUNE_ERROR advancing by exactly one byte, with any
- * over-read continuation bytes pushed back via sys_iostream_seek() so
- * they're reprocessed as their own separate errors on the next call.
  */
 extern bool sys_rune_tokenize_next(sys_rune_tokenize_t *it);
 
 /**
  * @brief Read the current token's text.
- * @ingroup SystemString
+ * @ingroup SystemDataRune
  * @param it The tokenizer, positioned at a token by a prior successful
  * sys_rune_tokenize_next() call.
  * @param buf Destination buffer.
  * @param cap Capacity of buf.
  * @return The number of bytes copied - min(it->bytes, cap); cap == 0 or
  * too small silently truncates rather than failing.
- *
- * Seeks the stream to it->start, reads, then seeks back to where it
- * was (just past the token, ready for the next
- * sys_rune_tokenize_next() call) - tokenizing can continue normally
- * afterward. Do not call this without a prior successful
- * sys_rune_tokenize_next() (there is no token to read yet).
  */
 extern size_t sys_rune_tokenize_token(sys_rune_tokenize_t *it, char *buf,
                                       size_t cap);

@@ -3,8 +3,8 @@
  * @brief Opaque byte-stream type for reading and writing, backed by
  * different sources (strings today; files and others can be added later
  * without changing this interface).
- * @defgroup SystemIO Byte-stream I/O
- * @ingroup System
+ * @defgroup SystemDataStream Stream I/O
+ * @ingroup SystemData
  */
 #pragma once
 #include <stdbool.h>
@@ -16,7 +16,7 @@ extern "C" {
 
 /**
  * @def SYS_IOSTREAM_CAPACITY
- * @ingroup SystemIO
+ * @ingroup SystemDataStream
  * @brief Maximum number of open streams.
  */
 #ifndef SYS_IOSTREAM_CAPACITY
@@ -25,7 +25,7 @@ extern "C" {
 
 /**
  * @def SYS_IOSTREAM_EOF
- * @ingroup SystemIO
+ * @ingroup SystemDataStream
  * @brief Sentinel returned by sys_iostream_peek() at the end of a stream.
  */
 #define SYS_IOSTREAM_EOF (-1)
@@ -35,13 +35,12 @@ extern "C" {
 
 /**
  * @brief An opaque byte stream.
- * @ingroup SystemIO
+ * @ingroup SystemDataStream
  * @headerfile io.h picofuse/sys.h
  *
- * Instances come from a static pool (SYS_IOSTREAM_CAPACITY) - there is
- * no heap allocation. A stream is constructed by a source-specific
- * function (for example sys_string_read() in sys/string.h, which wraps
- * an existing string with no copy of its bytes) and released with
+ * Instances come from a static pool (SYS_IOSTREAM_CAPACITY) - no heap
+ * allocation. Constructed by a source-specific function (e.g.
+ * sys_string_read() in sys/string.h) and released with
  * sys_iostream_close().
  */
 typedef struct sys_iostream_t sys_iostream_t;
@@ -51,7 +50,7 @@ typedef struct sys_iostream_t sys_iostream_t;
 
 /**
  * @brief Release a stream back to the pool.
- * @ingroup SystemIO
+ * @ingroup SystemDataStream
  * @param s The stream to close, or NULL (a no-op).
  *
  * Releases any resources the stream's source holds (nothing, for a
@@ -64,7 +63,7 @@ extern void sys_iostream_close(sys_iostream_t *s);
 
 /**
  * @brief Look at the next byte without consuming it.
- * @ingroup SystemIO
+ * @ingroup SystemDataStream
  * @param s The stream to peek at.
  * @return The next unread byte, as an unsigned value 0-255, or
  * SYS_IOSTREAM_EOF if the stream is at its end. Calling this repeatedly
@@ -75,7 +74,7 @@ extern int sys_iostream_peek(sys_iostream_t *s);
 
 /**
  * @brief Read bytes from a stream.
- * @ingroup SystemIO
+ * @ingroup SystemDataStream
  * @param s The stream to read from.
  * @param buf Destination buffer.
  * @param n Maximum number of bytes to read.
@@ -86,7 +85,7 @@ extern size_t sys_iostream_read(sys_iostream_t *s, char *buf, size_t n);
 
 /**
  * @brief Write bytes to a stream.
- * @ingroup SystemIO
+ * @ingroup SystemDataStream
  * @param s The stream to write to.
  * @param buf Source buffer.
  * @param n Number of bytes to write.
@@ -99,21 +98,15 @@ extern size_t sys_iostream_write(sys_iostream_t *s, const char *buf, size_t n);
 
 /**
  * @brief Move a stream's read/write position.
- * @ingroup SystemIO
+ * @ingroup SystemDataStream
  * @param s The stream to seek.
- * @param offset Byte offset. When abs is true, this is measured from
- * the start of the stream (must be >= 0); otherwise it's relative to
- * the current position - negative moves backward (for example to give
- * back a byte just read that turned out not to be needed), positive
- * skips forward without reading.
- * @param abs true for an absolute seek from the start, false for a seek
- * relative to the current position.
+ * @param offset Byte offset - absolute from the start when abs is true
+ * (must be >= 0), otherwise relative to the current position (negative
+ * moves backward).
+ * @param abs true for an absolute seek, false for relative.
  * @return The resulting absolute position (>= 0) on success, or -1 if
- * the seek would go out of bounds (before the start, or past what the
- * stream can reach) - the position is left unchanged in that case. A
- * string-backed stream (sys_string_read()) supports seeking anywhere
- * within its full length, in either direction, since the whole string
- * is already in memory.
+ * the seek would go out of bounds - the position is left unchanged in
+ * that case.
  */
 extern ptrdiff_t sys_iostream_seek(sys_iostream_t *s, ptrdiff_t offset,
                                    bool abs);
