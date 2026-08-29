@@ -25,6 +25,7 @@
 #include <picofuse/sys.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -211,6 +212,81 @@ extern bool sys_string_parse_bool(const char *str, bool *out);
  */
 extern ptrdiff_t sys_string_parse_quoted(const char *str, size_t len, char *out,
                                          size_t cap);
+
+/**
+ * @brief Parse a signed 32-bit integer.
+ * @ingroup SystemDataString
+ * @param str Pointer to the number, optionally signed with a leading
+ * '+' or '-'.
+ * @param len The number's exact length in bytes, or 0 for str's length
+ * up to its own NUL terminator. Either way, str must contain exactly
+ * one number and nothing else - trailing content is a parse error, not
+ * ignored. With len set, str need not be NUL-terminated at all.
+ * @param value Pointer to store the result. Left unchanged on a parse
+ * error - there's no error sentinel for int32_t the way RUNE_ERROR is
+ * for rune_t.
+ * @return true if str is a well-formed integer that fits in an
+ * int32_t, false otherwise. Recognizes decimal ("123"), hex ("0x1A"),
+ * octal ("0o17" or bare-leading-zero "0755"), and binary ("0b0101") -
+ * the same forms sys_scanner_numbers_octal/_binary/_hex recognize (see
+ * sys/scanner.h). A float (a '.' or exponent) or anything else that
+ * isn't one of these forms is a parse error, never a lossy truncation -
+ * and so is a value too large or small to fit in an int32_t.
+ */
+extern bool sys_string_parse_int32(const char *str, size_t len, int32_t *value);
+
+/**
+ * @brief Parse a signed 64-bit integer.
+ * @ingroup SystemDataString
+ * @param str Pointer to the number, optionally signed with a leading
+ * '+' or '-'.
+ * @param len The number's exact length in bytes, or 0 for str's length
+ * up to its own NUL terminator. Either way, str must contain exactly
+ * one number and nothing else. With len set, str need not be
+ * NUL-terminated at all.
+ * @param value Pointer to store the result. Left unchanged on a parse
+ * error.
+ * @return true if str is a well-formed integer that fits in an
+ * int64_t, false otherwise - same recognized forms (and same
+ * float/malformed/out-of-range rejection) as sys_string_parse_int32().
+ */
+extern bool sys_string_parse_int64(const char *str, size_t len, int64_t *value);
+
+/**
+ * @brief Parse an unsigned 32-bit integer.
+ * @ingroup SystemDataString
+ * @param str Pointer to the number. A leading '+' is accepted; a
+ * leading '-' is always a parse error - even "-0" - there's no negative
+ * representation of an unsigned value.
+ * @param len The number's exact length in bytes, or 0 for str's length
+ * up to its own NUL terminator. Either way, str must contain exactly
+ * one number and nothing else. With len set, str need not be
+ * NUL-terminated at all.
+ * @param value Pointer to store the result. Left unchanged on a parse
+ * error.
+ * @return true if str is a well-formed, non-negative integer that fits
+ * in a uint32_t, false otherwise - same recognized forms (decimal, hex,
+ * octal, binary) and same float/malformed/trailing-content rejection as
+ * sys_string_parse_int32().
+ */
+extern bool sys_string_parse_uint32(const char *str, size_t len, uint32_t *value);
+
+/**
+ * @brief Parse an unsigned 64-bit integer.
+ * @ingroup SystemDataString
+ * @param str Pointer to the number. A leading '+' is accepted; a
+ * leading '-' is always a parse error - even "-0".
+ * @param len The number's exact length in bytes, or 0 for str's length
+ * up to its own NUL terminator. Either way, str must contain exactly
+ * one number and nothing else. With len set, str need not be
+ * NUL-terminated at all.
+ * @param value Pointer to store the result. Left unchanged on a parse
+ * error.
+ * @return true if str is a well-formed, non-negative integer that fits
+ * in a uint64_t, false otherwise - same recognized forms as
+ * sys_string_parse_uint32().
+ */
+extern bool sys_string_parse_uint64(const char *str, size_t len, uint64_t *value);
 
 ///////////////////////////////////////////////////////////////////////////////
 
