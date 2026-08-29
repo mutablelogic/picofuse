@@ -144,6 +144,75 @@ extern ptrdiff_t sys_string_contains(const char *s, const char *substr);
 extern sys_iostream_t *sys_string_read(const char *str);
 
 ///////////////////////////////////////////////////////////////////////////////
+// PARSING
+
+/**
+ * @brief Decode a JSON-style backslash escape sequence into the rune it
+ * denotes.
+ * @ingroup SystemDataString
+ * @param str Pointer to the escape sequence, starting at the backslash
+ * (e.g. as matched by sys_scanner_escapes - see sys/scanner.h).
+ * @param len The escape's exact length in bytes (2 for \\" \\\\ \\/ \\b
+ * \\f \\n \\r \\t, 6 for \\uXXXX), or 0 for str's length up to its own
+ * NUL terminator. Either way, str must contain exactly one escape and
+ * nothing else - anything past it (before len bytes, or before the
+ * terminator when len is 0) is a parse error, not silently ignored. With
+ * len set, str need not be NUL-terminated at all, and nothing past
+ * str[len - 1] is read.
+ * @param rune Pointer to store the decoded rune. Set to RUNE_ERROR on a
+ * parse error.
+ * @return true if str starts with a recognized escape of exactly len
+ * bytes (when len is nonzero), false otherwise - including a \\uXXXX
+ * that decodes to a lone UTF-16 surrogate (D800-DFFF), which isn't a
+ * valid standalone rune.
+ */
+extern bool sys_string_parse_escape(const char *str, size_t len, rune_t *rune);
+
+/**
+ * @brief Parse "true" or "false" into a bool.
+ * @ingroup SystemDataString
+ * @param str String to parse, or NULL.
+ * @param out Pointer to store the result. Left unchanged on a parse
+ * error - there's no error sentinel for bool the way RUNE_ERROR is for
+ * rune_t.
+ * @return true if str is exactly "true" or "false" (case-sensitive,
+ * nothing else in str), false otherwise - any other value, including
+ * "True"/"FALSE" or trailing content, is a parse error.
+ */
+extern bool sys_string_parse_bool(const char *str, bool *out);
+
+/**
+ * @brief Decode a quoted string into its unescaped content.
+ * @ingroup SystemDataString
+ * @param str Pointer to the quoted string, starting at the opening
+ * quote (' or ") - e.g. as matched by sys_scanner_quotes (see
+ * sys/scanner.h). Always NUL-terminated, regardless of len.
+ * @param len The quoted string's exact length in bytes, opening quote
+ * through closing quote inclusive, or 0 for str's length up to its own
+ * NUL terminator. Either way, str must contain exactly one complete,
+ * closed quoted string and nothing else - anything past the closing
+ * quote is a parse error, and so is never finding one.
+ * @param out Destination buffer for the unescaped content, or NULL to
+ * write nothing and just get the decoded length (cap is then ignored,
+ * as if it were 0, regardless of what's passed). May also be str itself,
+ * decoding in place - decoding never expands content (every escape's
+ * decoded form is no longer than the escape it came from), so writing
+ * into str as it's read never overtakes what's still being read.
+ * @param cap Capacity of out.
+ * @return The number of bytes written to out (min(actual, cap); cap ==
+ * 0, out == NULL, or cap too small all silently truncate, same as
+ * sys_scanner_token()), or -1
+ * on a parse error: str doesn't start with ' or ", no closing quote was
+ * found, or an escape inside is malformed. \\' is recognized here (it
+ * isn't part of sys_string_parse_escape()'s JSON-derived table, but
+ * quoted strings need it to escape a literal quote) in addition to
+ * everything sys_string_parse_escape() recognizes; anything else after a
+ * backslash is a parse error, not passed through literally.
+ */
+extern ptrdiff_t sys_string_parse_quoted(const char *str, size_t len, char *out,
+                                         size_t cap);
+
+///////////////////////////////////////////////////////////////////////////////
 
 #ifdef __cplusplus
 }

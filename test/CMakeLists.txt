@@ -344,3 +344,27 @@ picofuse_test(sys_058
 picofuse_test(sys_059
 	sys_059/main.c
 )
+
+# sys_string_parse_escape - decoding every single-character JSON escape
+# and \uXXXX (either case), malformed-\u rejection, lone UTF-16
+# surrogate rejection, NULL handling, and RUNE_ERROR on failure
+picofuse_test(sys_060
+	sys_060/main.c
+)
+
+# sys_string_parse_bool - exact "true"/"false" matches, wrong case and
+# trailing/leading content as parse errors, NULL handling, and *out left
+# untouched on failure
+picofuse_test(sys_061
+	sys_061/main.c
+)
+
+# sys_string_parse_quoted - unescaping a quoted string's content: every
+# single-character escape, \' (recognized here but not in
+# sys_string_parse_escape's table), \uXXXX including multi-byte UTF-8
+# re-encoding, each quote style only closing on its own matching quote,
+# malformed/unterminated/trailing-content rejection, len==0 vs len>0
+# exact-boundary enforcement, and cap truncation
+picofuse_test(sys_062
+	sys_062/main.c
+)
