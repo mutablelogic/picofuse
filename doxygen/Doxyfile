@@ -5,7 +5,7 @@ PROJECT_NAME           = "picofuse"
 PROJECT_BRIEF          = "picofuse runtime and foundation library"
 PROJECT_LOGO           =
 OUTPUT_DIRECTORY       = /data/doc
-INPUT                  = /data/README.md /data/include/picofuse /data/examples /data/doxygen/examples.dox
+INPUT                  = /data/README.md /data/NOTICE.md /data/include/picofuse /data/examples /data/doxygen/examples.dox
 EXAMPLE_PATH           = /data/examples
 EXAMPLE_PATTERNS       = "*.h" "*.m" "*.c"
 USE_MDFILE_AS_MAINPAGE = README.md
@@ -14,6 +14,10 @@ FILE_PATTERNS          = "*.h" "*.m" "*.c" "*.md" "*.dox"
 FILTER_PATTERNS        = "*README.md=/data/doxygen/mainpage_filter.sh"
 RECURSIVE              = YES
 OPTIMIZE_OUTPUT_FOR_C  = YES
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+PREDEFINED             = __attribute__(x)=
 EXTRACT_STATIC         = YES
 EXTRACT_LOCAL_CLASSES  = YES
 EXTRACT_LOCAL_METHODS  = YES
