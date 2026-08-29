@@ -85,13 +85,13 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // sys_scanner_keyword_withunderscores includes sys_scanner_keywords -
+  // sys_scanner_keywords_withunderscores includes sys_scanner_keywords -
   // no need to OR the two together.
 
   {
     sys_iostream_t *s = sys_string_read("my_var_123");
     sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_keyword_withunderscores);
+        sys_scanner_init(s, sys_scanner_keywords_withunderscores);
     expect_token(&it, "my_var_123", 10, 10, sys_scanner_keyword);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -114,7 +114,7 @@ int main(void) {
   {
     sys_iostream_t *s = sys_string_read("_foo");
     sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_keyword_withunderscores);
+        sys_scanner_init(s, sys_scanner_keywords_withunderscores);
     expect_token(&it, "_", 1, 1, sys_scanner_punct);
     expect_token(&it, "foo", 3, 3, sys_scanner_keyword);
     test_assert(sys_scanner_next(&it) == false);
@@ -122,11 +122,11 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // sys_scanner_keyword_withdashes includes sys_scanner_keywords too.
+  // sys_scanner_keywords_withdashes includes sys_scanner_keywords too.
 
   {
     sys_iostream_t *s = sys_string_read("my-var-123");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_keyword_withdashes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_keywords_withdashes);
     expect_token(&it, "my-var-123", 10, 10, sys_scanner_keyword);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -149,7 +149,7 @@ int main(void) {
   {
     sys_iostream_t *s = sys_string_read("my_var-name");
     sys_scanner_t it = sys_scanner_init(
-        s, sys_scanner_keyword_withunderscores | sys_scanner_keyword_withdashes);
+        s, sys_scanner_keywords_withunderscores | sys_scanner_keywords_withdashes);
     expect_token(&it, "my_var-name", 11, 11, sys_scanner_keyword);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);

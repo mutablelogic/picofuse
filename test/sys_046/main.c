@@ -177,12 +177,12 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // Composes correctly with sys_scanner_nospace
+  // Composes correctly with sys_scanner_nospaces
 
   {
     sys_iostream_t *s = sys_string_read(" \\n ");
     sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_nospace | sys_scanner_escapes);
+        sys_scanner_init(s, sys_scanner_nospaces | sys_scanner_escapes);
     expect_token(&it, "\\n", 2, 2, sys_scanner_escape);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);

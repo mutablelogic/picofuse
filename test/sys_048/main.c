@@ -97,13 +97,13 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // Composes with sys_scanner_nospace: ordinary whitespace runs are
+  // Composes with sys_scanner_nospaces: ordinary whitespace runs are
   // still skipped, but newlines are still reported.
 
   {
     sys_iostream_t *s = sys_string_read("a \n\n b");
     sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_nospace | sys_scanner_newlines);
+        sys_scanner_init(s, sys_scanner_nospaces | sys_scanner_newlines);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
     expect_token(&it, "\n\n", 2, 2, sys_scanner_newline);
     expect_token(&it, "b", 1, 1, sys_scanner_alpha);
@@ -116,7 +116,7 @@ int main(void) {
   {
     sys_iostream_t *s = sys_string_read("  \n  ");
     sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_nospace | sys_scanner_newlines);
+        sys_scanner_init(s, sys_scanner_nospaces | sys_scanner_newlines);
     expect_token(&it, "\n", 1, 1, sys_scanner_newline);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);

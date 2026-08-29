@@ -1,0 +1,152 @@
+#include <picofuse/sys.h>
+#include <string.h>
+#include <test/test.h>
+
+// Advances *it and checks it matches one expected token, verifying both
+// the metadata sys_scanner_next() reports and the actual text
+// sys_scanner_token() retrieves for it.
+static void expect_token(sys_scanner_t *it, const char *expect_text,
+                          size_t expect_bytes, size_t expect_runes,
+                          sys_scanner_class_t expect_isa) {
+  bool ok = sys_scanner_next(it);
+  test_assert(ok == true);
+  test_assert(it->bytes == expect_bytes);
+  test_assert(it->runes == expect_runes);
+  test_assert(it->isa == expect_isa);
+
+  char buf[64] = {0};
+  test_assert(expect_bytes <= sizeof(buf));
+  size_t got = sys_scanner_token(it, buf, sizeof(buf));
+  test_assert(got == expect_bytes);
+  test_assert(memcmp(buf, expect_text, expect_bytes) == 0);
+}
+
+int main(void) {
+  sys_init();
+
+  ///////////////////////////////////////////////////////////////////////
+  // Without the flag, '#' is ordinary punctuation.
+
+  {
+    sys_iostream_t *s = sys_string_read("#a");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
+    expect_token(&it, "#", 1, 1, sys_scanner_punct);
+    expect_token(&it, "a", 1, 1, sys_scanner_alpha);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  ///////////////////////////////////////////////////////////////////////
+  // A comment with nothing after it (runs to end of stream).
+
+  {
+    sys_iostream_t *s = sys_string_read("# hello");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_hash);
+    expect_token(&it, "# hello", 7, 7, sys_scanner_comment);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  // A bare '#' with nothing after it at all.
+  {
+    sys_iostream_t *s = sys_string_read("#");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_hash);
+    expect_token(&it, "#", 1, 1, sys_scanner_comment);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  ///////////////////////////////////////////////////////////////////////
+  // The comment stops right before '\n' - the newline is not consumed,
+  // and is left for the next token to classify normally (as ordinary
+  // control, since '\n' is control unless sys_scanner_newlines is set).
+
+  {
+    sys_iostream_t *s = sys_string_read("#hi\nx");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_hash);
+    expect_token(&it, "#hi", 3, 3, sys_scanner_comment);
+    expect_token(&it, "\n", 1, 1, sys_scanner_control);
+    expect_token(&it, "x", 1, 1, sys_scanner_alpha);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  // Composes correctly with sys_scanner_newlines: the handed-back
+  // newline gets classified as sys_scanner_newline instead.
+  {
+    sys_iostream_t *s = sys_string_read("#hi\nx");
+    sys_scanner_t it = sys_scanner_init(
+        s, sys_scanner_comments_hash | sys_scanner_newlines);
+    expect_token(&it, "#hi", 3, 3, sys_scanner_comment);
+    expect_token(&it, "\n", 1, 1, sys_scanner_newline);
+    expect_token(&it, "x", 1, 1, sys_scanner_alpha);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  // An empty comment - '#' immediately followed by a newline.
+  {
+    sys_iostream_t *s = sys_string_read("#\na");
+    sys_scanner_t it = sys_scanner_init(
+        s, sys_scanner_comments_hash | sys_scanner_newlines);
+    expect_token(&it, "#", 1, 1, sys_scanner_comment);
+    expect_token(&it, "\n", 1, 1, sys_scanner_newline);
+    expect_token(&it, "a", 1, 1, sys_scanner_alpha);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  ///////////////////////////////////////////////////////////////////////
+  // Multiple comments on separate lines.
+
+  {
+    sys_iostream_t *s = sys_string_read("#a\n#b");
+    sys_scanner_t it = sys_scanner_init(
+        s, sys_scanner_comments_hash | sys_scanner_newlines);
+    expect_token(&it, "#a", 2, 2, sys_scanner_comment);
+    expect_token(&it, "\n", 1, 1, sys_scanner_newline);
+    expect_token(&it, "#b", 2, 2, sys_scanner_comment);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  ///////////////////////////////////////////////////////////////////////
+  // A '#' is never absorbed into a preceding punctuation run.
+
+  {
+    sys_iostream_t *s = sys_string_read("!#hi");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_hash);
+    expect_token(&it, "!", 1, 1, sys_scanner_punct);
+    expect_token(&it, "#hi", 3, 3, sys_scanner_comment);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  ///////////////////////////////////////////////////////////////////////
+  // Composes with nospace - only sys_scanner_space runs are skipped,
+  // comments are unaffected.
+
+  {
+    sys_iostream_t *s = sys_string_read("a #hi");
+    sys_scanner_t it =
+        sys_scanner_init(s, sys_scanner_comments_hash | sys_scanner_nospaces);
+    expect_token(&it, "a", 1, 1, sys_scanner_alpha);
+    expect_token(&it, "#hi", 3, 3, sys_scanner_comment);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  ///////////////////////////////////////////////////////////////////////
+  // Multi-byte UTF-8 content: byte count and rune count differ.
+
+  {
+    sys_iostream_t *s = sys_string_read("#caf\xC3\xA9");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_hash);
+    expect_token(&it, "#caf\xC3\xA9", 6, 5, sys_scanner_comment);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  sys_exit();
+  return 0;
+}
