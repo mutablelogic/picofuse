@@ -14,15 +14,25 @@ digraph modules {
   Random     [label="Random Number Generation",     URL="\ref SystemRandom"];
   Thread     [label="Thread and Sleep Operations",  URL="\ref SystemThread"];
   Time       [label="Date and Time Operations",     URL="\ref SystemTime"];
+  Data        [label="Data types and utilities", URL="\ref SystemData"];
+  DataRune    [label="Runes",                    URL="\ref SystemDataRune"];
+  DataString  [label="Strings",                  URL="\ref SystemDataString"];
+  DataScanner [label="Scanner",                  URL="\ref SystemDataScanner"];
+  DataStream  [label="Stream I/O",               URL="\ref SystemDataStream"];
 
   System -> Sync;
   System -> Format;
   System -> Random;
   System -> Thread;
   System -> Time;
+  System -> Data;
   Sync -> Mutex;
   Sync -> Cond;
   Sync -> WaitGroup;
   Sync -> Atomic;
+  Data -> DataRune;
+  Data -> DataString;
+  Data -> DataScanner;
+  Data -> DataStream;
 }
 \enddot

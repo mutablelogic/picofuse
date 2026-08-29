@@ -90,7 +90,7 @@ typedef enum {
 typedef enum {
   sys_scanner_none = 0,
 
-  /** Recognize \" \\ \/ \b \f \n \r \t and \uXXXX as a single
+  /** Recognize \\" \\\\ \\/ \\b \\f \\n \\r \\t and \\uXXXX as a single
    * sys_scanner_escape token instead of ordinary punctuation. An
    * unrecognized escape falls back to punctuation. */
   sys_scanner_escapes = 1 << 1,
