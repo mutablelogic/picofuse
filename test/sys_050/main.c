@@ -142,12 +142,12 @@ int main(void) {
     sys_iostream_close(s);
   }
 
-  // Composes with nospace.
+  // Composes with surrounding whitespace, unaffected by the flag.
   {
     sys_iostream_t *s = sys_string_read("'a'  'b'");
-    sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_quotes_single | sys_scanner_nospaces);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_single);
     expect_token(&it, "'a'", 3, 3, sys_scanner_string);
+    expect_token(&it, "  ", 2, 2, sys_scanner_space);
     expect_token(&it, "'b'", 3, 3, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);

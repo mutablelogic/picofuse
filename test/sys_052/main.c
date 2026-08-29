@@ -59,13 +59,13 @@ int main(void) {
   ///////////////////////////////////////////////////////////////////////
   // The comment stops right before '\n' - the newline is not consumed,
   // and is left for the next token to classify normally (as ordinary
-  // control, since '\n' is control unless sys_scanner_newlines is set).
+  // space, since '\n' is space unless sys_scanner_newlines is set).
 
   {
     sys_iostream_t *s = sys_string_read("#hi\nx");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_hash);
     expect_token(&it, "#hi", 3, 3, sys_scanner_comment);
-    expect_token(&it, "\n", 1, 1, sys_scanner_control);
+    expect_token(&it, "\n", 1, 1, sys_scanner_space);
     expect_token(&it, "x", 1, 1, sys_scanner_alpha);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -123,14 +123,13 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // Composes with nospace - only sys_scanner_space runs are skipped,
-  // comments are unaffected.
+  // Composes with surrounding whitespace, unaffected by the flag.
 
   {
     sys_iostream_t *s = sys_string_read("a #hi");
-    sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_comments_hash | sys_scanner_nospaces);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_hash);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
+    expect_token(&it, " ", 1, 1, sys_scanner_space);
     expect_token(&it, "#hi", 3, 3, sys_scanner_comment);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);

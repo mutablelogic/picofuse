@@ -25,13 +25,14 @@ int main(void) {
   sys_init();
 
   ///////////////////////////////////////////////////////////////////////
-  // Without the flag, "//" is just two ordinary punct runes merging
-  // into one punctuation run (same class), same as any other '/'.
+  // Without the flag, each '/' is its own single-rune punctuation token,
+  // same as any other punctuation character.
 
   {
     sys_iostream_t *s = sys_string_read("//a");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
-    expect_token(&it, "//", 2, 2, sys_scanner_punct);
+    expect_token(&it, "/", 1, 1, sys_scanner_punct);
+    expect_token(&it, "/", 1, 1, sys_scanner_punct);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -79,13 +80,14 @@ int main(void) {
     sys_iostream_close(s);
   }
 
-  // A single '/' that fails to start a comment still merges normally
-  // into a surrounding punctuation run - the failed lookahead doesn't
-  // leave anything stuck or skipped.
+  // A single '/' that fails to start a comment is still its own
+  // single-rune punctuation token - the failed lookahead doesn't leave
+  // anything stuck or skipped.
   {
     sys_iostream_t *s = sys_string_read("!/a");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_slash);
-    expect_token(&it, "!/", 2, 2, sys_scanner_punct);
+    expect_token(&it, "!", 1, 1, sys_scanner_punct);
+    expect_token(&it, "/", 1, 1, sys_scanner_punct);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -99,7 +101,7 @@ int main(void) {
     sys_iostream_t *s = sys_string_read("//hi\nx");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_slash);
     expect_token(&it, "//hi", 4, 4, sys_scanner_comment);
-    expect_token(&it, "\n", 1, 1, sys_scanner_control);
+    expect_token(&it, "\n", 1, 1, sys_scanner_space);
     expect_token(&it, "x", 1, 1, sys_scanner_alpha);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -130,13 +132,13 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // Composes with nospace.
+  // Composes with surrounding whitespace, unaffected by the flag.
 
   {
     sys_iostream_t *s = sys_string_read("a //hi");
-    sys_scanner_t it = sys_scanner_init(
-        s, sys_scanner_comments_slash | sys_scanner_nospaces);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_comments_slash);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
+    expect_token(&it, " ", 1, 1, sys_scanner_space);
     expect_token(&it, "//hi", 4, 4, sys_scanner_comment);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);

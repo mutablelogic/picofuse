@@ -122,9 +122,10 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // A '\' that starts a recognized escape must not be absorbed into a
-  // preceding punctuation run, even though '\' itself classifies as
-  // punct like the character before it.
+  // A '\' that starts a recognized escape is its own token, distinct
+  // from a neighboring punctuation character - though since punctuation
+  // is always a single rune anyway (see sys_scanner_class_t), this isn't
+  // a special case, just the ordinary rule.
 
   {
     sys_iostream_t *s = sys_string_read(",\\n");
@@ -144,12 +145,14 @@ int main(void) {
     sys_iostream_close(s);
   }
 
-  // But a '\' that does NOT start a recognized escape merges into the
-  // surrounding punctuation run exactly as it did without the flag.
+  // A '\' that does NOT start a recognized escape is still its own
+  // single-rune punctuation token, same as any other punctuation
+  // character - it doesn't merge with a neighboring one.
   {
     sys_iostream_t *s = sys_string_read(",\\q");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_escapes);
-    expect_token(&it, ",\\", 2, 2, sys_scanner_punct);
+    expect_token(&it, ",", 1, 1, sys_scanner_punct);
+    expect_token(&it, "\\", 1, 1, sys_scanner_punct);
     expect_token(&it, "q", 1, 1, sys_scanner_alpha);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -177,13 +180,15 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // Composes correctly with sys_scanner_nospaces
+  // Composes correctly with surrounding whitespace, which is unaffected
+  // by the flag - each space run is still its own token.
 
   {
     sys_iostream_t *s = sys_string_read(" \\n ");
-    sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_nospaces | sys_scanner_escapes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_escapes);
+    expect_token(&it, " ", 1, 1, sys_scanner_space);
     expect_token(&it, "\\n", 2, 2, sys_scanner_escape);
+    expect_token(&it, " ", 1, 1, sys_scanner_space);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }

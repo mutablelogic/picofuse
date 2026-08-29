@@ -29,14 +29,19 @@ int main(void) {
   test_assert(sys_rune_isa(0x10FFFF) == sys_rune_other);
 
   ///////////////////////////////////////////////////////////////////////
-  // NEL (U+0085) is both sys_rune_is_space() and sys_rune_is_control()
-  // (it's in the C1 control range 0x80-0x9F). The documented check order
-  // for sys_rune_isa() is control-before-space, so it resolves to
-  // sys_rune_control here, not sys_rune_space - this is the one rune in
-  // the whole ASCII/Latin-1 range where the two predicates disagree.
+  // '\t' (0x09) and NEL (U+0085) are both sys_rune_is_space() and
+  // sys_rune_is_control() (they fall in the C0/C1 control ranges too).
+  // The documented check order for sys_rune_isa() is space-before-
+  // control, so both resolve to sys_rune_space, not sys_rune_control -
+  // these are ordinary whitespace, not control characters, even though
+  // they're also in the control range. 0x01 stays sys_rune_control since
+  // it's control-only, not space.
+  test_assert(sys_rune_is_space('\t') == true);
+  test_assert(sys_rune_is_control('\t') == true);
+  test_assert(sys_rune_isa('\t') == sys_rune_space);
   test_assert(sys_rune_is_space(0x0085) == true);
   test_assert(sys_rune_is_control(0x0085) == true);
-  test_assert(sys_rune_isa(0x0085) == sys_rune_control);
+  test_assert(sys_rune_isa(0x0085) == sys_rune_space);
 
   ///////////////////////////////////////////////////////////////////////
   // Exhaustive cross-check against the individual predicates, in the
@@ -44,10 +49,10 @@ int main(void) {
 
   for (rune_t r = 0x00; r <= 0xFF; r++) {
     sys_rune_class_t expect;
-    if (sys_rune_is_control(r)) {
-      expect = sys_rune_control;
-    } else if (sys_rune_is_space(r)) {
+    if (sys_rune_is_space(r)) {
       expect = sys_rune_space;
+    } else if (sys_rune_is_control(r)) {
+      expect = sys_rune_control;
     } else if (sys_rune_is_digit(r)) {
       expect = sys_rune_digit;
     } else if (sys_rune_is_alpha(r)) {

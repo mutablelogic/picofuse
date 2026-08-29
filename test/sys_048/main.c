@@ -25,21 +25,28 @@ int main(void) {
   sys_init();
 
   ///////////////////////////////////////////////////////////////////////
-  // Without the flag, '\n' classifies the same way it always has:
-  // sys_rune_isa() checks control before space, and '\n' (0x0A) falls in
-  // the C0 control range, so it's sys_scanner_control - already its own
-  // token, distinct from the surrounding sys_scanner_space runs. The
-  // flag isn't what separates it from spaces; that's already true. What
-  // the flag does is covered below.
+  // Without the flag, '\n' classifies the same way any other whitespace
+  // does - sys_rune_isa() resolves it to sys_rune_space, not control
+  // (see sys_rune_isa()'s doc comment) - so it merges into the same
+  // sys_scanner_space run as any surrounding spaces, indistinguishable
+  // from them. This is exactly what the flag exists to change.
 
   {
     sys_iostream_t *s = sys_string_read("a \n b");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
-    expect_token(&it, " ", 1, 1, sys_scanner_space);
-    expect_token(&it, "\n", 1, 1, sys_scanner_control);
-    expect_token(&it, " ", 1, 1, sys_scanner_space);
+    expect_token(&it, " \n ", 3, 3, sys_scanner_space);
     expect_token(&it, "b", 1, 1, sys_scanner_alpha);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  // Consecutive newlines merge into the same space run as any other
+  // whitespace, without the flag.
+  {
+    sys_iostream_t *s = sys_string_read("\n\n\n");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
+    expect_token(&it, "\n\n\n", 3, 3, sys_scanner_space);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }
@@ -60,12 +67,16 @@ int main(void) {
     sys_iostream_close(s);
   }
 
-  // Consecutive newlines merge into one token, runes counting how many -
-  // the same "maximal same-class run" rule every other class follows.
+  // Consecutive newlines never merge - each '\n' is its own token, so
+  // counting how many occurred is just counting sys_scanner_newline
+  // tokens (unlike sys_scanner_space, sys_scanner_newline is never a
+  // run - see sys_scanner_class_t).
   {
     sys_iostream_t *s = sys_string_read("\n\n\n");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_newlines);
-    expect_token(&it, "\n\n\n", 3, 3, sys_scanner_newline);
+    expect_token(&it, "\n", 1, 1, sys_scanner_newline);
+    expect_token(&it, "\n", 1, 1, sys_scanner_newline);
+    expect_token(&it, "\n", 1, 1, sys_scanner_newline);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }
@@ -81,43 +92,29 @@ int main(void) {
     sys_iostream_close(s);
   }
 
-  // '\r' is unaffected by the flag - it stays sys_scanner_control (same
-  // as it always was: 0x0D is in the C0 control range, so sys_rune_isa()
-  // classifies it as control, not space, regardless of this flag).
-  // "\r\n" is two tokens, not one.
+  // '\r' is unaffected by the flag - it stays sys_scanner_space (only
+  // '\n' itself is singled out). With the flag, "\r\n" is still two
+  // tokens (the '\r' can't merge into the following '\n' - they're
+  // different classes now), rather than merging into a single space run
+  // the way it would without the flag.
   {
     sys_iostream_t *s = sys_string_read("a\r\nb");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_newlines);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
-    expect_token(&it, "\r", 1, 1, sys_scanner_control);
+    expect_token(&it, "\r", 1, 1, sys_scanner_space);
     expect_token(&it, "\n", 1, 1, sys_scanner_newline);
     expect_token(&it, "b", 1, 1, sys_scanner_alpha);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }
 
-  ///////////////////////////////////////////////////////////////////////
-  // Composes with sys_scanner_nospaces: ordinary whitespace runs are
-  // still skipped, but newlines are still reported.
-
+  // Without the flag, "\r\n" merges into one ordinary space run.
   {
-    sys_iostream_t *s = sys_string_read("a \n\n b");
-    sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_nospaces | sys_scanner_newlines);
+    sys_iostream_t *s = sys_string_read("a\r\nb");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
-    expect_token(&it, "\n\n", 2, 2, sys_scanner_newline);
+    expect_token(&it, "\r\n", 2, 2, sys_scanner_space);
     expect_token(&it, "b", 1, 1, sys_scanner_alpha);
-    test_assert(sys_scanner_next(&it) == false);
-    sys_iostream_close(s);
-  }
-
-  // All-whitespace-and-newlines input with nospace: only the newlines
-  // survive.
-  {
-    sys_iostream_t *s = sys_string_read("  \n  ");
-    sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_nospaces | sys_scanner_newlines);
-    expect_token(&it, "\n", 1, 1, sys_scanner_newline);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }

@@ -9,11 +9,11 @@
  * @return The class of the rune.
  */
 sys_rune_class_t sys_rune_isa(rune_t r) {
-  if (sys_rune_is_control(r)) {
-    return sys_rune_control;
-  }
   if (sys_rune_is_space(r)) {
     return sys_rune_space;
+  }
+  if (sys_rune_is_control(r)) {
+    return sys_rune_control;
   }
   if (sys_rune_is_digit(r)) {
     return sys_rune_digit;

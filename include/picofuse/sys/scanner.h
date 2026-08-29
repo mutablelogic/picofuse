@@ -27,22 +27,44 @@ extern "C" {
  * RUNE_ERROR). Further token types - identifiers, quoted strings,
  * numbers, comments, newlines - are added here as sys_scanner_init()
  * gains flags that recognize them.
+ *
+ * sys_scanner_space/digit/alpha extend over a maximal run of consecutive
+ * runes of the same class, same as sys_scanner_keyword/string/comment/
+ * number do over their own shape. sys_scanner_punct/symbol/newline/
+ * control are the opposite: always exactly one rune, never a run, even
+ * when the same character repeats or a different same-class character
+ * follows immediately - "{}" is two tokens, not one, and so is "\n\n"
+ * (with sys_scanner_newlines). This keeps every structural delimiter
+ * (like '{'/'}'/','/'[' in a bracket-and-comma grammar such as JSON)
+ * individually addressable instead of merging into an unpredictable
+ * blob of adjacent punctuation, and (for newlines specifically) makes
+ * counting how many occurred as simple as counting tokens of that class.
+ * sys_scanner_control ends up covering only genuinely non-whitespace
+ * control codes - '\t' '\n' '\v' '\f' '\r' and NEL are sys_rune_is_space()
+ * as well as sys_rune_is_control(), and sys_rune_isa() resolves that
+ * overlap to space (see its own doc comment), so those all fall under
+ * sys_scanner_space instead, a run like any other whitespace.
  */
 typedef enum {
   sys_scanner_other = 0, ///< unclassified - malformed bytes, and any
                          ///< codepoint sys_rune_isa() can't place
   sys_scanner_space,     ///< a run of whitespace - see sys_rune_is_space()
+                         ///< (includes '\t' '\n' '\v' '\f' '\r' and NEL,
+                         ///< not just literal spaces)
   sys_scanner_digit,     ///< a run of decimal digits
   sys_scanner_alpha,     ///< a run of letters
-  sys_scanner_punct,     ///< a run of punctuation
-  sys_scanner_symbol,    ///< a run of symbol characters
-  sys_scanner_control,   ///< a run of control characters (including any
-                         ///< rune sys_rune_is_space() also recognizes,
-                         ///< like '\n' or '\t' - see sys_rune_isa()'s
-                         ///< control-before-space priority)
+  sys_scanner_punct,     ///< a single punctuation character - never a run,
+                         ///< see this enum's own doc comment above
+  sys_scanner_symbol,    ///< a single symbol character - never a run, see
+                         ///< this enum's own doc comment above
+  sys_scanner_control,   ///< a single control character - never a run;
+                         ///< excludes whitespace-like control codes like
+                         ///< '\t', which are sys_scanner_space instead -
+                         ///< see this enum's own doc comment above
   sys_scanner_escape, ///< a JSON-style \-escape sequence - see
                       ///< sys_scanner_escapes
-  sys_scanner_newline, ///< a run of '\n' - see sys_scanner_newlines
+  sys_scanner_newline, ///< a single '\n' - never a run - see
+                       ///< sys_scanner_newlines
   sys_scanner_keyword, ///< an identifier - see sys_scanner_keywords
   sys_scanner_string, ///< a '- or "-quoted string, escapes left as-is -
                       ///< see sys_scanner_quotes
@@ -61,10 +83,6 @@ typedef enum {
  */
 typedef enum {
   sys_scanner_none = 0,
-
-  /** Don't emit sys_scanner_space tokens - whitespace runs are skipped
-   * between tokens instead of being returned as one. */
-  sys_scanner_nospaces = 1 << 0,
 
   /**
    * Recognize JSON-style backslash escape sequences as a single
@@ -86,16 +104,17 @@ typedef enum {
 
   /**
    * Classify '\n' as sys_scanner_newline, its own dedicated class,
-   * rather than whatever it would otherwise fall under (sys_scanner_control,
-   * since sys_rune_isa() checks control before space and '\n' (0x0A)
-   * falls in the C0 control range - it was never actually
-   * sys_scanner_space to begin with). A run of consecutive '\n's is one
-   * sys_scanner_newline token, same "maximal same-class run" rule as
-   * every other class. '\r' is unaffected and stays sys_scanner_control
-   * (0x0D is in the same C0 range), so "\r\n" produces two tokens (a
-   * one-byte control, then a newline).
-   * Combines with sys_scanner_nospaces: ordinary whitespace runs are
-   * still skipped, but newlines are still reported.
+   * rather than whatever it would otherwise fall under - ordinarily
+   * sys_scanner_space, part of the same whitespace run as any
+   * surrounding spaces/tabs (see sys_scanner_space's doc comment).
+   * Unlike sys_scanner_space, a sys_scanner_newline token is always a
+   * single '\n', never a run - "\n\n\n" is three tokens, so counting how
+   * many newlines occurred is just counting how many times
+   * sys_scanner_next() returns one, even where plain sys_scanner_space
+   * would have merged them into one run of ordinary whitespace. '\r' is
+   * unaffected and stays sys_scanner_space, so "\r\n" produces two
+   * tokens (a space, then a newline) rather than merging into one -
+   * without this flag they'd merge into a single space run instead.
    */
   sys_scanner_newlines = 1 << 2,
 

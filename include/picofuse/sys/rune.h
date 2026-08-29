@@ -320,10 +320,16 @@ typedef enum {
  * @brief Classify a single rune.
  * @ingroup SystemString
  * @param r The rune to classify.
- * @return The first matching classification, checked in the order
- * control, space, digit, alpha, punct, symbol; sys_rune_other if none
- * match (this includes RUNE_ERROR, and any codepoint outside the
- * ASCII/Latin-1 range this module covers).
+ * @return The first matching classification, checked in the order space,
+ * control, digit, alpha, punct, symbol; sys_rune_other if none match
+ * (this includes RUNE_ERROR, and any codepoint outside the ASCII/Latin-1
+ * range this module covers). space-before-control matters for '\t' '\n'
+ * '\v' '\f' '\r' and NEL (U+0085): all six are both sys_rune_is_space()
+ * and sys_rune_is_control() (they fall in the C0/C1 control ranges too),
+ * and this order resolves them to sys_rune_space - ordinary whitespace,
+ * not control characters. sys_rune_control ends up covering only the
+ * remaining, genuinely non-whitespace control codes (NUL, DEL, escape,
+ * and the rest of the C0/C1 ranges).
  */
 extern sys_rune_class_t sys_rune_isa(rune_t r);
 
