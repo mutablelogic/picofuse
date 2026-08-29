@@ -34,7 +34,7 @@ int main(void) {
   }
   {
     sys_iostream_t *s = sys_string_read("");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospace);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }
@@ -58,7 +58,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("hello world");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospace);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
     expect_token(&it, "hello", 5, 5, sys_scanner_alpha);
     test_assert(it.start == 0);
     expect_token(&it, "world", 5, 5, sys_scanner_alpha);
@@ -71,7 +71,7 @@ int main(void) {
   // boundary tokens.
   {
     sys_iostream_t *s = sys_string_read("  hello  ");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospace);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
     expect_token(&it, "hello", 5, 5, sys_scanner_alpha);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -80,7 +80,7 @@ int main(void) {
   // A multi-space run is skipped as a single unit.
   {
     sys_iostream_t *s = sys_string_read("hello   world");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospace);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
     expect_token(&it, "hello", 5, 5, sys_scanner_alpha);
     expect_token(&it, "world", 5, 5, sys_scanner_alpha);
     test_assert(sys_scanner_next(&it) == false);
@@ -90,7 +90,7 @@ int main(void) {
   // All-whitespace input yields no tokens at all.
   {
     sys_iostream_t *s = sys_string_read("   ");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospace);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }
@@ -99,7 +99,7 @@ int main(void) {
   // tokens - nospace only affects the space class.
   {
     sys_iostream_t *s = sys_string_read("a, b");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospace);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
     expect_token(&it, ",", 1, 1, sys_scanner_punct);
     expect_token(&it, "b", 1, 1, sys_scanner_alpha);
@@ -113,7 +113,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("1$\x01\x80");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospace);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
     expect_token(&it, "1", 1, 1, sys_scanner_digit);
     expect_token(&it, "$", 1, 1, sys_scanner_symbol);
     expect_token(&it, "\x01", 1, 1, sys_scanner_control);
@@ -127,7 +127,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("  Hello,   World! 123  ");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospace);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
     expect_token(&it, "Hello", 5, 5, sys_scanner_alpha);
     expect_token(&it, ",", 1, 1, sys_scanner_punct);
     expect_token(&it, "World", 5, 5, sys_scanner_alpha);

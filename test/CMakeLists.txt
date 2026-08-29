@@ -239,8 +239,8 @@ picofuse_test(sys_044
 	sys_044/main.c
 )
 
-# sys_string_scanner_init/scanner_next - flag-driven tokenization, the
-# sys_string_scanner_nospace flag skipping whitespace runs entirely
+# sys_scanner_init/scanner_next - flag-driven tokenization, the
+# sys_scanner_nospaces flag skipping whitespace runs entirely
 picofuse_test(sys_045
 	sys_045/main.c
 )
@@ -264,24 +264,38 @@ picofuse_test(sys_048
 	sys_048/main.c
 )
 
-# sys_scanner_keywords / sys_scanner_keyword_withunderscores /
-# sys_scanner_keyword_withdashes - identifier tokens mixing letter/digit
+# sys_scanner_keywords / sys_scanner_keywords_withunderscores /
+# sys_scanner_keywords_withdashes - identifier tokens mixing letter/digit
 # classes, the modifier flags including the base flag, and each
 # modifier's character correctly gated behind its own flag
 picofuse_test(sys_049
 	sys_049/main.c
 )
 
-# sys_scanner_squote - single-quoted string tokens, backslash escaping
+# sys_scanner_squotes - single-quoted string tokens, backslash escaping
 # whatever follows it (not just \'), unterminated-at-EOF best-effort
 # behavior, and independence from sys_scanner_escapes
 picofuse_test(sys_050
 	sys_050/main.c
 )
 
-# sys_scanner_dquote - same rules as sys_scanner_squote but for "-quoted
+# sys_scanner_dquotes - same rules as sys_scanner_squotes but for "-quoted
 # strings, plus both flags combined: each string only closes on its own
 # matching quote character
 picofuse_test(sys_051
 	sys_051/main.c
+)
+
+# sys_scanner_comments_hash - '#' line comments running to (not
+# including) the newline or end of stream, composition with
+# sys_scanner_newlines/nospace, and the punctuation-absorption guard
+picofuse_test(sys_052
+	sys_052/main.c
+)
+
+# sys_scanner_comments_slash - '//' line comments, the single-'/'
+# lookahead fallback (both at EOF and merging back into a punct run),
+# and composition with sys_scanner_comments_hash/newlines/nospace
+picofuse_test(sys_053
+	sys_053/main.c
 )

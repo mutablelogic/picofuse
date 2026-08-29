@@ -41,7 +41,9 @@ typedef enum {
   sys_scanner_newline, ///< a run of '\n' - see sys_scanner_newlines
   sys_scanner_keyword, ///< an identifier - see sys_scanner_keywords
   sys_scanner_string, ///< a '- or "-quoted string, escapes left as-is -
-                      ///< see sys_scanner_squote/sys_scanner_dquote
+                      ///< see sys_scanner_squotes/sys_scanner_dquotes
+  sys_scanner_comment, ///< a comment - see sys_scanner_comments_hash/
+                       ///< sys_scanner_comments_slash
 } sys_scanner_class_t;
 
 /**
@@ -56,7 +58,7 @@ typedef enum {
 
   /** Don't emit sys_scanner_space tokens - whitespace runs are skipped
    * between tokens instead of being returned as one. */
-  sys_scanner_nospace = 1 << 0,
+  sys_scanner_nospaces = 1 << 0,
 
   /**
    * Recognize JSON-style backslash escape sequences as a single
@@ -86,7 +88,7 @@ typedef enum {
    * every other class. '\r' is unaffected and stays sys_scanner_control
    * (0x0D is in the same C0 range), so "\r\n" produces two tokens (a
    * one-byte control, then a newline).
-   * Combines with sys_scanner_nospace: ordinary whitespace runs are
+   * Combines with sys_scanner_nospaces: ordinary whitespace runs are
    * still skipped, but newlines are still reported.
    */
   sys_scanner_newlines = 1 << 2,
@@ -111,16 +113,16 @@ typedef enum {
    * first character) - "my_var123" becomes one sys_scanner_keyword
    * token instead of splitting at the underscore.
    */
-  sys_scanner_keyword_withunderscores = sys_scanner_keywords | (1 << 4),
+  sys_scanner_keywords_withunderscores = sys_scanner_keywords | (1 << 4),
 
   /**
    * Like sys_scanner_keywords (includes it - no need to OR the two
    * together), but also allows '-' within an identifier (not as the
    * first character) - "my-var123" becomes one sys_scanner_keyword
    * token instead of splitting at the dash. Combine (OR) with
-   * sys_scanner_keyword_withunderscores to allow both '_' and '-'.
+   * sys_scanner_keywords_withunderscores to allow both '_' and '-'.
    */
-  sys_scanner_keyword_withdashes = sys_scanner_keywords | (1 << 5),
+  sys_scanner_keywords_withdashes = sys_scanner_keywords | (1 << 5),
 
   /**
    * Recognize '-quoted strings as a single sys_scanner_string token,
@@ -145,20 +147,50 @@ typedef enum {
    * sys_scanner_token()'s last byte is '\'' to tell a properly closed
    * string from one that ran out of stream first.
    */
-  sys_scanner_squote = 1 << 6,
+  sys_scanner_squotes = 1 << 6,
 
   /**
    * Recognize "-quoted strings as a single sys_scanner_string token -
-   * the same rules as sys_scanner_squote (backslash escapes whatever
+   * the same rules as sys_scanner_squotes (backslash escapes whatever
    * follows it, unterminated-at-end-of-stream is best-effort, check the
    * token's last byte to tell the two apart), just triggered by '"'
    * instead of '\''. A '"' inside a '-quoted string (or a '\'' inside a
    * "-quoted one) is ordinary content, not a terminator - each kind of
    * string only ever closes on its own matching quote character.
-   * Combine (OR) with sys_scanner_squote to recognize both kinds in the
+   * Combine (OR) with sys_scanner_squotes to recognize both kinds in the
    * same stream.
    */
-  sys_scanner_dquote = 1 << 7,
+  sys_scanner_dquotes = 1 << 7,
+
+  /**
+   * Recognize '#'-prefixed comments as a single sys_scanner_comment
+   * token, instead of '#' falling out as ordinary punctuation. Runs
+   * from the '#' through end of line or end of stream, whichever comes
+   * first - the terminating '\n' itself is not included in the
+   * comment; it's left for the next sys_scanner_next() call to
+   * classify normally (as sys_scanner_newline if sys_scanner_newlines
+   * is also set, otherwise whatever it would ordinarily be). Unlike a
+   * quoted string, a comment has no "unterminated" case - running to
+   * end of stream with no newline is a complete, ordinary comment.
+   */
+  sys_scanner_comments_hash = 1 << 8,
+
+  /**
+   * Recognize '//'-prefixed comments as a single sys_scanner_comment
+   * token - the same rules as sys_scanner_comments_hash (runs to end of
+   * line or end of stream, the newline itself isn't included, no
+   * "unterminated" case), just triggered by two consecutive '/'
+   * characters instead of one '#'. A single '/' not followed by a
+   * second one is not a comment; it falls back to ordinary punctuation
+   * (or symbol) classification.
+   */
+  sys_scanner_comments_slash = 1 << 9,
+
+  /**
+   * Recognize both '#' and '//' comment styles - equivalent to
+   * sys_scanner_comments_hash | sys_scanner_comments_slash.
+   */
+  sys_scanner_comments = sys_scanner_comments_hash | sys_scanner_comments_slash,
 } sys_scanner_flags_t;
 
 /**

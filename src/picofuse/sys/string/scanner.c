@@ -16,12 +16,12 @@ static bool is_keyword_continue(rune_t r, sys_scanner_flags_t flags) {
   if (is_keyword_start(r) || (r >= '0' && r <= '9')) {
     return true;
   }
-  if (r == '_' && (flags & sys_scanner_keyword_withunderscores) ==
-                      sys_scanner_keyword_withunderscores) {
+  if (r == '_' && (flags & sys_scanner_keywords_withunderscores) ==
+                      sys_scanner_keywords_withunderscores) {
     return true;
   }
-  if (r == '-' && (flags & sys_scanner_keyword_withdashes) ==
-                       sys_scanner_keyword_withdashes) {
+  if (r == '-' && (flags & sys_scanner_keywords_withdashes) ==
+                       sys_scanner_keywords_withdashes) {
     return true;
   }
   return false;
@@ -100,10 +100,10 @@ static bool match_escape(sys_iostream_t *stream) {
 // Whether r is a quote character whose matching flag is set - the start
 // (or, from within a run, the interrupt point) of a quoted string.
 static bool is_quote_start(rune_t r, sys_scanner_flags_t flags) {
-  if ((flags & sys_scanner_squote) && r == '\'') {
+  if ((flags & sys_scanner_squotes) && r == '\'') {
     return true;
   }
-  if ((flags & sys_scanner_dquote) && r == '"') {
+  if ((flags & sys_scanner_dquotes) && r == '"') {
     return true;
   }
   return false;
@@ -116,7 +116,7 @@ static bool is_quote_start(rune_t r, sys_scanner_flags_t flags) {
 // by checking whether the token's last byte is quote). A backslash
 // escapes whatever single rune follows it - that rune never ends the
 // string, whatever it is (not just the quote character itself - see
-// sys_scanner_squote's doc comment for why '\\' needs the same
+// sys_scanner_squotes's doc comment for why '\\' needs the same
 // treatment). Escape sequences are left byte-for-byte in the stream;
 // unescaping/unquoting is a separate, later step. Returns the number of
 // runes consumed, not counting the opening quote but counting the
@@ -142,6 +142,45 @@ static size_t scan_quoted(sys_iostream_t *stream, rune_t quote) {
       // If decode fails here (stream ends right after the backslash),
       // there's nothing left to skip - the string is just unterminated.
     }
+  }
+}
+
+// stream is positioned right after a confirmed leading '/'. Returns true
+// and leaves the stream positioned right after the second '/' if this
+// is really a line comment; otherwise returns false and restores the
+// stream to exactly where it was when called (right after the first
+// '/'), so the caller can fall back to ordinary classification.
+static bool match_slash_comment(sys_iostream_t *stream) {
+  ptrdiff_t after_first_slash = sys_iostream_seek(stream, 0, false);
+  char c;
+  if (sys_iostream_read(stream, &c, 1) == 1 && c == '/') {
+    return true;
+  }
+  sys_iostream_seek(stream, after_first_slash, true);
+  return false;
+}
+
+// stream is positioned wherever a comment's content starts (right after
+// whatever prefix already identified it as one - e.g. the leading '#').
+// Consumes through (but not including) the next '\n', or through
+// end-of-stream if none is found - a comment runs to end of line or end
+// of stream, whichever comes first. The newline itself is left on the
+// stream for the next sys_scanner_next() call to classify normally, not
+// treated as part of the comment. Returns the number of runes consumed.
+static size_t scan_to_eol(sys_iostream_t *stream) {
+  size_t runes = 0;
+  for (;;) {
+    ptrdiff_t before = sys_iostream_seek(stream, 0, false);
+    rune_t r;
+    size_t width;
+    if (!_sys_rune_decode(stream, &r, &width)) {
+      return runes; // end of stream
+    }
+    if (r == '\n') {
+      sys_iostream_seek(stream, before, true); // give back the newline
+      return runes;
+    }
+    runes++;
   }
 }
 
@@ -195,6 +234,31 @@ bool sys_scanner_next(sys_scanner_t *it) {
       return true;
     }
 
+    if ((it->flags & sys_scanner_comments_hash) && r == '#') {
+      size_t inner_runes = scan_to_eol(it->stream);
+      ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
+      it->start = start;
+      it->bytes = (size_t)(end - start);
+      it->runes = 1 + inner_runes; // leading '#' + whatever scan_to_eol consumed
+      it->isa = sys_scanner_comment;
+      return true;
+    }
+
+    if ((it->flags & sys_scanner_comments_slash) && r == '/') {
+      if (match_slash_comment(it->stream)) {
+        size_t inner_runes = scan_to_eol(it->stream);
+        ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
+        it->start = start;
+        it->bytes = (size_t)(end - start);
+        it->runes = 2 + inner_runes; // both '/'s + whatever scan_to_eol consumed
+        it->isa = sys_scanner_comment;
+        return true;
+      }
+      // Not a recognized comment start - fall through and tokenize '/'
+      // as ordinary punctuation instead. match_slash_comment() already
+      // restored the stream to right after the first '/'.
+    }
+
     sys_scanner_class_t isa = classify(r, it->flags);
     size_t bytes = width;
     size_t runes = 1;
@@ -233,11 +297,22 @@ bool sys_scanner_next(sys_scanner_t *it) {
         sys_iostream_seek(it->stream, before_next, true);
         break;
       }
+      // Nor a '#' that starts a comment.
+      if ((it->flags & sys_scanner_comments_hash) && next_r == '#') {
+        sys_iostream_seek(it->stream, before_next, true);
+        break;
+      }
+      // Nor a '/' that starts a recognized // comment.
+      if ((it->flags & sys_scanner_comments_slash) && next_r == '/' &&
+          match_slash_comment(it->stream)) {
+        sys_iostream_seek(it->stream, before_next, true);
+        break;
+      }
       bytes += next_width;
       runes++;
     }
 
-    if (isa == sys_scanner_space && (it->flags & sys_scanner_nospace)) {
+    if (isa == sys_scanner_space && (it->flags & sys_scanner_nospaces)) {
       continue; // skip this run entirely, scan for the next token
     }
 
