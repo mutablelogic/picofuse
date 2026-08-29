@@ -301,13 +301,13 @@ static inline bool sys_rune_is_control(rune_t r) {
  * @ingroup SystemDataRune
  */
 typedef enum {
-  sys_rune_other = 0, // unclassified - also covers RUNE_ERROR
-  sys_rune_space,
-  sys_rune_digit,
-  sys_rune_alpha,
-  sys_rune_punct,
-  sys_rune_symbol,
-  sys_rune_control,
+  sys_rune_other = 0, ///< unclassified - also covers RUNE_ERROR
+  sys_rune_space,      ///< see sys_rune_is_space()
+  sys_rune_digit,      ///< see sys_rune_is_digit()
+  sys_rune_alpha,      ///< see sys_rune_is_alpha()
+  sys_rune_punct,      ///< see sys_rune_is_punct()
+  sys_rune_symbol,     ///< see sys_rune_is_symbol()
+  sys_rune_control,    ///< see sys_rune_is_control()
 } sys_rune_class_t;
 
 /**
@@ -316,8 +316,8 @@ typedef enum {
  * @param r The rune to classify.
  * @return The first matching classification (space, control, digit,
  * alpha, punct, symbol, in that order), or sys_rune_other if none match.
- * '\t' '\n' '\v' '\f' '\r' and NEL match both sys_rune_is_space() and
- * sys_rune_is_control() - space wins, so sys_rune_control ends up
+ * '\\t' '\\n' '\\v' '\\f' '\\r' and NEL match both sys_rune_is_space()
+ * and sys_rune_is_control() - space wins, so sys_rune_control ends up
  * covering only genuinely non-whitespace control codes.
  */
 extern sys_rune_class_t sys_rune_isa(rune_t r);
