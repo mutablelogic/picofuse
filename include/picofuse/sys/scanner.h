@@ -2,8 +2,9 @@
  * @file scanner.h
  * @brief Flag-driven tokenizer: turns a byte stream into a sequence of
  * typed tokens, one sys_scanner_next() call at a time.
+ * @defgroup SystemDataScanner Scanner
+ * @ingroup SystemData
  *
- * @details
  * A sys_scanner_t reads from a sys_iostream_t (sys/io.h) and classifies
  * each rune using sys/rune.h's classification, extending a run of
  * same-class runes (spaces, letters, digits) into one token. Which extra
@@ -35,9 +36,6 @@
  * @endcode
  * Tokens: `"x"` (keyword), `" "`, `"="` (symbol), `" "`, `"42"` (number),
  * `" "`, `"// answer"` (comment).
- *
- * @defgroup SystemDataScanner Scanner
- * @ingroup SystemData
  */
 #pragma once
 #include <picofuse/sys.h>
