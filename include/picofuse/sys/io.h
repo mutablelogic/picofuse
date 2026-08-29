@@ -5,6 +5,28 @@
  * without changing this interface).
  * @defgroup SystemDataStream Stream I/O
  * @ingroup SystemData
+ *
+ * A sys_iostream_t is a small, fixed set of primitives - peek, read,
+ * write, seek, close - implemented differently per backend. Instances
+ * come from a static pool (SYS_IOSTREAM_CAPACITY), never the heap, and
+ * are constructed by a source-specific function rather than directly;
+ * sys_string_read() (sys/string.h) is the only backend today, wrapping
+ * an existing string with no copy of its bytes. sys/rune.h's tokenizer
+ * and sys/scanner.h's scanner are both built entirely on this interface,
+ * so a future backend (a file, say) would work with them unchanged.
+ *
+ * Example - read a stream in two passes by seeking back to the start:
+ * @code
+ * sys_iostream_t *s = sys_string_read("hello");
+ *
+ * char buf[6] = {0};
+ * sys_iostream_read(s, buf, 5); // buf == "hello"
+ *
+ * sys_iostream_seek(s, 0, true); // back to the start
+ * sys_iostream_read(s, buf, 5); // buf == "hello" again
+ *
+ * sys_iostream_close(s);
+ * @endcode
  */
 #pragma once
 #include <stdbool.h>

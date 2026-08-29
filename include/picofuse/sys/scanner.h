@@ -15,8 +15,11 @@
  *
  * A token's text is never copied: sys_scanner_t only records where it
  * starts and how long it is, reading it back from the stream on demand
- * with sys_scanner_token(). Scanning is allocation-free and works over a
- * stream of any length.
+ * with sys_scanner_token(). sys_scanner_t itself never allocates and
+ * places no limit on a token's length - whether scanning as a whole
+ * stays allocation-free depends on the stream backend (a string-backed
+ * stream, sys_string_read(), always does; a future file-backed one may
+ * buffer internally).
  *
  * Example - scan `"x = 42 // answer"`, recognizing identifiers, numbers
  * and a trailing comment:
@@ -161,9 +164,10 @@ typedef enum {
  * @brief Scanner state: reads a stream into a sequence of typed tokens.
  * @ingroup SystemDataScanner
  *
- * Records only where the current token starts and how long it is - the
- * stream itself is the storage, so there's no capacity limit or
- * allocation. Use sys_scanner_token() to read its actual text.
+ * Records only where the current token starts and how long it is - it
+ * never allocates or limits a token's length itself (whether that holds
+ * for the stream as a whole depends on its backend). Use
+ * sys_scanner_token() to read its actual text.
  */
 typedef struct sys_scanner_t {
   sys_iostream_t *stream;    ///< source (private)
