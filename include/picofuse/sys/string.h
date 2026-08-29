@@ -4,6 +4,24 @@
  * sys/rune.h.
  * @defgroup SystemDataString Strings
  * @ingroup SystemData
+ *
+ * These operate on ordinary null-terminated `char *` strings, not a
+ * dedicated string type - there's nothing to allocate or free beyond the
+ * buffer you already have. Some functions (sys_string_to_upper(),
+ * sys_string_trimspace(), ...) are destructive, writing through the
+ * pointer you pass in; a couple (sys_string_trimspace(),
+ * sys_string_trimprefix()) also return a pointer that may differ from
+ * the one you passed in (e.g. advanced past leading whitespace) - use
+ * the returned pointer afterward, not your original one.
+ *
+ * Example - trim, check, and uppercase:
+ * @code
+ * char buf[] = "  hello world  ";
+ * char *s = sys_string_trimspace(buf); // s == "hello world"
+ * if (sys_string_hasprefix(s, "hello")) {
+ *   sys_string_to_upper(s); // s == "HELLO WORLD", in place
+ * }
+ * @endcode
  */
 #pragma once
 #include <picofuse/sys.h>

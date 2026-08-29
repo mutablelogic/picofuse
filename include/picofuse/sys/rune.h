@@ -329,7 +329,8 @@ extern sys_rune_class_t sys_rune_isa(rune_t r);
  *
  * Reads from the sys_iostream_t given to sys_rune_tokenize_init().
  * Records only where the current token starts and how long it is - the
- * stream is the storage, so there's no capacity limit or allocation. Use
+ * tokenizer itself never allocates or limits a token's length (whether
+ * that holds for the stream as a whole depends on its backend). Use
  * sys_rune_tokenize_token() to read its actual text.
  */
 typedef struct sys_rune_tokenize_t {
