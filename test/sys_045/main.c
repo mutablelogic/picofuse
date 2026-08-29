@@ -34,86 +34,57 @@ int main(void) {
   }
   {
     sys_iostream_t *s = sys_string_read("");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // Default flags: space tokens are emitted, same shape as the rune
-  // tokenizer
+  // Whitespace runs are their own sys_scanner_space token, same shape as
+  // the rune tokenizer - the scanner never filters tokens out on its
+  // own; a caller that wants spaces skipped does that itself by
+  // checking it.isa after sys_scanner_next().
 
   {
     sys_iostream_t *s = sys_string_read("hello world");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
     expect_token(&it, "hello", 5, 5, sys_scanner_alpha);
+    test_assert(it.start == 0);
     expect_token(&it, " ", 1, 1, sys_scanner_space);
     expect_token(&it, "world", 5, 5, sys_scanner_alpha);
+    test_assert(it.start == 6);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }
 
-  ///////////////////////////////////////////////////////////////////////
-  // nospace: whitespace runs are skipped entirely, not returned
-
+  // Leading, trailing, and multi-space runs are each one token.
   {
-    sys_iostream_t *s = sys_string_read("hello world");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
+    sys_iostream_t *s = sys_string_read("  hello   world  ");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
+    expect_token(&it, "  ", 2, 2, sys_scanner_space);
     expect_token(&it, "hello", 5, 5, sys_scanner_alpha);
-    test_assert(it.start == 0);
+    expect_token(&it, "   ", 3, 3, sys_scanner_space);
     expect_token(&it, "world", 5, 5, sys_scanner_alpha);
-    test_assert(it.start == 6); // the space at offset 5 was skipped, not returned
+    expect_token(&it, "  ", 2, 2, sys_scanner_space);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }
 
-  // Leading and trailing whitespace vanish entirely - no empty-ish
-  // boundary tokens.
-  {
-    sys_iostream_t *s = sys_string_read("  hello  ");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
-    expect_token(&it, "hello", 5, 5, sys_scanner_alpha);
-    test_assert(sys_scanner_next(&it) == false);
-    sys_iostream_close(s);
-  }
-
-  // A multi-space run is skipped as a single unit.
-  {
-    sys_iostream_t *s = sys_string_read("hello   world");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
-    expect_token(&it, "hello", 5, 5, sys_scanner_alpha);
-    expect_token(&it, "world", 5, 5, sys_scanner_alpha);
-    test_assert(sys_scanner_next(&it) == false);
-    sys_iostream_close(s);
-  }
-
-  // All-whitespace input yields no tokens at all.
+  // All-whitespace input is one space token.
   {
     sys_iostream_t *s = sys_string_read("   ");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
-    test_assert(sys_scanner_next(&it) == false);
-    sys_iostream_close(s);
-  }
-
-  // Non-space runs on either side of a skipped space stay separate
-  // tokens - nospace only affects the space class.
-  {
-    sys_iostream_t *s = sys_string_read("a, b");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
-    expect_token(&it, "a", 1, 1, sys_scanner_alpha);
-    expect_token(&it, ",", 1, 1, sys_scanner_punct);
-    expect_token(&it, "b", 1, 1, sys_scanner_alpha);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
+    expect_token(&it, "   ", 3, 3, sys_scanner_space);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // Every base class, and malformed bytes classify as sys_scanner_other
-  // and are never skipped (nospace only ever affects sys_scanner_space)
+  // Every base class, including malformed bytes as sys_scanner_other
 
   {
     sys_iostream_t *s = sys_string_read("1$\x01\x80");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
     expect_token(&it, "1", 1, 1, sys_scanner_digit);
     expect_token(&it, "$", 1, 1, sys_scanner_symbol);
     expect_token(&it, "\x01", 1, 1, sys_scanner_control);
@@ -127,12 +98,16 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("  Hello,   World! 123  ");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_nospaces);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_none);
+    expect_token(&it, "  ", 2, 2, sys_scanner_space);
     expect_token(&it, "Hello", 5, 5, sys_scanner_alpha);
     expect_token(&it, ",", 1, 1, sys_scanner_punct);
+    expect_token(&it, "   ", 3, 3, sys_scanner_space);
     expect_token(&it, "World", 5, 5, sys_scanner_alpha);
     expect_token(&it, "!", 1, 1, sys_scanner_punct);
+    expect_token(&it, " ", 1, 1, sys_scanner_space);
     expect_token(&it, "123", 3, 3, sys_scanner_digit);
+    expect_token(&it, "  ", 2, 2, sys_scanner_space);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }

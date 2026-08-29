@@ -393,158 +393,120 @@ sys_scanner_t sys_scanner_init(sys_iostream_t *stream,
 }
 
 bool sys_scanner_next(sys_scanner_t *it) {
-  for (;;) {
-    ptrdiff_t start = sys_iostream_seek(it->stream, 0, false);
+  ptrdiff_t start = sys_iostream_seek(it->stream, 0, false);
 
-    rune_t r;
-    size_t width;
-    if (!_sys_rune_decode(it->stream, &r, &width)) {
-      return false; // EOF
-    }
+  rune_t r;
+  size_t width;
+  if (!_sys_rune_decode(it->stream, &r, &width)) {
+    return false; // EOF
+  }
 
-    if ((it->flags & sys_scanner_escapes) && r == '\\') {
-      if (match_escape(it->stream)) {
-        ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
-        it->start = start;
-        it->bytes = (size_t)(end - start);
-        it->runes = it->bytes; // every escape-sequence byte is ASCII
-        it->isa = sys_scanner_escape;
-        return true;
-      }
-      // Not a recognized escape - fall through and tokenize '\' as
-      // ordinary punctuation instead. match_escape() already restored
-      // the stream to right after the backslash.
-    }
-
-    if (is_quote_start(r, it->flags)) {
-      size_t inner_runes = scan_quoted(it->stream, r);
+  if ((it->flags & sys_scanner_escapes) && r == '\\') {
+    if (match_escape(it->stream)) {
       ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
       it->start = start;
       it->bytes = (size_t)(end - start);
-      it->runes = 1 + inner_runes; // opening quote + whatever scan_quoted consumed
-      it->isa = sys_scanner_string;
+      it->runes = it->bytes; // every escape-sequence byte is ASCII
+      it->isa = sys_scanner_escape;
       return true;
     }
+    // Not a recognized escape - fall through and tokenize '\' as
+    // ordinary punctuation instead. match_escape() already restored
+    // the stream to right after the backslash.
+  }
 
-    if ((it->flags & sys_scanner_comments_hash) && r == '#') {
+  if (is_quote_start(r, it->flags)) {
+    size_t inner_runes = scan_quoted(it->stream, r);
+    ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
+    it->start = start;
+    it->bytes = (size_t)(end - start);
+    it->runes = 1 + inner_runes; // opening quote + whatever scan_quoted consumed
+    it->isa = sys_scanner_string;
+    return true;
+  }
+
+  if ((it->flags & sys_scanner_comments_hash) && r == '#') {
+    size_t inner_runes = scan_to_eol(it->stream);
+    ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
+    it->start = start;
+    it->bytes = (size_t)(end - start);
+    it->runes = 1 + inner_runes; // leading '#' + whatever scan_to_eol consumed
+    it->isa = sys_scanner_comment;
+    return true;
+  }
+
+  if ((it->flags & sys_scanner_comments_slash) && r == '/') {
+    if (match_slash_comment(it->stream)) {
       size_t inner_runes = scan_to_eol(it->stream);
       ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
       it->start = start;
       it->bytes = (size_t)(end - start);
-      it->runes = 1 + inner_runes; // leading '#' + whatever scan_to_eol consumed
+      it->runes = 2 + inner_runes; // both '/'s + whatever scan_to_eol consumed
       it->isa = sys_scanner_comment;
       return true;
     }
-
-    if ((it->flags & sys_scanner_comments_slash) && r == '/') {
-      if (match_slash_comment(it->stream)) {
-        size_t inner_runes = scan_to_eol(it->stream);
-        ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
-        it->start = start;
-        it->bytes = (size_t)(end - start);
-        it->runes = 2 + inner_runes; // both '/'s + whatever scan_to_eol consumed
-        it->isa = sys_scanner_comment;
-        return true;
-      }
-      // Not a recognized comment start - fall through and tokenize '/'
-      // as ordinary punctuation instead. match_slash_comment() already
-      // restored the stream to right after the first '/'.
-    }
-
-    if ((it->flags & sys_scanner_numbers) && is_number_start(r)) {
-      size_t inner_runes;
-      if (scan_number(it->stream, r, it->flags, &inner_runes)) {
-        ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
-        it->start = start;
-        it->bytes = (size_t)(end - start);
-        it->runes = 1 + inner_runes; // r itself + whatever scan_number consumed
-        it->isa = sys_scanner_number;
-        return true;
-      }
-      // A lone sign with no digit after it - fall through and tokenize
-      // it as ordinary punctuation/symbol instead. scan_number() already
-      // restored the stream to right after the sign.
-    }
-
-    sys_scanner_class_t isa = classify(r, it->flags);
-    size_t bytes = width;
-    size_t runes = 1;
-
-    // Extend the token over further runes of the same class, without
-    // consuming the first rune that breaks the run - it's given back to
-    // the stream, ready to start the next token (or the next skipped
-    // run) instead.
-    for (;;) {
-      ptrdiff_t before_next = sys_iostream_seek(it->stream, 0, false);
-      rune_t next_r;
-      size_t next_width;
-      if (!_sys_rune_decode(it->stream, &next_r, &next_width)) {
-        break;
-      }
-      // A keyword run mixes classes by design (letters, digits, and
-      // optionally '_'/'-'), so it can't be extended by a plain
-      // classify()-equality check the way every other run can.
-      bool same_run = (isa == sys_scanner_keyword)
-                           ? is_keyword_continue(next_r, it->flags)
-                           : (classify(next_r, it->flags) == isa);
-      if (!same_run) {
-        sys_iostream_seek(it->stream, before_next, true);
-        break;
-      }
-      // Don't merge a '\' that starts a recognized escape into this
-      // punctuation run - it needs to start its own token.
-      if ((it->flags & sys_scanner_escapes) && next_r == '\\' &&
-          match_escape(it->stream)) {
-        sys_iostream_seek(it->stream, before_next, true);
-        break;
-      }
-      // Don't merge a quote that starts a string into this punctuation
-      // run either - it needs to start its own token.
-      if (is_quote_start(next_r, it->flags)) {
-        sys_iostream_seek(it->stream, before_next, true);
-        break;
-      }
-      // Nor a '#' that starts a comment.
-      if ((it->flags & sys_scanner_comments_hash) && next_r == '#') {
-        sys_iostream_seek(it->stream, before_next, true);
-        break;
-      }
-      // Nor a '/' that starts a recognized // comment.
-      if ((it->flags & sys_scanner_comments_slash) && next_r == '/' &&
-          match_slash_comment(it->stream)) {
-        sys_iostream_seek(it->stream, before_next, true);
-        break;
-      }
-      // Nor a sign/digit that starts a recognized number - restore
-      // everything scan_number() provisionally consumed so it starts
-      // fresh as its own token. Doesn't apply within a keyword run: a
-      // digit (and, with sys_scanner_keywords_withdashes, '-') is a
-      // legitimate keyword-continuing character there, not a rival
-      // token trying to start ("abc123" stays one keyword).
-      if (isa != sys_scanner_keyword && (it->flags & sys_scanner_numbers) &&
-          is_number_start(next_r)) {
-        size_t number_runes;
-        if (scan_number(it->stream, next_r, it->flags, &number_runes)) {
-          sys_iostream_seek(it->stream, before_next, true);
-          break;
-        }
-        // A lone sign with no digit after it - not a number, so it's
-        // fine to let it merge into this run normally below.
-      }
-      bytes += next_width;
-      runes++;
-    }
-
-    if (isa == sys_scanner_space && (it->flags & sys_scanner_nospaces)) {
-      continue; // skip this run entirely, scan for the next token
-    }
-
-    it->start = start;
-    it->bytes = bytes;
-    it->runes = runes;
-    it->isa = isa;
-    return true;
+    // Not a recognized comment start - fall through and tokenize '/'
+    // as ordinary punctuation instead. match_slash_comment() already
+    // restored the stream to right after the first '/'.
   }
+
+  if ((it->flags & sys_scanner_numbers) && is_number_start(r)) {
+    size_t inner_runes;
+    if (scan_number(it->stream, r, it->flags, &inner_runes)) {
+      ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
+      it->start = start;
+      it->bytes = (size_t)(end - start);
+      it->runes = 1 + inner_runes; // r itself + whatever scan_number consumed
+      it->isa = sys_scanner_number;
+      return true;
+    }
+    // A lone sign with no digit after it - fall through and tokenize
+    // it as ordinary punctuation/symbol instead. scan_number() already
+    // restored the stream to right after the sign.
+  }
+
+  sys_scanner_class_t isa = classify(r, it->flags);
+  size_t bytes = width;
+  size_t runes = 1;
+
+  // Punctuation, symbols, newlines and control characters are always
+  // one rune per token, never a run - each is a single, individually
+  // meaningful character (a structural delimiter like '{'/','/'/'/',
+  // or something a caller wants to count one at a time, like
+  // sys_scanner_newline). Every other class still extends over a
+  // maximal run of the same class below.
+  bool single_rune = isa == sys_scanner_punct || isa == sys_scanner_symbol ||
+                      isa == sys_scanner_newline || isa == sys_scanner_control;
+
+  // Extend the token over further runes of the same class, without
+  // consuming the first rune that breaks the run - it's given back to
+  // the stream, ready to start the next token instead.
+  while (!single_rune) {
+    ptrdiff_t before_next = sys_iostream_seek(it->stream, 0, false);
+    rune_t next_r;
+    size_t next_width;
+    if (!_sys_rune_decode(it->stream, &next_r, &next_width)) {
+      break;
+    }
+    // A keyword run mixes classes by design (letters, digits, and
+    // optionally '_'/'-'), so it can't be extended by a plain
+    // classify()-equality check the way every other run can.
+    bool same_run = (isa == sys_scanner_keyword)
+                         ? is_keyword_continue(next_r, it->flags)
+                         : (classify(next_r, it->flags) == isa);
+    if (!same_run) {
+      sys_iostream_seek(it->stream, before_next, true);
+      break;
+    }
+    bytes += next_width;
+    runes++;
+  }
+
+  it->start = start;
+  it->bytes = bytes;
+  it->runes = runes;
+  it->isa = isa;
+  return true;
 }
 
 size_t sys_scanner_token(sys_scanner_t *it, char *buf, size_t cap) {

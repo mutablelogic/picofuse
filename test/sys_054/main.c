@@ -108,14 +108,15 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // A sign that fails to start a number still merges normally into a
-  // surrounding punctuation run - the failed lookahead doesn't leave
-  // anything stuck or skipped.
+  // A sign that fails to start a number is still its own single-rune
+  // punctuation token - the failed lookahead doesn't leave anything
+  // stuck or skipped.
 
   {
     sys_iostream_t *s = sys_string_read("!-a");
     sys_scanner_t it = sys_scanner_init(s, sys_scanner_numbers);
-    expect_token(&it, "!-", 2, 2, sys_scanner_punct);
+    expect_token(&it, "!", 1, 1, sys_scanner_punct);
+    expect_token(&it, "-", 1, 1, sys_scanner_punct);
     expect_token(&it, "a", 1, 1, sys_scanner_alpha);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -155,14 +156,16 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // Composes with sys_scanner_nospaces.
+  // Composes with surrounding whitespace, unaffected by the flag.
 
   {
     sys_iostream_t *s = sys_string_read(" -5  6 ");
-    sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_numbers | sys_scanner_nospaces);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_numbers);
+    expect_token(&it, " ", 1, 1, sys_scanner_space);
     expect_token(&it, "-5", 2, 2, sys_scanner_number);
+    expect_token(&it, "  ", 2, 2, sys_scanner_space);
     expect_token(&it, "6", 1, 1, sys_scanner_number);
+    expect_token(&it, " ", 1, 1, sys_scanner_space);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
   }

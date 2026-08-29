@@ -186,8 +186,8 @@ picofuse_test(sys_035
 )
 
 # sys_rune_isa classification dispatch, including the documented
-# control-before-space priority for NEL (the one codepoint where the two
-# predicates disagree)
+# space-before-control priority for '\t' and NEL (codepoints where the
+# two predicates overlap)
 picofuse_test(sys_036
 	sys_036/main.c
 )
@@ -239,8 +239,8 @@ picofuse_test(sys_044
 	sys_044/main.c
 )
 
-# sys_scanner_init/scanner_next - flag-driven tokenization, the
-# sys_scanner_nospaces flag skipping whitespace runs entirely
+# sys_scanner_init/scanner_next - flag-driven tokenization, every base
+# token class including sys_scanner_space as an ordinary reported token
 picofuse_test(sys_045
 	sys_045/main.c
 )
@@ -259,7 +259,7 @@ picofuse_test(sys_047
 )
 
 # sys_scanner_newlines - '\n' classified separately from ordinary
-# whitespace, run-merging, and composition with nospace/escapes
+# whitespace, never merging into a run, and composition with escapes
 picofuse_test(sys_048
 	sys_048/main.c
 )
@@ -288,21 +288,21 @@ picofuse_test(sys_051
 
 # sys_scanner_comments_hash - '#' line comments running to (not
 # including) the newline or end of stream, composition with
-# sys_scanner_newlines/nospace, and the punctuation-absorption guard
+# sys_scanner_newlines, and the punctuation-absorption guard
 picofuse_test(sys_052
 	sys_052/main.c
 )
 
 # sys_scanner_comments_slash - '//' line comments, the single-'/'
-# lookahead fallback (both at EOF and merging back into a punct run),
-# and composition with sys_scanner_comments_hash/newlines/nospace
+# lookahead fallback (both at EOF and falling back to its own token),
+# and composition with sys_scanner_comments_hash/newlines
 picofuse_test(sys_053
 	sys_053/main.c
 )
 
 # sys_scanner_numbers - whole numbers optionally signed with '-'/'+',
 # the lone-sign lookahead fallback, the punctuation-absorption guard,
-# and composition with sys_scanner_nospaces/keywords
+# and composition with sys_scanner_keywords
 picofuse_test(sys_054
 	sys_054/main.c
 )
@@ -335,4 +335,12 @@ picofuse_test(sys_057
 # suffix per number
 picofuse_test(sys_058
 	sys_058/main.c
+)
+
+# sys_scanner_punct/_symbol/_newline/_control are always exactly one
+# rune per token, never a run (unlike space/digit/alpha) - the JSON
+# bracket-and-comma motivating case, and the contrast against classes
+# that still merge
+picofuse_test(sys_059
+	sys_059/main.c
 )
