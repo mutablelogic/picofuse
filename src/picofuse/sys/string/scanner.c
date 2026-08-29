@@ -20,8 +20,8 @@ static bool is_keyword_continue(rune_t r, sys_scanner_flags_t flags) {
                       sys_scanner_keyword_withunderscores) {
     return true;
   }
-  if (r == '-' && (flags & sys_scanner_keyword_withdash) ==
-                       sys_scanner_keyword_withdash) {
+  if (r == '-' && (flags & sys_scanner_keyword_withdashes) ==
+                       sys_scanner_keyword_withdashes) {
     return true;
   }
   return false;
@@ -97,6 +97,54 @@ static bool match_escape(sys_iostream_t *stream) {
   }
 }
 
+// Whether r is a quote character whose matching flag is set - the start
+// (or, from within a run, the interrupt point) of a quoted string.
+static bool is_quote_start(rune_t r, sys_scanner_flags_t flags) {
+  if ((flags & sys_scanner_squote) && r == '\'') {
+    return true;
+  }
+  if ((flags & sys_scanner_dquote) && r == '"') {
+    return true;
+  }
+  return false;
+}
+
+// stream is positioned right after a confirmed opening quote rune (the
+// same rune passed as `quote`). Consumes through the closing (unescaped)
+// occurrence of quote, or through end-of-stream if none is found (a
+// best-effort "unterminated string" - the caller can tell the two apart
+// by checking whether the token's last byte is quote). A backslash
+// escapes whatever single rune follows it - that rune never ends the
+// string, whatever it is (not just the quote character itself - see
+// sys_scanner_squote's doc comment for why '\\' needs the same
+// treatment). Escape sequences are left byte-for-byte in the stream;
+// unescaping/unquoting is a separate, later step. Returns the number of
+// runes consumed, not counting the opening quote but counting the
+// closing one if found.
+static size_t scan_quoted(sys_iostream_t *stream, rune_t quote) {
+  size_t runes = 0;
+  for (;;) {
+    rune_t r;
+    size_t width;
+    if (!_sys_rune_decode(stream, &r, &width)) {
+      return runes; // unterminated - stream exhausted
+    }
+    runes++;
+    if (r == quote) {
+      return runes; // closing quote found
+    }
+    if (r == '\\') {
+      rune_t escaped;
+      size_t escaped_width;
+      if (_sys_rune_decode(stream, &escaped, &escaped_width)) {
+        runes++;
+      }
+      // If decode fails here (stream ends right after the backslash),
+      // there's nothing left to skip - the string is just unterminated.
+    }
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -137,6 +185,16 @@ bool sys_scanner_next(sys_scanner_t *it) {
       // the stream to right after the backslash.
     }
 
+    if (is_quote_start(r, it->flags)) {
+      size_t inner_runes = scan_quoted(it->stream, r);
+      ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
+      it->start = start;
+      it->bytes = (size_t)(end - start);
+      it->runes = 1 + inner_runes; // opening quote + whatever scan_quoted consumed
+      it->isa = sys_scanner_string;
+      return true;
+    }
+
     sys_scanner_class_t isa = classify(r, it->flags);
     size_t bytes = width;
     size_t runes = 1;
@@ -166,6 +224,12 @@ bool sys_scanner_next(sys_scanner_t *it) {
       // punctuation run - it needs to start its own token.
       if ((it->flags & sys_scanner_escapes) && next_r == '\\' &&
           match_escape(it->stream)) {
+        sys_iostream_seek(it->stream, before_next, true);
+        break;
+      }
+      // Don't merge a quote that starts a string into this punctuation
+      // run either - it needs to start its own token.
+      if (is_quote_start(next_r, it->flags)) {
         sys_iostream_seek(it->stream, before_next, true);
         break;
       }

@@ -122,11 +122,11 @@ int main(void) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // sys_scanner_keyword_withdash includes sys_scanner_keywords too.
+  // sys_scanner_keyword_withdashes includes sys_scanner_keywords too.
 
   {
     sys_iostream_t *s = sys_string_read("my-var-123");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_keyword_withdash);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_keyword_withdashes);
     expect_token(&it, "my-var-123", 10, 10, sys_scanner_keyword);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -149,7 +149,7 @@ int main(void) {
   {
     sys_iostream_t *s = sys_string_read("my_var-name");
     sys_scanner_t it = sys_scanner_init(
-        s, sys_scanner_keyword_withunderscores | sys_scanner_keyword_withdash);
+        s, sys_scanner_keyword_withunderscores | sys_scanner_keyword_withdashes);
     expect_token(&it, "my_var-name", 11, 11, sys_scanner_keyword);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);

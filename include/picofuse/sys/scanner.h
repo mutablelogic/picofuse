@@ -40,8 +40,8 @@ typedef enum {
                       ///< sys_scanner_escapes
   sys_scanner_newline, ///< a run of '\n' - see sys_scanner_newlines
   sys_scanner_keyword, ///< an identifier - see sys_scanner_keywords
-  sys_scanner_string, ///< a '-quoted string, escapes left as-is - see
-                      ///< sys_scanner_squote
+  sys_scanner_string, ///< a '- or "-quoted string, escapes left as-is -
+                      ///< see sys_scanner_squote/sys_scanner_dquote
 } sys_scanner_class_t;
 
 /**
@@ -120,7 +120,45 @@ typedef enum {
    * token instead of splitting at the dash. Combine (OR) with
    * sys_scanner_keyword_withunderscores to allow both '_' and '-'.
    */
-  sys_scanner_keyword_withdash = sys_scanner_keywords | (1 << 5),
+  sys_scanner_keyword_withdashes = sys_scanner_keywords | (1 << 5),
+
+  /**
+   * Recognize '-quoted strings as a single sys_scanner_string token,
+   * from the opening quote through the closing one - instead of the
+   * quote falling out as ordinary punctuation.
+   *
+   * A backslash inside the string escapes whatever single rune follows
+   * it - that rune never ends the string, whatever it is. This isn't
+   * limited to \' (though that's the case that matters for finding the
+   * end): \\ has to work the same way, or "'a\\'" (content: a, then an
+   * escaped backslash, then the closing quote) would be misread as the
+   * backslash escaping the real closing quote and the string would
+   * fail to end there. Escape sequences are left byte-for-byte in the
+   * token; unescaping/unquoting is a separate, later step, not this
+   * one's job.
+   *
+   * If the stream ends before an unescaped closing quote is found, the
+   * token still ends there (everything from the opening quote to the
+   * end of the stream) rather than failing - sys_scanner_next() has no
+   * way to know in advance whether a closing quote exists later on
+   * without abandoning streaming and searching ahead. Check whether
+   * sys_scanner_token()'s last byte is '\'' to tell a properly closed
+   * string from one that ran out of stream first.
+   */
+  sys_scanner_squote = 1 << 6,
+
+  /**
+   * Recognize "-quoted strings as a single sys_scanner_string token -
+   * the same rules as sys_scanner_squote (backslash escapes whatever
+   * follows it, unterminated-at-end-of-stream is best-effort, check the
+   * token's last byte to tell the two apart), just triggered by '"'
+   * instead of '\''. A '"' inside a '-quoted string (or a '\'' inside a
+   * "-quoted one) is ordinary content, not a terminator - each kind of
+   * string only ever closes on its own matching quote character.
+   * Combine (OR) with sys_scanner_squote to recognize both kinds in the
+   * same stream.
+   */
+  sys_scanner_dquote = 1 << 7,
 } sys_scanner_flags_t;
 
 /**

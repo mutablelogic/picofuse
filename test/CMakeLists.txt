@@ -265,9 +265,23 @@ picofuse_test(sys_048
 )
 
 # sys_scanner_keywords / sys_scanner_keyword_withunderscores /
-# sys_scanner_keyword_withdash - identifier tokens mixing letter/digit
+# sys_scanner_keyword_withdashes - identifier tokens mixing letter/digit
 # classes, the modifier flags including the base flag, and each
 # modifier's character correctly gated behind its own flag
 picofuse_test(sys_049
 	sys_049/main.c
+)
+
+# sys_scanner_squote - single-quoted string tokens, backslash escaping
+# whatever follows it (not just \'), unterminated-at-EOF best-effort
+# behavior, and independence from sys_scanner_escapes
+picofuse_test(sys_050
+	sys_050/main.c
+)
+
+# sys_scanner_dquote - same rules as sys_scanner_squote but for "-quoted
+# strings, plus both flags combined: each string only closes on its own
+# matching quote character
+picofuse_test(sys_051
+	sys_051/main.c
 )
