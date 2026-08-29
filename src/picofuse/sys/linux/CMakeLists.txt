@@ -23,6 +23,7 @@ picofuse_library(
         ../string/escape.c
         ../string/bool.c
         ../string/quoted.c
+        ../string/int.c
         ../string/has.c
         ../string/scanner.c
         ../string/iostream.c

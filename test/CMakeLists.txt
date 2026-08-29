@@ -368,3 +368,31 @@ picofuse_test(sys_061
 picofuse_test(sys_062
 	sys_062/main.c
 )
+
+# sys_string_parse_int32 - decimal/hex/octal (both forms)/binary, signed
+# with +/-, int32_t range boundaries, float/malformed/trailing-content
+# rejection, and len==0 vs len>0 exact-boundary enforcement
+picofuse_test(sys_063
+	sys_063/main.c
+)
+
+# sys_string_parse_int64 - same shared grammar as sys_string_parse_int32,
+# values that overflow int32_t but fit int64_t, int64_t range boundaries,
+# and the internal uint64_t magnitude accumulator's own overflow check
+picofuse_test(sys_064
+	sys_064/main.c
+)
+
+# sys_string_parse_uint32 - same shared grammar as sys_string_parse_int32,
+# a leading '-' always a parse error (including "-0"), and uint32_t
+# range boundaries
+picofuse_test(sys_065
+	sys_065/main.c
+)
+
+# sys_string_parse_uint64 - same shared grammar, '-' always a parse
+# error, values that overflow uint32_t but fit uint64_t, and UINT64_MAX
+# itself (the internal accumulator's own upper bound)
+picofuse_test(sys_066
+	sys_066/main.c
+)
