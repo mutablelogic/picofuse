@@ -42,7 +42,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("\"hello\"");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_double);
     expect_token(&it, "\"hello\"", 7, 7, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -50,7 +50,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("\"\"");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_double);
     expect_token(&it, "\"\"", 2, 2, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -62,7 +62,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("\"it\\\"s\"");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_double);
     expect_token(&it, "\"it\\\"s\"", 7, 7, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -70,7 +70,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("\"a\\\\\" rest");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_double);
     expect_token(&it, "\"a\\\\\"", 5, 5, sys_scanner_string);
     expect_token(&it, " ", 1, 1, sys_scanner_space);
     expect_token(&it, "rest", 4, 4, sys_scanner_alpha);
@@ -83,7 +83,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("\"abc");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_double);
     expect_token(&it, "\"abc", 4, 4, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -91,7 +91,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("\"abc\\");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_double);
     expect_token(&it, "\"abc\\", 5, 5, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -99,7 +99,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("\"");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_double);
     expect_token(&it, "\"", 1, 1, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -111,7 +111,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("!\"a\"");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_double);
     expect_token(&it, "!", 1, 1, sys_scanner_punct);
     expect_token(&it, "\"a\"", 3, 3, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
@@ -121,7 +121,7 @@ int main(void) {
   {
     sys_iostream_t *s = sys_string_read("\"a\"  \"b\"");
     sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_dquotes | sys_scanner_nospaces);
+        sys_scanner_init(s, sys_scanner_quotes_double | sys_scanner_nospaces);
     expect_token(&it, "\"a\"", 3, 3, sys_scanner_string);
     expect_token(&it, "\"b\"", 3, 3, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
@@ -131,7 +131,7 @@ int main(void) {
   {
     sys_iostream_t *s = sys_string_read("\\n \"a\\tb\"");
     sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_dquotes | sys_scanner_escapes);
+        sys_scanner_init(s, sys_scanner_quotes_double | sys_scanner_escapes);
     expect_token(&it, "\\n", 2, 2, sys_scanner_escape);
     expect_token(&it, " ", 1, 1, sys_scanner_space);
     expect_token(&it, "\"a\\tb\"", 6, 6, sys_scanner_string);
@@ -144,7 +144,7 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("\"caf\xC3\xA9\"");
-    sys_scanner_t it = sys_scanner_init(s, sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes_double);
     expect_token(&it, "\"caf\xC3\xA9\"", 7, 6, sys_scanner_string);
     test_assert(sys_scanner_next(&it) == false);
     sys_iostream_close(s);
@@ -156,8 +156,20 @@ int main(void) {
 
   {
     sys_iostream_t *s = sys_string_read("'a\"b' \"c'd\"");
-    sys_scanner_t it =
-        sys_scanner_init(s, sys_scanner_squotes | sys_scanner_dquotes);
+    sys_scanner_t it = sys_scanner_init(
+        s, sys_scanner_quotes_single | sys_scanner_quotes_double);
+    expect_token(&it, "'a\"b'", 5, 5, sys_scanner_string);
+    expect_token(&it, " ", 1, 1, sys_scanner_space);
+    expect_token(&it, "\"c'd\"", 5, 5, sys_scanner_string);
+    test_assert(sys_scanner_next(&it) == false);
+    sys_iostream_close(s);
+  }
+
+  // sys_scanner_quotes is equivalent to OR-ing the two individual flags
+  // together by hand.
+  {
+    sys_iostream_t *s = sys_string_read("'a\"b' \"c'd\"");
+    sys_scanner_t it = sys_scanner_init(s, sys_scanner_quotes);
     expect_token(&it, "'a\"b'", 5, 5, sys_scanner_string);
     expect_token(&it, " ", 1, 1, sys_scanner_space);
     expect_token(&it, "\"c'd\"", 5, 5, sys_scanner_string);

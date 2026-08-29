@@ -100,10 +100,10 @@ static bool match_escape(sys_iostream_t *stream) {
 // Whether r is a quote character whose matching flag is set - the start
 // (or, from within a run, the interrupt point) of a quoted string.
 static bool is_quote_start(rune_t r, sys_scanner_flags_t flags) {
-  if ((flags & sys_scanner_squotes) && r == '\'') {
+  if ((flags & sys_scanner_quotes_single) && r == '\'') {
     return true;
   }
-  if ((flags & sys_scanner_dquotes) && r == '"') {
+  if ((flags & sys_scanner_quotes_double) && r == '"') {
     return true;
   }
   return false;
@@ -116,7 +116,7 @@ static bool is_quote_start(rune_t r, sys_scanner_flags_t flags) {
 // by checking whether the token's last byte is quote). A backslash
 // escapes whatever single rune follows it - that rune never ends the
 // string, whatever it is (not just the quote character itself - see
-// sys_scanner_squotes's doc comment for why '\\' needs the same
+// sys_scanner_quotes_single's doc comment for why '\\' needs the same
 // treatment). Escape sequences are left byte-for-byte in the stream;
 // unescaping/unquoting is a separate, later step. Returns the number of
 // runes consumed, not counting the opening quote but counting the
@@ -182,6 +182,198 @@ static size_t scan_to_eol(sys_iostream_t *stream) {
     }
     runes++;
   }
+}
+
+static bool is_number_start(rune_t r) {
+  return r == '-' || r == '+' || (r >= '0' && r <= '9');
+}
+
+static bool isdecimal(char c) { return c >= '0' && c <= '9'; }
+static bool isoctaldigit(char c) { return c >= '0' && c <= '7'; }
+static bool isbinarydigit(char c) { return c == '0' || c == '1'; }
+
+// stream is positioned right after some already-confirmed prefix.
+// Consumes a maximal run of bytes satisfying is_digit, giving back the
+// first non-matching byte (or stopping cleanly at end of stream) -
+// digits are always single-byte ASCII, so byte count and rune count
+// coincide here. Returns the number of digits consumed (possibly 0).
+static size_t scan_digit_run(sys_iostream_t *stream, bool (*is_digit)(char)) {
+  size_t n = 0;
+  for (;;) {
+    ptrdiff_t before = sys_iostream_seek(stream, 0, false);
+    char c;
+    if (sys_iostream_read(stream, &c, 1) != 1 || !is_digit(c)) {
+      sys_iostream_seek(stream, before, true);
+      break;
+    }
+    n++;
+  }
+  return n;
+}
+
+// stream is positioned right after a confirmed leading '0' (not counted
+// here - the caller already counted it). Recognizes prefix_lower or
+// prefix_upper (e.g. 'x'/'X') followed by at least one digit satisfying
+// is_digit; if found, consumes the prefix byte plus the whole digit run
+// and returns true with *out_runes = 1 (the prefix byte) + digit run
+// length. If not found - no prefix byte, or a prefix byte with no valid
+// digit after it - restores the stream to exactly where it was called
+// (right after the '0') and returns false, so the caller can fall back
+// to treating the '0' as an ordinary decimal number.
+static bool scan_prefixed_digits(sys_iostream_t *stream, char prefix_lower,
+                                  char prefix_upper, bool (*is_digit)(char),
+                                  size_t *out_runes) {
+  ptrdiff_t before = sys_iostream_seek(stream, 0, false);
+  char c;
+  if (sys_iostream_read(stream, &c, 1) != 1 ||
+      !(c == prefix_lower || c == prefix_upper)) {
+    sys_iostream_seek(stream, before, true);
+    return false;
+  }
+  size_t digit_runes = scan_digit_run(stream, is_digit);
+  if (digit_runes == 0) {
+    sys_iostream_seek(stream, before, true); // no digits - not a prefixed number
+    return false;
+  }
+  *out_runes = 1 + digit_runes;
+  return true;
+}
+
+// stream is positioned right after a confirmed integer digit run.
+// Recognizes a fractional suffix: a '.' immediately followed by at least
+// one decimal digit. If found, consumes it and returns true with
+// *out_runes = 1 (the '.') + digit run length; otherwise restores the
+// stream to exactly where it was called and returns false, so a bare
+// trailing '.' (nothing after it, or a non-digit) is left for its own
+// token instead of being swallowed.
+static bool scan_fraction(sys_iostream_t *stream, size_t *out_runes) {
+  ptrdiff_t before = sys_iostream_seek(stream, 0, false);
+  char c;
+  if (sys_iostream_read(stream, &c, 1) != 1 || c != '.') {
+    sys_iostream_seek(stream, before, true);
+    return false;
+  }
+  size_t digit_runes = scan_digit_run(stream, isdecimal);
+  if (digit_runes == 0) {
+    sys_iostream_seek(stream, before, true); // '.' not followed by a digit
+    return false;
+  }
+  *out_runes = 1 + digit_runes;
+  return true;
+}
+
+// stream is positioned right after a confirmed integer digit run (and
+// possibly a fractional suffix already consumed by scan_fraction).
+// Recognizes an exponent suffix: 'e' or 'E', an optional '+'/'-' sign,
+// then one or more decimal digits. If found, consumes it and returns
+// true with *out_runes = 1 (the 'e'/'E') + (1 if a sign was present) +
+// digit run length; otherwise restores the stream to exactly where it
+// was called and returns false, so "1e" (nothing valid after it) or
+// "1e+" (a sign but no digit after it) leaves 'e'/'e+' for their own
+// tokens instead of being swallowed.
+static bool scan_exponent(sys_iostream_t *stream, size_t *out_runes) {
+  ptrdiff_t before = sys_iostream_seek(stream, 0, false);
+  char c;
+  if (sys_iostream_read(stream, &c, 1) != 1 || !(c == 'e' || c == 'E')) {
+    sys_iostream_seek(stream, before, true);
+    return false;
+  }
+  size_t runes = 1;
+
+  ptrdiff_t before_sign = sys_iostream_seek(stream, 0, false);
+  char sign;
+  if (sys_iostream_read(stream, &sign, 1) == 1 && (sign == '+' || sign == '-')) {
+    runes++;
+  } else {
+    sys_iostream_seek(stream, before_sign, true); // give back what we peeked
+  }
+
+  size_t digit_runes = scan_digit_run(stream, isdecimal);
+  if (digit_runes == 0) {
+    sys_iostream_seek(stream, before, true); // no digits - not an exponent
+    return false;
+  }
+  runes += digit_runes;
+  *out_runes = runes;
+  return true;
+}
+
+// r is the rune that triggered this check (a sign or a digit); stream is
+// positioned right after it. If r is a digit, this always succeeds - r
+// counts as the first digit, and any further digits (plus, per flags, an
+// octal/binary/hex prefix or a float's fractional suffix) are consumed
+// too. If r is a sign, at least one digit must follow immediately, or
+// this isn't a number at all: returns false and restores the stream to
+// right after the sign, so the caller can fall back to ordinary
+// punct/symbol classification of the sign alone. *out_runes receives the
+// number of runes consumed beyond r itself.
+static bool scan_number(sys_iostream_t *stream, rune_t r,
+                         sys_scanner_flags_t flags, size_t *out_runes) {
+  size_t runes = 0;
+
+  if (r == '-' || r == '+') {
+    ptrdiff_t before = sys_iostream_seek(stream, 0, false);
+    rune_t next_r;
+    size_t next_width;
+    if (!_sys_rune_decode(stream, &next_r, &next_width) ||
+        !(next_r >= '0' && next_r <= '9')) {
+      sys_iostream_seek(stream, before, true);
+      *out_runes = 0;
+      return false; // a lone sign isn't a number
+    }
+    runes++;
+    r = next_r; // r is now the first actual digit, for prefix detection below
+  }
+
+  if (r == '0') {
+    if ((flags & sys_scanner_numbers_hex) == sys_scanner_numbers_hex) {
+      size_t prefixed_runes;
+      if (scan_prefixed_digits(stream, 'x', 'X', ishex, &prefixed_runes)) {
+        *out_runes = runes + prefixed_runes;
+        return true;
+      }
+    }
+    if ((flags & sys_scanner_numbers_binary) == sys_scanner_numbers_binary) {
+      size_t prefixed_runes;
+      if (scan_prefixed_digits(stream, 'b', 'B', isbinarydigit,
+                                &prefixed_runes)) {
+        *out_runes = runes + prefixed_runes;
+        return true;
+      }
+    }
+    if ((flags & sys_scanner_numbers_octal) == sys_scanner_numbers_octal) {
+      // Prefixed form first ("0o"/"0O", self-describing like hex/binary
+      // - see scan_prefixed_digits) - then the bare C-style fallback (a
+      // leading zero directly followed by octal digits, no marker).
+      size_t prefixed_runes;
+      if (scan_prefixed_digits(stream, 'o', 'O', isoctaldigit,
+                                &prefixed_runes)) {
+        *out_runes = runes + prefixed_runes;
+        return true;
+      }
+      size_t octal_runes = scan_digit_run(stream, isoctaldigit);
+      if (octal_runes > 0) {
+        *out_runes = runes + octal_runes;
+        return true;
+      }
+    }
+  }
+
+  runes += scan_digit_run(stream, isdecimal);
+
+  if ((flags & sys_scanner_numbers_float) == sys_scanner_numbers_float) {
+    size_t frac_runes;
+    if (scan_fraction(stream, &frac_runes)) {
+      runes += frac_runes;
+    }
+    size_t exp_runes;
+    if (scan_exponent(stream, &exp_runes)) {
+      runes += exp_runes;
+    }
+  }
+
+  *out_runes = runes;
+  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -259,6 +451,21 @@ bool sys_scanner_next(sys_scanner_t *it) {
       // restored the stream to right after the first '/'.
     }
 
+    if ((it->flags & sys_scanner_numbers) && is_number_start(r)) {
+      size_t inner_runes;
+      if (scan_number(it->stream, r, it->flags, &inner_runes)) {
+        ptrdiff_t end = sys_iostream_seek(it->stream, 0, false);
+        it->start = start;
+        it->bytes = (size_t)(end - start);
+        it->runes = 1 + inner_runes; // r itself + whatever scan_number consumed
+        it->isa = sys_scanner_number;
+        return true;
+      }
+      // A lone sign with no digit after it - fall through and tokenize
+      // it as ordinary punctuation/symbol instead. scan_number() already
+      // restored the stream to right after the sign.
+    }
+
     sys_scanner_class_t isa = classify(r, it->flags);
     size_t bytes = width;
     size_t runes = 1;
@@ -307,6 +514,22 @@ bool sys_scanner_next(sys_scanner_t *it) {
           match_slash_comment(it->stream)) {
         sys_iostream_seek(it->stream, before_next, true);
         break;
+      }
+      // Nor a sign/digit that starts a recognized number - restore
+      // everything scan_number() provisionally consumed so it starts
+      // fresh as its own token. Doesn't apply within a keyword run: a
+      // digit (and, with sys_scanner_keywords_withdashes, '-') is a
+      // legitimate keyword-continuing character there, not a rival
+      // token trying to start ("abc123" stays one keyword).
+      if (isa != sys_scanner_keyword && (it->flags & sys_scanner_numbers) &&
+          is_number_start(next_r)) {
+        size_t number_runes;
+        if (scan_number(it->stream, next_r, it->flags, &number_runes)) {
+          sys_iostream_seek(it->stream, before_next, true);
+          break;
+        }
+        // A lone sign with no digit after it - not a number, so it's
+        // fine to let it merge into this run normally below.
       }
       bytes += next_width;
       runes++;

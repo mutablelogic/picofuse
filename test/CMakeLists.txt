@@ -245,7 +245,7 @@ picofuse_test(sys_045
 	sys_045/main.c
 )
 
-# sys_string_scanner_escapes - JSON-style \-escape sequences as single
+# sys_scanner_escapes - JSON-style \-escape sequences as single
 # tokens, malformed-escape fallback, and the punctuation-run-absorption
 # guard
 picofuse_test(sys_046
@@ -272,14 +272,14 @@ picofuse_test(sys_049
 	sys_049/main.c
 )
 
-# sys_scanner_squotes - single-quoted string tokens, backslash escaping
+# sys_scanner_quotes_single - single-quoted string tokens, backslash escaping
 # whatever follows it (not just \'), unterminated-at-EOF best-effort
 # behavior, and independence from sys_scanner_escapes
 picofuse_test(sys_050
 	sys_050/main.c
 )
 
-# sys_scanner_dquotes - same rules as sys_scanner_squotes but for "-quoted
+# sys_scanner_quotes_double - same rules as sys_scanner_quotes_single but for "-quoted
 # strings, plus both flags combined: each string only closes on its own
 # matching quote character
 picofuse_test(sys_051
@@ -298,4 +298,41 @@ picofuse_test(sys_052
 # and composition with sys_scanner_comments_hash/newlines/nospace
 picofuse_test(sys_053
 	sys_053/main.c
+)
+
+# sys_scanner_numbers - whole numbers optionally signed with '-'/'+',
+# the lone-sign lookahead fallback, the punctuation-absorption guard,
+# and composition with sys_scanner_nospaces/keywords
+picofuse_test(sys_054
+	sys_054/main.c
+)
+
+# sys_scanner_numbers_octal - both the "0o"/"0O" prefixed (Python/Rust/
+# Swift) and bare leading-zero (C) octal forms, the '8'/'9'-isn't-octal
+# fallback to an ordinary decimal number, and the octal-run-stops-cleanly
+# split ("0779" -> "077" then "9")
+picofuse_test(sys_055
+	sys_055/main.c
+)
+
+# sys_scanner_numbers_binary - "0b"/"0B" prefixed binary digit runs and
+# the no-digit-after-prefix fallback to the bare number "0"
+picofuse_test(sys_056
+	sys_056/main.c
+)
+
+# sys_scanner_numbers_hex - "0x"/"0X" prefixed hex digit runs, the
+# no-digit-after-prefix fallback, and non-interference with an
+# in-progress sys_scanner_keywords run
+picofuse_test(sys_057
+	sys_057/main.c
+)
+
+# sys_scanner_numbers_float - a '.' fractional suffix immediately
+# followed by decimal digits, an "e"/"E"-with-optional-sign exponent
+# suffix (with or without a fractional part first), the no-digit-after
+# fallback for both, no leading-dot numbers, and only one fractional
+# suffix per number
+picofuse_test(sys_058
+	sys_058/main.c
 )
