@@ -29,21 +29,27 @@ extern "C" {
  * gains flags that recognize them.
  */
 typedef enum {
-  sys_scanner_other = 0,
-  sys_scanner_space,
-  sys_scanner_digit,
-  sys_scanner_alpha,
-  sys_scanner_punct,
-  sys_scanner_symbol,
-  sys_scanner_control,
+  sys_scanner_other = 0, ///< unclassified - malformed bytes, and any
+                         ///< codepoint sys_rune_isa() can't place
+  sys_scanner_space,     ///< a run of whitespace - see sys_rune_is_space()
+  sys_scanner_digit,     ///< a run of decimal digits
+  sys_scanner_alpha,     ///< a run of letters
+  sys_scanner_punct,     ///< a run of punctuation
+  sys_scanner_symbol,    ///< a run of symbol characters
+  sys_scanner_control,   ///< a run of control characters (including any
+                         ///< rune sys_rune_is_space() also recognizes,
+                         ///< like '\n' or '\t' - see sys_rune_isa()'s
+                         ///< control-before-space priority)
   sys_scanner_escape, ///< a JSON-style \-escape sequence - see
                       ///< sys_scanner_escapes
   sys_scanner_newline, ///< a run of '\n' - see sys_scanner_newlines
   sys_scanner_keyword, ///< an identifier - see sys_scanner_keywords
   sys_scanner_string, ///< a '- or "-quoted string, escapes left as-is -
-                      ///< see sys_scanner_squotes/sys_scanner_dquotes
+                      ///< see sys_scanner_quotes
   sys_scanner_comment, ///< a comment - see sys_scanner_comments_hash/
                        ///< sys_scanner_comments_slash
+  sys_scanner_number, ///< a whole number, optionally signed - see
+                      ///< sys_scanner_numbers
 } sys_scanner_class_t;
 
 /**
@@ -147,20 +153,26 @@ typedef enum {
    * sys_scanner_token()'s last byte is '\'' to tell a properly closed
    * string from one that ran out of stream first.
    */
-  sys_scanner_squotes = 1 << 6,
+  sys_scanner_quotes_single = 1 << 6,
 
   /**
    * Recognize "-quoted strings as a single sys_scanner_string token -
-   * the same rules as sys_scanner_squotes (backslash escapes whatever
-   * follows it, unterminated-at-end-of-stream is best-effort, check the
-   * token's last byte to tell the two apart), just triggered by '"'
-   * instead of '\''. A '"' inside a '-quoted string (or a '\'' inside a
-   * "-quoted one) is ordinary content, not a terminator - each kind of
-   * string only ever closes on its own matching quote character.
-   * Combine (OR) with sys_scanner_squotes to recognize both kinds in the
-   * same stream.
+   * the same rules as sys_scanner_quotes_single (backslash escapes
+   * whatever follows it, unterminated-at-end-of-stream is best-effort,
+   * check the token's last byte to tell the two apart), just triggered
+   * by '"' instead of '\''. A '"' inside a '-quoted string (or a '\''
+   * inside a "-quoted one) is ordinary content, not a terminator - each
+   * kind of string only ever closes on its own matching quote
+   * character. Combine (OR) with sys_scanner_quotes_single (or just use
+   * sys_scanner_quotes) to recognize both kinds in the same stream.
    */
-  sys_scanner_dquotes = 1 << 7,
+  sys_scanner_quotes_double = 1 << 7,
+
+  /**
+   * Recognize both '-quoted and "-quoted strings - equivalent to
+   * sys_scanner_quotes_single | sys_scanner_quotes_double.
+   */
+  sys_scanner_quotes = sys_scanner_quotes_single | sys_scanner_quotes_double,
 
   /**
    * Recognize '#'-prefixed comments as a single sys_scanner_comment
@@ -191,6 +203,106 @@ typedef enum {
    * sys_scanner_comments_hash | sys_scanner_comments_slash.
    */
   sys_scanner_comments = sys_scanner_comments_hash | sys_scanner_comments_slash,
+
+  /**
+   * Recognize whole numbers - `[+-]?[0-9]+` - as a single
+   * sys_scanner_number token, instead of a bare digit run
+   * (sys_scanner_digit) with any leading sign left as its own
+   * punctuation/symbol token.
+   *
+   * A '+' or '-' only ever starts a number if at least one digit
+   * immediately follows it; otherwise it falls back to ordinary
+   * classification (symbol for '+', punct for '-'), same "commit only
+   * what's confirmed" rule as escapes/comments. The scanner has no
+   * lookback at the previous token, so it can't tell a leading sign
+   * apart from a binary operator by context - "12-34" scans as two
+   * number tokens ("12", "-34"), not a number, a punct, and a number.
+   * If that ambiguity matters, resolve it at the parsing stage, which
+   * has the context the scanner doesn't.
+   *
+   * Octal/binary/hex prefixes, floats, and exponential forms aren't
+   * covered by this flag on its own - see sys_scanner_numbers_octal/
+   * _binary/_hex/_float.
+   */
+  sys_scanner_numbers = 1 << 10,
+
+  /**
+   * Like sys_scanner_numbers (includes it - no need to OR the two
+   * together), recognizing two spellings of an octal number as a single
+   * sys_scanner_number token:
+   *
+   *  - "0o"/"0O" followed by one or more octal digits ('0'-'7') -
+   *    Python/Rust/Swift style, e.g. "0o17". Self-describing the same
+   *    way sys_scanner_numbers_hex/_binary's prefixes are: the marker
+   *    only ever appears in an octal number, so a value parser can
+   *    always tell this form apart from an ordinary decimal number just
+   *    by looking at the token's bytes, regardless of which flags
+   *    produced it.
+   *  - a bare leading zero directly followed by octal digits, no marker
+   *    - C style, e.g. "0755". Checked only if the prefixed form above
+   *    didn't match. Unlike the prefixed form, this one is NOT
+   *    self-describing - "0755" is byte-for-byte identical to what an
+   *    ordinary decimal number with a leading zero would produce
+   *    without this flag, so telling them apart later requires already
+   *    knowing this flag was active when the token was scanned.
+   *
+   * Both forms only commit once a digit confirms them - "0o" or a bare
+   * "0" with no octal digit after it falls back to the ordinary number
+   * "0" plus whatever follows as its own token, same "commit only what's
+   * confirmed" rule as escapes/hex/binary. Digit consumption stops at
+   * the first non-octal-digit the same way every other run does - "0779"
+   * (bare form) is the octal number "077" followed by its own decimal
+   * number "9", not one token or a rejected literal.
+   */
+  sys_scanner_numbers_octal = sys_scanner_numbers | (1 << 11),
+
+  /**
+   * Like sys_scanner_numbers (includes it - no need to OR the two
+   * together), but also recognizes "0b" or "0B" followed by one or more
+   * binary digits ('0' or '1') as a single sys_scanner_number token,
+   * e.g. "0b01010101". The prefix only commits if at least one binary
+   * digit follows it - "0b" with nothing (or non-binary digits) after
+   * falls back to the ordinary number "0", leaving "b..." for its own
+   * token, same "commit only what's confirmed" rule as escapes.
+   */
+  sys_scanner_numbers_binary = sys_scanner_numbers | (1 << 12),
+
+  /**
+   * Like sys_scanner_numbers (includes it - no need to OR the two
+   * together), but also recognizes "0x" or "0X" followed by one or more
+   * hex digits ('0'-'9', 'a'-'f', 'A'-'F') as a single sys_scanner_number
+   * token, e.g. "0x1A2f". Same fallback rule as
+   * sys_scanner_numbers_binary: the prefix only commits if a hex digit
+   * follows it, otherwise it's just the number "0" plus whatever "x..."
+   * tokenizes as on its own.
+   */
+  sys_scanner_numbers_hex = sys_scanner_numbers | (1 << 13),
+
+  /**
+   * Like sys_scanner_numbers (includes it - no need to OR the two
+   * together), but also recognizes two optional suffixes on an ordinary
+   * (not octal/binary/hex) number as part of the same sys_scanner_number
+   * token:
+   *
+   *  - a fractional part: a decimal point immediately followed by one or
+   *    more decimal digits, e.g. "3.14". The '.' only commits if at
+   *    least one digit follows it - "3." falls back to the number "3"
+   *    followed by its own punctuation token "." (so "." used as a
+   *    separator elsewhere isn't disturbed), and a leading '.' never
+   *    starts a number on its own ("." isn't a sign or a digit - see
+   *    sys_scanner_numbers).
+   *  - an exponent: 'e' or 'E', an optional '+'/'-' sign, then one or
+   *    more decimal digits, e.g. "1e10" or "1.5e-3" - valid with or
+   *    without a fractional part first. Same "commit only what's
+   *    confirmed" rule: "1e" or "1e+" (nothing valid, or a sign with no
+   *    digit after it) falls back to the number "1" followed by
+   *    whatever "e"/"e+" tokenizes as on their own.
+   *
+   * Both suffixes are checked in this order (fraction, then exponent)
+   * regardless of whether the other matched. No hex/octal/binary floats
+   * or exponents yet.
+   */
+  sys_scanner_numbers_float = sys_scanner_numbers | (1 << 14),
 } sys_scanner_flags_t;
 
 /**
