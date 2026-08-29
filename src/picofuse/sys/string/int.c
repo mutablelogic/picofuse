@@ -73,7 +73,7 @@ static bool _sys_string_parse_magnitude(const char *str, size_t len,
     if (v < 0) {
       break;
     }
-    if (mag > (UINT64_MAX - (uint64_t)v) / 10) {
+    if (mag > (UINT64_MAX - (uint64_t)v) / (uint64_t)base) {
       return false; // overflows even a uint64_t
     }
     mag = mag * (uint64_t)base + (uint64_t)v;
