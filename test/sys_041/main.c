@@ -34,7 +34,9 @@ int main(void) {
 
   {
     char buf[] = "  hello";
-    test_assert_strequal(sys_string_trimspace(buf), "hello");
+    char *ret = sys_string_trimspace(buf);
+    test_assert(ret == buf); // same pointer - content shifted down, not advanced
+    test_assert_strequal(ret, "hello");
   }
   {
     char buf[] = "hello  ";
@@ -42,7 +44,9 @@ int main(void) {
   }
   {
     char buf[] = "  hello  ";
-    test_assert_strequal(sys_string_trimspace(buf), "hello");
+    char *ret = sys_string_trimspace(buf);
+    test_assert(ret == buf);
+    test_assert_strequal(ret, "hello");
   }
 
   ///////////////////////////////////////////////////////////////////////
@@ -60,7 +64,9 @@ int main(void) {
 
   {
     char buf[] = "\xC2\xA0hello\xC2\xA0";
-    test_assert_strequal(sys_string_trimspace(buf), "hello");
+    char *ret = sys_string_trimspace(buf);
+    test_assert(ret == buf);
+    test_assert_strequal(ret, "hello");
   }
 
   ///////////////////////////////////////////////////////////////////////
@@ -70,6 +76,7 @@ int main(void) {
   {
     char buf[] = " \x80 ";
     char *ret = sys_string_trimspace(buf);
+    test_assert(ret == buf);
     test_assert(sys_string_bytes(ret) == 1);
     test_assert((uint8_t)ret[0] == 0x80);
   }

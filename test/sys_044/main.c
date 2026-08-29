@@ -23,7 +23,7 @@ int main(void) {
   {
     char buf[] = "hello";
     char *ret = sys_string_trimprefix(buf, "he");
-    test_assert(ret == buf + 2); // advanced into the same buffer
+    test_assert(ret == buf); // same pointer - remainder shifted down, not advanced
     test_assert_strequal(ret, "llo");
   }
   {
@@ -34,6 +34,7 @@ int main(void) {
   {
     char buf[] = "hello";
     char *ret = sys_string_trimprefix(buf, "hello");
+    test_assert(ret == buf);
     test_assert_strequal(ret, ""); // whole string removed
   }
   {
@@ -45,6 +46,7 @@ int main(void) {
     // Multi-byte prefix.
     char buf[] = "caf\xC3\xA9lait";
     char *ret = sys_string_trimprefix(buf, "caf\xC3\xA9");
+    test_assert(ret == buf);
     test_assert_strequal(ret, "lait");
   }
 

@@ -7,12 +7,10 @@
  *
  * These operate on ordinary null-terminated `char *` strings, not a
  * dedicated string type - there's nothing to allocate or free beyond the
- * buffer you already have. Some functions (sys_string_to_upper(),
- * sys_string_trimspace(), ...) are destructive, writing through the
- * pointer you pass in; a couple (sys_string_trimspace(),
- * sys_string_trimprefix()) also return a pointer that may differ from
- * the one you passed in (e.g. advanced past leading whitespace) - use
- * the returned pointer afterward, not your original one.
+ * buffer you already have. The mutating functions (sys_string_to_upper(),
+ * sys_string_trimspace(), sys_string_trimprefix(), sys_string_trimsuffix())
+ * are all destructive, writing through the pointer you pass in, and all
+ * return that same pointer back.
  *
  * Example - trim, check, and uppercase:
  * @code
@@ -81,9 +79,7 @@ extern char *sys_string_to_lower(char *str);
  * @brief Trim leading and trailing whitespace from a string in place.
  * @ingroup SystemDataString
  * @param str Pointer to a mutable, null-terminated UTF-8 string, or NULL.
- * @return A pointer into str's own buffer, past any leading whitespace.
- * Use the returned pointer, not str, from this point on. NULL in, NULL
- * out.
+ * @return str, for chaining, or NULL if the input was NULL.
  */
 extern char *sys_string_trimspace(char *str);
 
@@ -92,8 +88,7 @@ extern char *sys_string_trimspace(char *str);
  * @ingroup SystemDataString
  * @param s Pointer to a mutable, null-terminated string, or NULL.
  * @param prefix Prefix to remove, or NULL (treated as "").
- * @return If s starts with prefix, a pointer into s's own buffer past
- * those bytes; otherwise s itself, unchanged. NULL in, NULL out.
+ * @return s, for chaining, or NULL if the input was NULL.
  */
 extern char *sys_string_trimprefix(char *s, const char *prefix);
 
