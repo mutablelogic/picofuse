@@ -3,6 +3,12 @@
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+/**
+ * @brief Compare two strings lexicographically.
+ * @param a First string, or NULL.
+ * @param b Second string, or NULL.
+ * @return A negative value if a < b, 0 if a == b, or a positive value if a > b.
+ */
 ptrdiff_t sys_string_compare(const char *a, const char *b) {
   if (a == NULL) {
     a = "";

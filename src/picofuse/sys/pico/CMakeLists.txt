@@ -23,6 +23,9 @@ picofuse_library(
         ../string/compare.c
         ../string/case.c
         ../string/trim.c
+        ../string/escape.c
+        ../string/bool.c
+        ../string/quoted.c
         ../string/has.c
         ../string/scanner.c
         ../string/iostream.c
