@@ -11,6 +11,19 @@ picofuse_library(
         ../pthread/cond.c
         ../pthread/waitgroup.c
         ../pthread/thread.c
+        ../string/rune.c
+        ../string/count.c
+        ../string/valid.c
+        ../string/isa.c
+        ../string/tokenize.c
+        ../string/runes.c
+        ../string/compare.c
+        ../string/case.c
+        ../string/trim.c
+        ../string/has.c
+        ../string/scanner.c
+        ../string/iostream.c
+        ../iostream/iostream.c
         ../printf/debugf.c
         ../printf/mutex.c
         ../printf/panicf.c
