@@ -153,3 +153,121 @@ picofuse_test(sys_029
 picofuse_test(sys_030
 	sys_030/main.c
 )
+
+# sys_rune_next: every UTF-8 decode path, especially malformed sequences -
+# overlong encodings, surrogates, out-of-range continuation bytes,
+# truncation, invalid lead bytes, and error re-sync behaviour
+picofuse_test(sys_031
+	sys_031/main.c
+)
+
+# sys_rune_count and sys_rune_valid, including the U+FFFD-vs-decode-error
+# ambiguity that sys_rune_valid has to resolve correctly
+picofuse_test(sys_032
+	sys_032/main.c
+)
+
+# sys_rune_is_digit/is_space/is_alpha/is_upper/is_lower/is_punct/is_control
+# classifiers - every ASCII boundary plus non-ASCII/error inputs
+picofuse_test(sys_033
+	sys_033/main.c
+)
+
+# sys_rune_to_upper/to_lower case conversion, ASCII + Latin-1 round trips
+# and the no-single-codepoint-mapping cases (sharp s, y diaeresis)
+picofuse_test(sys_034
+	sys_034/main.c
+)
+
+# sys_rune_is_symbol, plus an exhaustive partition check that every
+# printable ASCII char is exactly one of digit/alpha/punct/symbol
+picofuse_test(sys_035
+	sys_035/main.c
+)
+
+# sys_rune_isa classification dispatch, including the documented
+# control-before-space priority for NEL (the one codepoint where the two
+# predicates disagree)
+picofuse_test(sys_036
+	sys_036/main.c
+)
+
+# sys_rune_tokenize_init/tokenize_next: maximal same-class runs, byte vs.
+# rune counts, malformed UTF-8 grouping, and full-string contiguous
+# coverage
+picofuse_test(sys_037
+	sys_037/main.c
+)
+
+# sys_string_bytes and sys_string_runes (the latter cross-checked against
+# sys_rune_count directly)
+picofuse_test(sys_038
+	sys_038/main.c
+)
+
+# sys_string_compare - strcmp-style three-way byte comparison, including
+# unsigned-byte-ordering and UTF-8 byte/codepoint order equivalence
+picofuse_test(sys_039
+	sys_039/main.c
+)
+
+# sys_string_to_upper/to_lower - destructive in-place case conversion,
+# including the Latin-1 2-byte-width-preserving rewrite and malformed
+# bytes passing through untouched
+picofuse_test(sys_040
+	sys_040/main.c
+)
+
+# sys_string_trimspace - in-place leading/trailing whitespace trim,
+# including multi-byte NBSP and internal-whitespace preservation
+picofuse_test(sys_041
+	sys_041/main.c
+)
+
+# sys_string_hasprefix / sys_string_hassuffix
+picofuse_test(sys_042
+	sys_042/main.c
+)
+
+# sys_string_contains - byte-offset substring search
+picofuse_test(sys_043
+	sys_043/main.c
+)
+
+# sys_string_trimprefix / sys_string_trimsuffix
+picofuse_test(sys_044
+	sys_044/main.c
+)
+
+# sys_string_scanner_init/scanner_next - flag-driven tokenization, the
+# sys_string_scanner_nospace flag skipping whitespace runs entirely
+picofuse_test(sys_045
+	sys_045/main.c
+)
+
+# sys_string_scanner_escapes - JSON-style \-escape sequences as single
+# tokens, malformed-escape fallback, and the punctuation-run-absorption
+# guard
+picofuse_test(sys_046
+	sys_046/main.c
+)
+
+# sys_string_read / sys_iostream_* - peek/read/write semantics, EOF and
+# NULL handling, independent streams, and pool exhaustion/reuse
+picofuse_test(sys_047
+	sys_047/main.c
+)
+
+# sys_scanner_newlines - '\n' classified separately from ordinary
+# whitespace, run-merging, and composition with nospace/escapes
+picofuse_test(sys_048
+	sys_048/main.c
+)
+
+# sys_scanner_keywords / sys_scanner_keyword_withunderscores /
+# sys_scanner_keyword_withdash - identifier tokens mixing letter/digit
+# classes, the modifier flags including the base flag, and each
+# modifier's character correctly gated behind its own flag
+picofuse_test(sys_049
+	sys_049/main.c
+)

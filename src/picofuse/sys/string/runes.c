@@ -1,0 +1,6 @@
+#include <picofuse/sys.h>
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+size_t sys_string_runes(const char *str) { return sys_rune_count(str); }
