@@ -24,6 +24,7 @@ picofuse_library(
         ../string/bool.c
         ../string/quoted.c
         ../string/int.c
+        ../string/float.c
         ../string/has.c
         ../string/scanner.c
         ../string/iostream.c

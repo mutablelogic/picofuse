@@ -288,6 +288,50 @@ extern bool sys_string_parse_uint32(const char *str, size_t len, uint32_t *value
  */
 extern bool sys_string_parse_uint64(const char *str, size_t len, uint64_t *value);
 
+/**
+ * @brief Parse a 32-bit floating-point number.
+ * @ingroup SystemDataString
+ * @param str Pointer to the number, optionally signed with a leading
+ * '+' or '-'. Recognizes ordinary decimal notation ("3.14", "-0.5",
+ * ".5", "5.", "1e10", "1.5e-3") and the exact literals "NaN" and "Inf"
+ * (optionally signed, e.g. "-Inf") - no hex/octal/binary floats, and no
+ * other spelling of infinity/not-a-number ("inf", "Infinity", "nan" are
+ * all parse errors, not accepted case-insensitively).
+ * @param len The number's exact length in bytes, or 0 for str's length
+ * up to its own NUL terminator. Either way, str must contain exactly
+ * one number and nothing else. With len set, str need not be
+ * NUL-terminated at all.
+ * @param value Pointer to store the result. Left unchanged on a parse
+ * error.
+ * @return true if str is a well-formed number, false otherwise - a
+ * lone '.' with no digit on either side of it ("+."), an 'e' with no
+ * digit after it ("1e"), or any other malformed or trailing content is
+ * a parse error. A magnitude too large or small for float overflows/
+ * underflows to +-Inf/0, the same as it would for
+ * sys_string_parse_float64() - that's not a parse error, since a float
+ * can represent it directly.
+ */
+extern bool sys_string_parse_float32(const char *str, size_t len, float *value);
+
+/**
+ * @brief Parse a 64-bit floating-point number.
+ * @ingroup SystemDataString
+ * @param str Pointer to the number, optionally signed with a leading
+ * '+' or '-'. Same recognized forms as sys_string_parse_float32().
+ * @param len The number's exact length in bytes, or 0 for str's length
+ * up to its own NUL terminator. Either way, str must contain exactly
+ * one number and nothing else. With len set, str need not be
+ * NUL-terminated at all.
+ * @param value Pointer to store the result. Left unchanged on a parse
+ * error.
+ * @return true if str is a well-formed number, false otherwise. Uses
+ * double precision throughout, so this is exact; sys_string_parse_float32()
+ * narrows the same parse to float afterward, which isn't always exact
+ * for many-digit inputs (no more than a double itself can represent
+ * exactly, around 17 significant decimal digits).
+ */
+extern bool sys_string_parse_float64(const char *str, size_t len, double *value);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 #ifdef __cplusplus

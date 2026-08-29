@@ -396,3 +396,20 @@ picofuse_test(sys_065
 picofuse_test(sys_066
 	sys_066/main.c
 )
+
+# sys_string_parse_float32 - decimal notation with fraction/exponent,
+# NaN/Inf exact-spelling recognition (rejecting other case variants),
+# overflow/underflow saturating to +-Inf/0 rather than erroring, a
+# pathological exponent resolving quickly, a magnitude that overflows
+# float32 specifically, and malformed/trailing-content rejection
+picofuse_test(sys_067
+	sys_067/main.c
+)
+
+# sys_string_parse_float64 - same shared grammar as
+# sys_string_parse_float32, a magnitude that overflows float32 but fits
+# a double, and the same overflow/underflow/pathological-exponent
+# behavior at double's own range
+picofuse_test(sys_068
+	sys_068/main.c
+)
