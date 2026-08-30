@@ -28,6 +28,7 @@ if(DEFINED PICO_BOARD)
         pico_float
         pico_malloc
         pico_mem_ops
+        pico_mbedtls
         pico_atomic
         pico_cxx_options
         pico_standard_binary_info
@@ -54,6 +55,7 @@ if(DEFINED PICO_BOARD)
             ${_pico_clib_interface_dir}/cxa_guard.c
             ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/puts.c # Our own stub in place of newlib's puts()
             ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/stdout.c
+            ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/mbedtls.c
         HEADER_DEPS pico_binary_info_headers pico_runtime_headers
     )
 

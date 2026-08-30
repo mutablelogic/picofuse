@@ -1,5 +1,5 @@
-#include <picofuse/sys.h>
 #include <math.h>
+#include <picofuse/sys.h>
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
@@ -148,6 +148,8 @@ static bool _sys_string_parse_double(const char *str, size_t len, double *out) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+/** @brief Parse a string as a 32-bit floating point number. Returns true on
+ * success, false on failure.  */
 bool sys_string_parse_float32(const char *str, size_t len, float *value) {
   double d;
   if (!_sys_string_parse_double(str, len, &d)) {
@@ -159,6 +161,8 @@ bool sys_string_parse_float32(const char *str, size_t len, float *value) {
   return true;
 }
 
+/** @brief Parse a string as a 64-bit floating point number. Returns true on
+ * success, false on failure.  */
 bool sys_string_parse_float64(const char *str, size_t len, double *value) {
   double d;
   if (!_sys_string_parse_double(str, len, &d)) {
