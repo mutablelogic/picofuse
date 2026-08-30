@@ -99,7 +99,7 @@ add_subdirectory(src/picofuse)
 
 # Examples
 add_subdirectory(examples/helloworld)
-
+add_subdirectory(examples/flags)
 
 # Tests
 include(CTest)

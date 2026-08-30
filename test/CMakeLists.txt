@@ -376,7 +376,21 @@ picofuse_test(sys_072
 	sys_072/main.c
 )
 
-# sys_date_get_now/_set_now 
+# sys_date_get_now/_set_now
 picofuse_test(sys_073
 	sys_073/main.c
+)
+
+# sys_env_signalhandler
+picofuse_test(sys_074
+	sys_074/main.c
+)
+
+# sys_env_serial/_name/_system/_version - non-null/non-empty and caching
+# on every platform, plus deterministic exact-value checks per platform
+# (sys_env_system against the known per-platform string, sys_env_version
+# against the compile-time PICOFUSE_VERSION macro, and Pico's serial
+# format specifically)
+picofuse_test(sys_075
+	sys_075/main.c
 )

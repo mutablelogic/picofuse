@@ -1,8 +1,8 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
   for (int i = 0; i < 50; i++) {
     sys_mutex_t *mutex = sys_mutex_init();

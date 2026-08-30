@@ -2,8 +2,8 @@
 #include <stdint.h>
 #include <test/test.h>
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
   // sys_init() already called sys_timestamp_ms() once to establish the
   // baseline, so the very next call should be small - just startup

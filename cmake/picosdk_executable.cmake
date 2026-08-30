@@ -1,6 +1,7 @@
 # picofuse_executable(NAME <target>
 #                      LIBRARIES <lib> ...
 #                      [HEADERS <headers-only-target> ...]
+#                      [VERSION <version>]
 #                      SOURCES <file> ...)
 #
 # On a PICO_BOARD build, compiles SOURCES into <target>.elf, linked against
@@ -21,8 +22,21 @@
 # targets here — a real, source-bearing target would compile its sources a
 # second time directly into this executable, on top of the copies already
 # sitting in whichever LIBRARIES .a legitimately links it in.
+#
+# VERSION defaults to PROGRAM_VERSION (the project's own version, exposed to
+# C code elsewhere as PICOFUSE_VERSION) when not given. It's always set as
+# this target's CMake VERSION property (mostly cosmetic for an executable).
+# On a PICO_BOARD build it also becomes this target's *own*
+# bi_program_version_string() binary_info entry, generated into a tiny
+# per-target source file compiled only into this executable — not, say,
+# pico_standard_binary_info's own standard_binary_info.c, which this project
+# bundles once into the shared picosdk archive, so a PICO_PROGRAM_VERSION_STRING
+# compile definition on any one executable would never reach it. Read back at
+# runtime via sys_env_version() (picofuse/sys/env.h), whose Pico backend scans
+# binary_info before falling back to the project-wide PICOFUSE_VERSION - so
+# this is what makes that per-executable rather than one fixed value.
 function(picofuse_executable)
-    cmake_parse_arguments(_ARG "" "NAME" "LIBRARIES;HEADERS;SOURCES" ${ARGN})
+    cmake_parse_arguments(_ARG "" "NAME;VERSION" "LIBRARIES;HEADERS;SOURCES" ${ARGN})
 
     if(NOT _ARG_NAME)
         message(FATAL_ERROR "picofuse_executable: NAME is required")
@@ -30,8 +44,15 @@ function(picofuse_executable)
     if(NOT _ARG_SOURCES)
         message(FATAL_ERROR "picofuse_executable: SOURCES is required")
     endif()
+    if(NOT _ARG_VERSION)
+        set(_ARG_VERSION "${PROGRAM_VERSION}")
+    endif()
 
     add_executable(${_ARG_NAME} ${_ARG_SOURCES})
+
+    if(_ARG_VERSION)
+        set_target_properties(${_ARG_NAME} PROPERTIES VERSION "${_ARG_VERSION}")
+    endif()
 
     set(_static_libs)
     foreach(_LIB IN LISTS _ARG_LIBRARIES)
@@ -55,6 +76,16 @@ function(picofuse_executable)
         # (arm-none-eabi) specific and unsupported by darwin's linker.
         target_link_libraries(${_ARG_NAME} PRIVATE
             "-Wl,--start-group" ${_static_libs} "-Wl,--end-group")
+
+        if(_ARG_VERSION)
+            set(_version_src "${CMAKE_CURRENT_BINARY_DIR}/${_ARG_NAME}_version_bi.c")
+            file(WRITE "${_version_src}"
+                "#include <pico/binary_info.h>\n"
+                "bi_decl(bi_program_version_string(\"${_ARG_VERSION}\"))\n"
+            )
+            target_sources(${_ARG_NAME} PRIVATE "${_version_src}")
+            target_link_libraries(${_ARG_NAME} PRIVATE pico_binary_info_headers)
+        endif()
     else()
         target_link_libraries(${_ARG_NAME} PRIVATE ${_static_libs})
     endif()

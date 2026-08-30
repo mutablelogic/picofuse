@@ -29,8 +29,8 @@ static void dispatch(sys_thread_func_t func) {
 #endif
 }
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
   _mutex = sys_mutex_init();
   test_assert(_mutex != NULL);
