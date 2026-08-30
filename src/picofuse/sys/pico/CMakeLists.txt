@@ -16,6 +16,8 @@ picofuse_library(
         random.c
         timestamp.c
         sleep.c
+        date.c
+        ../date/date.c
         ../string/rune.c
         ../string/count.c
         ../string/valid.c
@@ -48,4 +50,10 @@ picofuse_library(
         ../printf/vprintf.c
 )
 
-target_include_directories(picofuse-sys PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(picofuse-sys PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    # hash.c pulls in mbedtls headers, which locate mbedtls_config.h via a
+    # bare filename #include - see the matching comment in the top-level
+    # CMakeLists.txt.
+    ${CMAKE_SOURCE_DIR}/include/runtime
+)

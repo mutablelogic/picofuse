@@ -19,6 +19,8 @@ picofuse_library(
         ${_PICOFUSE_RANDOM_SOURCE}
         ../posix/sleep.c
         ../posix/timestamp.c
+        ../posix/date.c
+        ../date/date.c
         ../pthread/mutex.c
         ../pthread/cond.c
         ../pthread/waitgroup.c

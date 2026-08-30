@@ -11,9 +11,9 @@ digraph modules {
   WaitGroup  [label="Wait Groups",          URL="\ref SystemSyncWaitgroup"];
   Atomic     [label="Atomic Operations",    URL="\ref SystemAtomic"];
   Format     [label="Formatting and Output",       URL="\ref SystemFormat"];
-  Random     [label="Random Number Generation",     URL="\ref SystemRandom"];
+  Random     [label="Random Numbers",               URL="\ref SystemRandom"];
   Thread     [label="Thread and Sleep Operations",  URL="\ref SystemThread"];
-  Time       [label="Date and Time Operations",     URL="\ref SystemTime"];
+  Time       [label="Date and Time",                URL="\ref SystemTime"];
   Data        [label="Data types and utilities", URL="\ref SystemData"];
   DataRune    [label="Runes",                    URL="\ref SystemDataRune"];
   DataString  [label="Strings",                  URL="\ref SystemDataString"];
@@ -24,7 +24,6 @@ digraph modules {
   System -> Sync;
   System -> Format;
   System -> Thread;
-  System -> Time;
   System -> Data;
   Sync -> Mutex;
   Sync -> Cond;
@@ -36,5 +35,6 @@ digraph modules {
   Data -> DataStream;
   Data -> DataHash;
   Data -> Random;
+  Data -> Time;
 }
 \enddot
