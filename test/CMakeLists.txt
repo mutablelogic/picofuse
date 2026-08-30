@@ -358,12 +358,25 @@ picofuse_test(sys_069
 	sys_069/main.c
 )
 
-# sys_hash_* (MD5/SHA-256 lifecycle) - runs against whichever real backend
-# this platform picked (openssl on darwin/linux, mbedtls on pico); skipped
-# entirely for the stub backend, which has no real digest behavior to test
+# sys_hash_* (MD5/SHA-256 lifecycle) (openssl on darwin/linux, mbedtls on pico);
 get_property(_picofuse_hash_backend GLOBAL PROPERTY PICOFUSE_HASH_BACKEND)
 if(_picofuse_hash_backend STREQUAL "openssl" OR _picofuse_hash_backend STREQUAL "mbedtls")
 	picofuse_test(sys_070
 		sys_070/main.c
 	)
 endif()
+
+# sys_date_get_time_utc/_local and sys_date_get_date_utc/_local
+picofuse_test(sys_071
+	sys_071/main.c
+)
+
+# sys_date_set_time_utc/_set_date_utc and sys_date_compare_ns
+picofuse_test(sys_072
+	sys_072/main.c
+)
+
+# sys_date_get_now/_set_now 
+picofuse_test(sys_073
+	sys_073/main.c
+)

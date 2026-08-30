@@ -14,6 +14,7 @@
 #include "sys/assert.h"
 #include "sys/atomic.h"
 #include "sys/cond.h"
+#include "sys/date.h"
 #include "sys/debugf.h"
 #include "sys/halt.h"
 #include "sys/hash.h"

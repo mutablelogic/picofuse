@@ -1,8 +1,8 @@
 /**
  * @file sys/timestamp.h
  * @brief Defines timestamp APIs.
- * @defgroup SystemTime Date and Time Operations
- * @ingroup System
+ * @defgroup SystemTime Date and Time
+ * @ingroup SystemData
  * @details
  * The SystemTime module provides monotonic timing and wall-clock date/time
  * operations for scheduling, time measurement, and timestamped application
