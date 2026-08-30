@@ -1,8 +1,8 @@
 /**
  * @file sys/printf.h
  * @brief Defines formatted output APIs for console and string buffers.
- * @defgroup SystemFormat Formatting and Output
- * @ingroup System
+ * @defgroup SystemFormat Formatting
+ * @ingroup SystemData
  *
  * This file declares types and functions for formatted output to the system
  * console or to a string buffer. It supports printf-style formatting with
