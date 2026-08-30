@@ -2,7 +2,7 @@
  * @file sys/random.h
  * @brief Defines random number generation APIs.
  * @defgroup SystemRandom Random Number Generation
- * @ingroup System
+ * @ingroup SystemData
  * @brief Generating random numbers, sometimes using hardware to provide better
  * entropy.
  */

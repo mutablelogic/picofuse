@@ -61,7 +61,14 @@ if(DEFINED PICO_BOARD)
 
     # Add the combined pico SDK libraries target
     picofuse_add_pico_sdk_libs_target(pico_sdk_libs)
-    target_include_directories(picosdk_static PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include)
+    target_include_directories(picosdk_static PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}/include
+        # lwipopts.h and mbedtls_config.h are located via a bare filename
+        # #include from vendored SDK code (lwIP's opt.h hardcodes
+        # "lwipopts.h" with no macro indirection to redirect it), so
+        # include/runtime itself must be on the search path.
+        ${CMAKE_CURRENT_LIST_DIR}/include/runtime
+    )
 endif()
 
 # Lowercase and uppercase system name
