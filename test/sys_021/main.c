@@ -28,8 +28,8 @@ static void dispatch(void) {
 #endif
 }
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
   // A single wait group handle is reused across every round below - no
   // deinit/reinit between add()/wait() cycles.

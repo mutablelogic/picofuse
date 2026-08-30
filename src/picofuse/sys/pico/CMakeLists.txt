@@ -18,6 +18,9 @@ picofuse_library(
         sleep.c
         date.c
         ../date/date.c
+        ../stub/signal.c
+        env.c
+        ../env/arg.c
         ../string/rune.c
         ../string/count.c
         ../string/valid.c

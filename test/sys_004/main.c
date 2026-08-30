@@ -20,8 +20,8 @@ static void *_lock_thread(void *arg) {
 }
 #endif
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
 #if !defined(SYSTEM_NAME_PICO)
   _contended_mutex = sys_mutex_init();

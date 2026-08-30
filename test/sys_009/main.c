@@ -2,8 +2,8 @@
 #include <stdint.h>
 #include <test/test.h>
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
   char buf[64];
 

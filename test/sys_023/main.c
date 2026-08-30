@@ -45,8 +45,8 @@ static void dispatch(sys_thread_func_t func) {
 #endif
 }
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
   // Single-threaded sanity: inc/dec return the post-operation value, not
   // the pre-operation one.

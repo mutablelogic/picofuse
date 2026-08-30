@@ -20,7 +20,11 @@ picofuse_library(
         ../posix/sleep.c
         ../posix/timestamp.c
         ../posix/date.c
+        ../posix/signal.c
         ../date/date.c
+        ../env/env.c
+        ../env/arg.c
+        env.c
         ../pthread/mutex.c
         ../pthread/cond.c
         ../pthread/waitgroup.c

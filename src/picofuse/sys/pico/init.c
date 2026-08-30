@@ -4,7 +4,13 @@
 #include <picofuse/sys.h>
 #include <runtime/stdout.h>
 
-void sys_init(void) {
+void sys_init(int argc, char *argv[]) {
+  // Pico has no real command line - crt0's `bl main` doesn't set up r0/r1
+  // as argc/argv at all, so whatever main() was declared to receive here
+  // is meaningless and must not be used for anything.
+  (void)argc;
+  (void)argv;
+
   sys_stdout = uart_get_instance(0);
   sys_assert(sys_stdout != NULL);
   uart_init((uart_inst_t *)sys_stdout, 115200);

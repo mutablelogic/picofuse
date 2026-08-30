@@ -20,7 +20,11 @@ picofuse_library(
         ../posix/sleep.c
         ../posix/timestamp.c
         ../posix/date.c
+        ../posix/signal.c
         ../date/date.c
+        ../env/env.c
+        ../env/arg.c
+        env.c
         ../pthread/mutex.c
         ../pthread/cond.c
         ../pthread/waitgroup.c
@@ -62,3 +66,6 @@ target_include_directories(picofuse-sys PRIVATE ${CMAKE_SOURCE_DIR}/include)
 if(OPENSSL_FOUND)
     target_link_libraries(picofuse-sys PRIVATE OpenSSL::Crypto)
 endif()
+
+target_link_libraries(picofuse-sys PRIVATE "-framework IOKit" "-framework CoreFoundation")
+

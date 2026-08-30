@@ -21,8 +21,8 @@ static void expect_token(sys_scanner_t *it, const char *expect_text,
   test_assert(memcmp(buf, expect_text, expect_bytes) == 0);
 }
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
   ///////////////////////////////////////////////////////////////////////
   // Without sys_scanner_numbers_octal, a leading zero followed by

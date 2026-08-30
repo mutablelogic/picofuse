@@ -9,8 +9,8 @@ static void worker(void *arg) {
   test_assert(sys_waitgroup_done(wg));
 }
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
   sys_atomic_init(&worker_ran, 0);
 
   uint8_t numcores = sys_thread_numcores();

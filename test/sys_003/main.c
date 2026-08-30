@@ -1,8 +1,8 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
   // sys_init() may already hold some pool slots for its own subsystems
   // (e.g. printf's mutex), so drain whatever's left rather than assuming a

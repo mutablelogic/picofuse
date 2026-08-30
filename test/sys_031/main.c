@@ -16,8 +16,8 @@ static void check(const char *label, const char *str, rune_t expect_rune,
   }
 }
 
-int main(void) {
-  sys_init();
+int main(int argc, char *argv[]) {
+  sys_init(argc, argv);
 
   ///////////////////////////////////////////////////////////////////////
   // NULL / empty-string handling
