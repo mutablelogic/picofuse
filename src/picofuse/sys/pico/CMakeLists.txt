@@ -1,3 +1,5 @@
+set_property(GLOBAL PROPERTY PICOFUSE_HASH_BACKEND mbedtls)
+
 picofuse_library(
     NAME picofuse-sys
     LIBRARIES picosdk
@@ -32,6 +34,8 @@ picofuse_library(
         ../string/scanner.c
         ../string/iostream.c
         ../iostream/iostream.c
+        ../hash/djb2.c
+        hash.c
         ../printf/debugf.c
         ../printf/mutex.c
         ../printf/panicf.c

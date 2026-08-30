@@ -1,10 +1,22 @@
+find_package(OpenSSL)
+
+if(OPENSSL_FOUND)
+    set(_PICOFUSE_RANDOM_SOURCE ../openssl/random.c)
+    set(_PICOFUSE_HASH_SOURCE ../openssl/hash.c)
+    set_property(GLOBAL PROPERTY PICOFUSE_HASH_BACKEND openssl)
+else()
+    set(_PICOFUSE_RANDOM_SOURCE ../posix/random.c)
+    set(_PICOFUSE_HASH_SOURCE ../stub/hash.c)
+    set_property(GLOBAL PROPERTY PICOFUSE_HASH_BACKEND stub)
+endif()
+
 picofuse_library(
     NAME picofuse-sys
     SOURCES
         ../posix/halt.c
         ../posix/init.c
         ../posix/puts.c
-        ../posix/random.c
+        ${_PICOFUSE_RANDOM_SOURCE}
         ../posix/sleep.c
         ../posix/timestamp.c
         ../pthread/mutex.c
@@ -29,6 +41,8 @@ picofuse_library(
         ../string/scanner.c
         ../string/iostream.c
         ../iostream/iostream.c
+        ../hash/djb2.c
+        ${_PICOFUSE_HASH_SOURCE}
         ../printf/debugf.c
         ../printf/mutex.c
         ../printf/panicf.c
@@ -45,3 +59,7 @@ target_include_directories(picofuse-sys PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 find_package(Threads REQUIRED)
 target_link_libraries(picofuse-sys PRIVATE Threads::Threads)
+
+if(OPENSSL_FOUND)
+    target_link_libraries(picofuse-sys PRIVATE OpenSSL::Crypto)
+endif()

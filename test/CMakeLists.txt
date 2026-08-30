@@ -154,9 +154,7 @@ picofuse_test(sys_030
 	sys_030/main.c
 )
 
-# sys_rune_next: every UTF-8 decode path, especially malformed sequences -
-# overlong encodings, surrogates, out-of-range continuation bytes,
-# truncation, invalid lead bytes, and error re-sync behaviour
+# sys_rune_next: every UTF-8 decode path
 picofuse_test(sys_031
 	sys_031/main.c
 )
@@ -199,27 +197,22 @@ picofuse_test(sys_037
 	sys_037/main.c
 )
 
-# sys_string_bytes and sys_string_runes (the latter cross-checked against
-# sys_rune_count directly)
+# sys_string_bytes and sys_string_runes
 picofuse_test(sys_038
 	sys_038/main.c
 )
 
-# sys_string_compare - strcmp-style three-way byte comparison, including
-# unsigned-byte-ordering and UTF-8 byte/codepoint order equivalence
+# sys_string_compare 
 picofuse_test(sys_039
 	sys_039/main.c
 )
 
-# sys_string_to_upper/to_lower - destructive in-place case conversion,
-# including the Latin-1 2-byte-width-preserving rewrite and malformed
-# bytes passing through untouched
+# sys_string_to_upper/to_lower 
 picofuse_test(sys_040
 	sys_040/main.c
 )
 
-# sys_string_trimspace - in-place leading/trailing whitespace trim,
-# including multi-byte NBSP and internal-whitespace preservation
+# sys_string_trimspace 
 picofuse_test(sys_041
 	sys_041/main.c
 )
@@ -229,7 +222,7 @@ picofuse_test(sys_042
 	sys_042/main.c
 )
 
-# sys_string_contains - byte-offset substring search
+# sys_string_contains 
 picofuse_test(sys_043
 	sys_043/main.c
 )
@@ -239,177 +232,138 @@ picofuse_test(sys_044
 	sys_044/main.c
 )
 
-# sys_scanner_init/scanner_next - flag-driven tokenization, every base
-# token class including sys_scanner_space as an ordinary reported token
+# sys_scanner_init/scanner_next 
 picofuse_test(sys_045
 	sys_045/main.c
 )
 
-# sys_scanner_escapes - JSON-style \-escape sequences as single
-# tokens, malformed-escape fallback, and the punctuation-run-absorption
-# guard
+# sys_scanner_escapes 
 picofuse_test(sys_046
 	sys_046/main.c
 )
 
-# sys_string_read / sys_iostream_* - peek/read/write semantics, EOF and
-# NULL handling, independent streams, and pool exhaustion/reuse
+# sys_string_read / sys_iostream_* 
 picofuse_test(sys_047
 	sys_047/main.c
 )
 
-# sys_scanner_newlines - '\n' classified separately from ordinary
-# whitespace, never merging into a run, and composition with escapes
+# sys_scanner_newlines 
 picofuse_test(sys_048
 	sys_048/main.c
 )
 
-# sys_scanner_keywords / sys_scanner_keywords_withunderscores /
-# sys_scanner_keywords_withdashes - identifier tokens mixing letter/digit
-# classes, the modifier flags including the base flag, and each
-# modifier's character correctly gated behind its own flag
+# sys_scanner_keywords 
 picofuse_test(sys_049
 	sys_049/main.c
 )
 
-# sys_scanner_quotes_single - single-quoted string tokens, backslash escaping
-# whatever follows it (not just \'), unterminated-at-EOF best-effort
-# behavior, and independence from sys_scanner_escapes
+# sys_scanner_quotes_single 
 picofuse_test(sys_050
 	sys_050/main.c
 )
 
-# sys_scanner_quotes_double - same rules as sys_scanner_quotes_single but for "-quoted
-# strings, plus both flags combined: each string only closes on its own
-# matching quote character
+# sys_scanner_quotes_double 
 picofuse_test(sys_051
 	sys_051/main.c
 )
 
-# sys_scanner_comments_hash - '#' line comments running to (not
-# including) the newline or end of stream, composition with
-# sys_scanner_newlines, and the punctuation-absorption guard
+# sys_scanner_comments_hash 
 picofuse_test(sys_052
 	sys_052/main.c
 )
 
-# sys_scanner_comments_slash - '//' line comments, the single-'/'
-# lookahead fallback (both at EOF and falling back to its own token),
-# and composition with sys_scanner_comments_hash/newlines
+# sys_scanner_comments_slash 
 picofuse_test(sys_053
 	sys_053/main.c
 )
 
-# sys_scanner_numbers - whole numbers optionally signed with '-'/'+',
-# the lone-sign lookahead fallback, the punctuation-absorption guard,
-# and composition with sys_scanner_keywords
+# sys_scanner_numbers 
 picofuse_test(sys_054
 	sys_054/main.c
 )
 
-# sys_scanner_numbers_octal - both the "0o"/"0O" prefixed (Python/Rust/
-# Swift) and bare leading-zero (C) octal forms, the '8'/'9'-isn't-octal
-# fallback to an ordinary decimal number, and the octal-run-stops-cleanly
-# split ("0779" -> "077" then "9")
+# sys_scanner_numbers_octal 
 picofuse_test(sys_055
 	sys_055/main.c
 )
 
-# sys_scanner_numbers_binary - "0b"/"0B" prefixed binary digit runs and
-# the no-digit-after-prefix fallback to the bare number "0"
+# sys_scanner_numbers_binary 
 picofuse_test(sys_056
 	sys_056/main.c
 )
 
-# sys_scanner_numbers_hex - "0x"/"0X" prefixed hex digit runs, the
-# no-digit-after-prefix fallback, and non-interference with an
-# in-progress sys_scanner_keywords run
+# sys_scanner_numbers_hex 
 picofuse_test(sys_057
 	sys_057/main.c
 )
 
-# sys_scanner_numbers_float - a '.' fractional suffix immediately
-# followed by decimal digits, an "e"/"E"-with-optional-sign exponent
-# suffix (with or without a fractional part first), the no-digit-after
-# fallback for both, no leading-dot numbers, and only one fractional
-# suffix per number
+# sys_scanner_numbers_float 
 picofuse_test(sys_058
 	sys_058/main.c
 )
 
 # sys_scanner_punct/_symbol/_newline/_control are always exactly one
-# rune per token, never a run (unlike space/digit/alpha) - the JSON
-# bracket-and-comma motivating case, and the contrast against classes
-# that still merge
+# rune per token
 picofuse_test(sys_059
 	sys_059/main.c
 )
 
-# sys_string_parse_escape - decoding every single-character JSON escape
-# and \uXXXX (either case), malformed-\u rejection, lone UTF-16
-# surrogate rejection, NULL handling, and RUNE_ERROR on failure
+# sys_string_parse_escape 
 picofuse_test(sys_060
 	sys_060/main.c
 )
 
-# sys_string_parse_bool - exact "true"/"false" matches, wrong case and
-# trailing/leading content as parse errors, NULL handling, and *out left
-# untouched on failure
+# sys_string_parse_bool 
 picofuse_test(sys_061
 	sys_061/main.c
 )
 
-# sys_string_parse_quoted - unescaping a quoted string's content: every
-# single-character escape, \' (recognized here but not in
-# sys_string_parse_escape's table), \uXXXX including multi-byte UTF-8
-# re-encoding, each quote style only closing on its own matching quote,
-# malformed/unterminated/trailing-content rejection, len==0 vs len>0
-# exact-boundary enforcement, and cap truncation
+# sys_string_parse_quoted 
 picofuse_test(sys_062
 	sys_062/main.c
 )
 
-# sys_string_parse_int32 - decimal/hex/octal (both forms)/binary, signed
-# with +/-, int32_t range boundaries, float/malformed/trailing-content
-# rejection, and len==0 vs len>0 exact-boundary enforcement
+# sys_string_parse_int32 
 picofuse_test(sys_063
 	sys_063/main.c
 )
 
-# sys_string_parse_int64 - same shared grammar as sys_string_parse_int32,
-# values that overflow int32_t but fit int64_t, int64_t range boundaries,
-# and the internal uint64_t magnitude accumulator's own overflow check
+# sys_string_parse_int64
 picofuse_test(sys_064
 	sys_064/main.c
 )
 
-# sys_string_parse_uint32 - same shared grammar as sys_string_parse_int32,
-# a leading '-' always a parse error (including "-0"), and uint32_t
-# range boundaries
+# sys_string_parse_uint32 
 picofuse_test(sys_065
 	sys_065/main.c
 )
 
-# sys_string_parse_uint64 - same shared grammar, '-' always a parse
-# error, values that overflow uint32_t but fit uint64_t, and UINT64_MAX
-# itself (the internal accumulator's own upper bound)
+# sys_string_parse_uint64 
 picofuse_test(sys_066
 	sys_066/main.c
 )
 
-# sys_string_parse_float32 - decimal notation with fraction/exponent,
-# NaN/Inf exact-spelling recognition (rejecting other case variants),
-# overflow/underflow saturating to +-Inf/0 rather than erroring, a
-# pathological exponent resolving quickly, a magnitude that overflows
-# float32 specifically, and malformed/trailing-content rejection
+# sys_string_parse_float32 
 picofuse_test(sys_067
 	sys_067/main.c
 )
 
-# sys_string_parse_float64 - same shared grammar as
-# sys_string_parse_float32, a magnitude that overflows float32 but fits
-# a double, and the same overflow/underflow/pathological-exponent
-# behavior at double's own range
+# sys_string_parse_float64 
 picofuse_test(sys_068
 	sys_068/main.c
 )
+
+# sys_hash_djb2 
+picofuse_test(sys_069
+	sys_069/main.c
+)
+
+# sys_hash_* (MD5/SHA-256 lifecycle) - runs against whichever real backend
+# this platform picked (openssl on darwin/linux, mbedtls on pico); skipped
+# entirely for the stub backend, which has no real digest behavior to test
+get_property(_picofuse_hash_backend GLOBAL PROPERTY PICOFUSE_HASH_BACKEND)
+if(_picofuse_hash_backend STREQUAL "openssl" OR _picofuse_hash_backend STREQUAL "mbedtls")
+	picofuse_test(sys_070
+		sys_070/main.c
+	)
+endif()

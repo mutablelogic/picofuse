@@ -19,6 +19,7 @@ digraph modules {
   DataString  [label="Strings",                  URL="\ref SystemDataString"];
   DataScanner [label="Scanner",                  URL="\ref SystemDataScanner"];
   DataStream  [label="Stream I/O",               URL="\ref SystemDataStream"];
+  DataHash    [label="Hashes",                   URL="\ref SystemDataHash"];
 
   System -> Sync;
   System -> Format;
@@ -34,5 +35,6 @@ digraph modules {
   Data -> DataString;
   Data -> DataScanner;
   Data -> DataStream;
+  Data -> DataHash;
 }
 \enddot
