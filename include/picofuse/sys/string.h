@@ -144,6 +144,32 @@ extern ptrdiff_t sys_string_contains(const char *s, const char *substr);
  */
 extern sys_iostream_t *sys_string_read(const char *str);
 
+/**
+ * @brief Open a read/write stream backed by a caller-provided mutable
+ * buffer.
+ * @ingroup SystemDataString
+ * @param buf The buffer to read from and write into (no copy is made -
+ * buf must stay alive for the stream's lifetime). If it already holds a
+ * NUL-terminated string within the first `cap` bytes, that's the starting
+ * content (like sys_string_read()); otherwise it's treated as empty and
+ * buf[0] is set to '\0'.
+ * @param cap The buffer's total capacity in bytes, including room for a
+ * trailing NUL terminator. Must be at least 1.
+ * @return A new stream, or NULL if buf is NULL, cap is 0, or the
+ * sys_iostream_t pool is exhausted. Release with sys_iostream_close().
+ *
+ * Reads and writes share one cursor, starting at position 0. Reads and
+ * seeks never go past the current content length; only a write can move
+ * that boundary, and only forward, up to (cap - 1) bytes - the last byte
+ * of `cap` is always reserved for a NUL terminator, kept up to date after
+ * every write, so buf is a valid, correctly terminated C string of
+ * whatever's been written so far at any point, not just once writing is
+ * done. Writing past the (cap - 1)-byte usable capacity doesn't grow the
+ * buffer; sys_iostream_write() truncates and reports the actual number of
+ * bytes written, the same convention as sys_sprintf().
+ */
+extern sys_iostream_t *sys_string_open(char *buf, size_t cap);
+
 ///////////////////////////////////////////////////////////////////////////////
 // PARSING
 

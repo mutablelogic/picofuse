@@ -386,11 +386,29 @@ picofuse_test(sys_074
 	sys_074/main.c
 )
 
-# sys_env_serial/_name/_system/_version - non-null/non-empty and caching
-# on every platform, plus deterministic exact-value checks per platform
-# (sys_env_system against the known per-platform string, sys_env_version
-# against the compile-time PICOFUSE_VERSION macro, and Pico's serial
-# format specifically)
+# sys_env_serial/_name/_system/_version 
 picofuse_test(sys_075
 	sys_075/main.c
+)
+
+# sys_env_arg_parse 
+picofuse_test(sys_076
+	sys_076/main.c
+)
+
+# sys_env_arg_parse_bool/_int32/_uint32/_int64/_uint64/_float32/_float64/
+# _string
+picofuse_test(sys_077
+	sys_077/main.c
+)
+
+# sys_string_open - NULL/zero-cap rejection, opening an empty buffer vs.
+# one that already holds a string (including a terminator sitting exactly
+# at the last valid index), reads/seeks bounded by the tracked content
+# length rather than physical capacity, a write growing that length and
+# keeping the buffer correctly terminated at every step (not just once
+# writing is done), an in-place overwrite not disturbing the length, and
+# writes truncating at the (cap - 1)-byte usable capacity
+picofuse_test(sys_078
+	sys_078/main.c
 )

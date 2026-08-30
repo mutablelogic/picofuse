@@ -31,6 +31,16 @@ struct sys_iostream_t {
       size_t length;      // sys_string_bytes(start), computed once
       size_t pos;          // current offset from start, 0..length
     } string;
+    struct {
+      char *data;   // caller-owned, mutable
+      size_t cap;   // total physical capacity, including the reserved
+                    // trailing '\0' - never itself readable/seekable content
+      size_t length; // current content length, 0..cap-1: found by scanning
+                     // for an existing '\0' at open time, then only ever
+                     // grown by write() - reads/seeks never go past this
+      size_t pos;    // current offset from data, 0..length, shared by both
+                     // reads and writes
+    } buffer;
   } backend;
 };
 

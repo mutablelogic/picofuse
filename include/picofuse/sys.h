@@ -30,5 +30,6 @@
 #include "sys/sleep.h"
 #include "sys/string.h"
 #include "sys/thread.h"
+#include "sys/timer.h"
 #include "sys/timestamp.h"
 #include "sys/waitgroup.h"

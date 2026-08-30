@@ -10,7 +10,7 @@ digraph modules {
   Cond       [label="Condition Variables",  URL="\ref SystemSyncCond"];
   WaitGroup  [label="Wait Groups",          URL="\ref SystemSyncWaitgroup"];
   Atomic     [label="Atomic Operations",    URL="\ref SystemAtomic"];
-  Data        [label="Data types and utilities", URL="\ref SystemData"];
+  Data        [label="Data", URL="\ref SystemData"];
   DataRune    [label="Runes",                    URL="\ref SystemDataRune"];
   DataString  [label="Strings",                  URL="\ref SystemDataString"];
   DataScanner [label="Scanner",                  URL="\ref SystemDataScanner"];
@@ -20,7 +20,8 @@ digraph modules {
   Time        [label="Date and Time",            URL="\ref SystemTime"];
   Format      [label="Formatting",               URL="\ref SystemFormat"];
   Execution   [label="Execution",                URL="\ref Execution"];
-  Thread      [label="Threads",                  URL="\ref SystemThread"];
+  Threads     [label="Threads",                  URL="\ref SystemThread"];
+  Timers      [label="Timers",                   URL="\ref SystemTimer"];
   SleepHalt   [label="Sleep and Halt",           URL="\ref SystemSleepHalt"];
   Env         [label="Environment",              URL="\ref SystemEnv"];
 
@@ -39,7 +40,8 @@ digraph modules {
   Data -> Random;
   Data -> Time;
   Data -> Format;
-  Execution -> Thread;
+  Execution -> Threads;
+  Execution -> Timers;
   Execution -> SleepHalt;
   Execution -> Env;
 }
