@@ -23,7 +23,6 @@ digraph modules {
 
   System -> Sync;
   System -> Format;
-  System -> Random;
   System -> Thread;
   System -> Time;
   System -> Data;
@@ -36,5 +35,6 @@ digraph modules {
   Data -> DataScanner;
   Data -> DataStream;
   Data -> DataHash;
+  Data -> Random;
 }
 \enddot
