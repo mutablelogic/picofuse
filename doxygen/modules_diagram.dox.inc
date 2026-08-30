@@ -10,21 +10,23 @@ digraph modules {
   Cond       [label="Condition Variables",  URL="\ref SystemSyncCond"];
   WaitGroup  [label="Wait Groups",          URL="\ref SystemSyncWaitgroup"];
   Atomic     [label="Atomic Operations",    URL="\ref SystemAtomic"];
-  Format     [label="Formatting and Output",       URL="\ref SystemFormat"];
-  Random     [label="Random Numbers",               URL="\ref SystemRandom"];
-  Thread     [label="Thread and Sleep Operations",  URL="\ref SystemThread"];
-  Time       [label="Date and Time",                URL="\ref SystemTime"];
   Data        [label="Data types and utilities", URL="\ref SystemData"];
   DataRune    [label="Runes",                    URL="\ref SystemDataRune"];
   DataString  [label="Strings",                  URL="\ref SystemDataString"];
   DataScanner [label="Scanner",                  URL="\ref SystemDataScanner"];
   DataStream  [label="Stream I/O",               URL="\ref SystemDataStream"];
   DataHash    [label="Hashes",                   URL="\ref SystemDataHash"];
+  Random      [label="Random Numbers",           URL="\ref SystemRandom"];
+  Time        [label="Date and Time",            URL="\ref SystemTime"];
+  Format      [label="Formatting",               URL="\ref SystemFormat"];
+  Execution   [label="Execution",                URL="\ref Execution"];
+  Thread      [label="Threads",                  URL="\ref SystemThread"];
+  SleepHalt   [label="Sleep and Halt",           URL="\ref SystemSleepHalt"];
+  Env         [label="Environment",              URL="\ref SystemEnv"];
 
   System -> Sync;
-  System -> Format;
-  System -> Thread;
   System -> Data;
+  System -> Execution;
   Sync -> Mutex;
   Sync -> Cond;
   Sync -> WaitGroup;
@@ -36,5 +38,9 @@ digraph modules {
   Data -> DataHash;
   Data -> Random;
   Data -> Time;
+  Data -> Format;
+  Execution -> Thread;
+  Execution -> SleepHalt;
+  Execution -> Env;
 }
 \enddot

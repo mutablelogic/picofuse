@@ -1,8 +1,15 @@
 /**
- * @file sys/thread.h
- * @brief Defines thread creation, core query, and sleep primitives.
- * @defgroup SystemThread Thread and Sleep Operations
+ * @brief Runtime execution: threads, pausing/stopping the process, and
+ * environment/signal integration.
+ * @defgroup Execution Execution
  * @ingroup System
+ */
+
+/**
+ * @file sys/thread.h
+ * @brief Defines thread creation and core query primitives.
+ * @defgroup SystemThread Threads
+ * @ingroup Execution
  * @details
  * The SystemThread module provides lightweight cross-platform helpers for
  * creating fire-and-forget worker threads and querying CPU core information.

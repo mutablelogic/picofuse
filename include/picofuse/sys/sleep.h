@@ -1,9 +1,10 @@
 /**
  * @file sys/sleep.h
  * @brief Defines thread sleep primitives.
- * @ingroup SystemThread
+ * @defgroup SystemSleepHalt Sleep and Halt
+ * @ingroup Execution
  * @details This file declares functions that pause execution for a specified
- * duration.
+ * duration; sys/halt.h declares the counterpart that stops it permanently.
  */
 
 #pragma once
@@ -17,7 +18,7 @@ extern "C" {
 
 /**
  * @brief Pauses the current thread for a specified duration.
- * @ingroup SystemThread
+ * @ingroup SystemSleepHalt
  * @param ms The number of milliseconds to sleep.
  * @details This function blocks only the calling thread for approximately the
  * requested duration.
