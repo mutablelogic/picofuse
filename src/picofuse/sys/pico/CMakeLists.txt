@@ -20,7 +20,7 @@ picofuse_library(
         ../date/date.c
         ../stub/signal.c
         env.c
-        ../env/arg.c
+        ../stub/arg.c
         ../string/rune.c
         ../string/count.c
         ../string/valid.c
