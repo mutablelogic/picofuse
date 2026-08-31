@@ -15,6 +15,10 @@ extern bool _sys_mem_module_init(size_t capacity, void *(*malloc_fn)(size_t),
                           void (*free_fn)(void *));
 extern void _sys_mem_module_exit(void);
 
+// Defined in event/runloop.c.
+extern bool _sys_runloop_module_init(void);
+extern void _sys_runloop_module_exit(void);
+
 void sys_init(int argc, char *argv[], size_t arena_size) {
   // Pico has no command line arguments
   (void)argc;
@@ -39,6 +43,10 @@ void sys_init(int argc, char *argv[], size_t arena_size) {
   // Initialize the shared critical section used by sync primitives
   _sys_sync_module_init();
 
+  // Create the mutex guarding the run loop singleton (depends on the sync
+  // module's critical section above, since sys_mutex_init() uses it)
+  _sys_runloop_module_init();
+
   // Initialize the critical section used by the timer pool
   _sys_timer_module_init();
 
@@ -60,6 +68,10 @@ void sys_exit(void) {
 
   // Deinitialize the printf mutex for thread-safe operations
   _sys_printf_exit();
+
+  // Release the mutex guarding the run loop singleton (before the sync
+  // module's critical section it depends on goes away)
+  _sys_runloop_module_exit();
 
   // Deinitialize the shared critical section used by sync primitives
   _sys_sync_module_deinit();

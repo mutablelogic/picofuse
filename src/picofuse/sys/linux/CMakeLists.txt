@@ -28,6 +28,7 @@ picofuse_library(
         ../event/lock.c
         ../event/pushpop.c
         ../event/size.c
+        ../event/runloop.c
         ../env/env.c
         ../env/arg.c
         env.c

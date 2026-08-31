@@ -27,6 +27,7 @@ picofuse_library(
         ../event/lock.c
         ../event/pushpop.c
         ../event/size.c
+        ../event/runloop.c
         ../stub/signal.c
         ../stub/arg.c
         ../string/rune.c
