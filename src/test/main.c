@@ -84,10 +84,13 @@ static sys_env_arg_flag_t flags[] = {
         .value = NULL,
     },
     {
+        // Hardcoded for now - this is the Debug Probe's UART bridge device
+        // on the current dev machine, and changes across replugs/reboots or
+        // on a different machine, so override with --serial as needed.
         .long_name = "serial",
         .short_name = NULL,
         .type = SYS_ENV_ARG_STRING,
-        .value = NULL,
+        .value = "/dev/tty.usbmodem83102",
     },
     {
         .long_name = "baud",
@@ -175,6 +178,12 @@ int main(int argc, char *argv[]) {
   bool verbose = false;
   sys_env_arg_parse_bool(args, "verbose", &verbose);
 
+  char serial[256] = {0};
+  sys_env_arg_parse_string(args, "serial", serial, sizeof(serial));
+
+  uint32_t baud = 0;
+  sys_env_arg_parse_uint32(args, "baud", &baud);
+
   exec_openocd_opts_t opts = {
       .openocd = openocd,
       .interface = interface,
@@ -182,6 +191,8 @@ int main(int argc, char *argv[]) {
       .elf = elf_path,
       .timeout = timeout,
       .verbose = verbose,
+      .serial = serial,
+      .baud = baud,
   };
   if (!exec_openocd(&opts)) {
     sys_exit();

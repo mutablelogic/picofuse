@@ -13,10 +13,17 @@ typedef struct {
   const char *elf;       // path to the .elf to flash
   uint32_t timeout;      // seconds to wait before killing a hung run
   bool verbose;          // stream openocd's own stdout/stderr through
+  const char *serial;    // serial device to read test output from, or
+                          // NULL/"" to skip UART verification entirely
+  uint32_t baud;         // baud rate for serial, ignored if serial is unset
 } exec_openocd_opts_t;
 
-// Runs openocd to program, verify and reset the target with opts->elf.
-// Returns true if openocd exited with status 0 before the timeout expired,
-// false on a spawn failure, a nonzero exit, or a timeout (the process is
-// killed in that case).
+// Runs openocd to program, verify and reset the target with opts->elf, then
+// (when opts->serial is set) reads the device's own UART output looking for
+// a "[TEST] [EXIT] " line (success) or a "[PANIC] " line (failure), printing
+// every line as it arrives. opts->timeout bounds the whole operation -
+// flashing and waiting for the UART marker together, not each separately.
+// Returns false on a spawn failure, a nonzero openocd exit, a "[PANIC] "
+// line, or timing out before either marker appears; true otherwise (or as
+// soon as openocd exits cleanly, if opts->serial is unset).
 bool exec_openocd(const exec_openocd_opts_t *opts);
