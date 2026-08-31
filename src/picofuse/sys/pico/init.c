@@ -35,6 +35,7 @@ void sys_init(int argc, char *argv[]) {
 
 void sys_exit(void) {
   /* TODO: Shutdown or reset any non-main cores */
+
   // Deinitialize the printf mutex for thread-safe operations
   _sys_printf_exit();
 
