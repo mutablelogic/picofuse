@@ -53,8 +53,16 @@ int main(int argc, char *argv[]) {
   sys_sprintf(buf, sizeof(buf), "%lu", 5000000000ULL);
   test_assert_strequal(buf, "5000000000");
 
+  // %zu tracks the platform's native size_t width (unlike %lu, which is
+  // always 64-bit): on pico's 32-bit size_t, 5000000000 doesn't fit, so use
+  // SIZE_MAX there instead to still exercise the full native width.
+#if defined(SYSTEM_NAME_PICO)
+  sys_sprintf(buf, sizeof(buf), "%zu", (size_t)SIZE_MAX);
+  test_assert_strequal(buf, "4294967295");
+#else
   sys_sprintf(buf, sizeof(buf), "%zu", (size_t)5000000000ULL);
   test_assert_strequal(buf, "5000000000");
+#endif
 
   // Zero-pad + '#' prefix on the 64-bit path too.
   sys_sprintf(buf, sizeof(buf), "%#010lx", 0xABCDULL);
@@ -86,11 +94,19 @@ int main(int argc, char *argv[]) {
   ///////////////////////////////////////////////////////////////////////////
   // %ld/%zd - signed, 64-bit path (_sys_printf_putuv64 + _sys_printf_abs64)
 
-  sys_sprintf(buf, sizeof(buf), "%ld", (long)-5000000000LL);
+  sys_sprintf(buf, sizeof(buf), "%ld", -5000000000LL);
   test_assert_strequal(buf, "-5000000000");
 
+  // %zd tracks the platform's native ptrdiff_t width (unlike %ld, which is
+  // always 64-bit): on pico's 32-bit ptrdiff_t, -5000000000 doesn't fit, so
+  // use INT32_MIN there instead to still exercise the full native width.
+#if defined(SYSTEM_NAME_PICO)
+  sys_sprintf(buf, sizeof(buf), "%zd", (ptrdiff_t)INT32_MIN);
+  test_assert_strequal(buf, "-2147483648");
+#else
   sys_sprintf(buf, sizeof(buf), "%zd", (ptrdiff_t)-5000000000LL);
   test_assert_strequal(buf, "-5000000000");
+#endif
 
   // INT64_MIN: -num would overflow int64_t, exercising abs64's safe path.
   sys_sprintf(buf, sizeof(buf), "%lld", INT64_MIN);
