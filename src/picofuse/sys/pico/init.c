@@ -44,6 +44,8 @@ void sys_exit(void) {
 
   // Print a message indicating that the system is halting
   sys_puts("\n[HALT]\n");
+
+  // Deinit the UART used for stdout
   uart_tx_wait_blocking((uart_inst_t *)sys_stdout);
   uart_deinit((uart_inst_t *)sys_stdout);
   sys_stdout = NULL;
