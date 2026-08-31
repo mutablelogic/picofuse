@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL vs empty string - NULL returns 0, distinct from "" (the djb2
@@ -54,6 +53,4 @@ int main(int argc, char *argv[]) {
     test_assert(picofuse != world);
   }
 
-  sys_exit();
-  return 0;
 }

@@ -37,8 +37,7 @@ static void deinit_target_waiter(void *arg) {
   test_assert(sys_waitgroup_done(_wg));
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   // Part A: bare sys_cond_wait() (no timeout) actually blocks until
   // signaled - a distinct code path from timedwait's semaphore-with-
@@ -158,6 +157,4 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  sys_exit();
-  return 0;
 }

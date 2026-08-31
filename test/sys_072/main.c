@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_date_set_time_utc - changes only the time-of-day, preserving the
@@ -143,6 +142,4 @@ int main(int argc, char *argv[]) {
     test_assert(diff > 0);
   }
 
-  sys_exit();
-  return 0;
 }

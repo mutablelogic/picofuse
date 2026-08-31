@@ -2,8 +2,7 @@
 #include <string.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_env_serial - never NULL/empty on any platform, and calling it
@@ -73,6 +72,4 @@ int main(int argc, char *argv[]) {
   test_assert(strcmp(sys_env_version(), "unknown") == 0);
 #endif
 
-  sys_exit();
-  return 0;
 }

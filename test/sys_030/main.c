@@ -24,8 +24,7 @@ static void stuck_waiter(void *arg) {
   sys_atomic_set(&_released, 1);
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   _wg = sys_waitgroup_init();
   test_assert(_wg != NULL);
@@ -50,6 +49,4 @@ int main(int argc, char *argv[]) {
   uint64_t elapsed = sys_timestamp_ms() - before;
   test_assert(elapsed < 500);
 
-  sys_exit();
-  return 0;
 }

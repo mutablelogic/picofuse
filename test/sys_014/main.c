@@ -8,8 +8,7 @@
 // (e.g. a stuck, masked, or zero-extended value), not bad luck.
 #define SAMPLES 64
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   // Two consecutive 32-bit draws colliding is a 1-in-2^32 event; a fixed or
   // broken generator would collide every time.
@@ -43,6 +42,4 @@ int main(int argc, char *argv[]) {
   test_assert(or64 == UINT64_MAX);
   test_assert(and64 == 0);
 
-  sys_exit();
-  return 0;
 }

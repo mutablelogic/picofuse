@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_rune_is_symbol - ASCII
@@ -70,6 +69,4 @@ int main(int argc, char *argv[]) {
     test_assert(n == 1);
   }
 
-  sys_exit();
-  return 0;
 }

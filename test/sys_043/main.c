@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   // Empty substring is found at offset 0, always, matching Go's
   // strings.Index semantics.
@@ -36,6 +35,4 @@ int main(int argc, char *argv[]) {
   test_assert(sys_string_contains("caf\xC3\xA9lait", "\xC3\xA9") == 3);
   test_assert(sys_string_contains("caf\xC3\xA9lait", "lait") == 5);
 
-  sys_exit();
-  return 0;
 }

@@ -45,8 +45,7 @@ static void dispatch(sys_thread_func_t func) {
 #endif
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   // Single-threaded sanity: inc/dec return the post-operation value, not
   // the pre-operation one.
@@ -106,6 +105,4 @@ int main(int argc, char *argv[]) {
   }
   test_assert(sys_atomic_get(&_counter) == 0);
 
-  sys_exit();
-  return 0;
 }

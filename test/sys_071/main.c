@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_date_get_date_utc/sys_date_get_time_utc - known reference points
@@ -124,6 +123,4 @@ int main(int argc, char *argv[]) {
     test_assert(now_year == year);
   }
 
-  sys_exit();
-  return 0;
 }

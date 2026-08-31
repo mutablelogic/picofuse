@@ -30,8 +30,7 @@ static void worker(void *arg) {
   test_assert(sys_waitgroup_done(_wg));
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
   sys_atomic_init(&_counter, 0);
 
   _wg = sys_waitgroup_init();
@@ -60,6 +59,4 @@ int main(int argc, char *argv[]) {
   uint32_t expected = (uint32_t)(NUM_WORKERS + 1) * INCREMENTS_PER_WORKER;
   test_assert(sys_atomic_get(&_counter) == expected);
 
-  sys_exit();
-  return 0;
 }

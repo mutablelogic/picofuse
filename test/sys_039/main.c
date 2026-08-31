@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   // NULL is treated as "".
   test_assert(sys_string_compare(NULL, NULL) == 0);
@@ -42,6 +41,4 @@ int main(int argc, char *argv[]) {
   // including whichever string happens to be malformed there.
   test_assert(sys_string_compare("ab\x80" "cd", "ab\x80" "ce") < 0);
 
-  sys_exit();
-  return 0;
 }

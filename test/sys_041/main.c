@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL / empty / all-whitespace
@@ -92,6 +91,4 @@ int main(int argc, char *argv[]) {
     test_assert_strequal(twice, "hello");
   }
 
-  sys_exit();
-  return 0;
 }

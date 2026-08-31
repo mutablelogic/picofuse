@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // Exact matches
@@ -53,6 +52,4 @@ int main(int argc, char *argv[]) {
   test_assert(sys_string_parse_bool("false", NULL) == true);
   test_assert(sys_string_parse_bool("nope", NULL) == false);
 
-  sys_exit();
-  return 0;
 }

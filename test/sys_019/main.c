@@ -29,8 +29,7 @@ static void dispatch(sys_thread_func_t func) {
 #endif
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
   sys_atomic_init(&_released_count, 0);
 
   _wg = sys_waitgroup_init();
@@ -60,6 +59,4 @@ int main(int argc, char *argv[]) {
 
   sys_waitgroup_deinit(_wg);
 
-  sys_exit();
-  return 0;
 }

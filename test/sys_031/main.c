@@ -16,8 +16,7 @@ static void check(const char *label, const char *str, rune_t expect_rune,
   }
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL / empty-string handling
@@ -207,6 +206,4 @@ int main(int argc, char *argv[]) {
     test_assert(p == NULL && r == 0);
   }
 
-  sys_exit();
-  return 0;
 }

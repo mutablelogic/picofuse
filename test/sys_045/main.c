@@ -21,8 +21,7 @@ static void expect_token(sys_scanner_t *it, const char *expect_text,
   test_assert(memcmp(buf, expect_text, expect_bytes) == 0);
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL / empty string, either way
@@ -112,6 +111,4 @@ int main(int argc, char *argv[]) {
     sys_iostream_close(s);
   }
 
-  sys_exit();
-  return 0;
 }

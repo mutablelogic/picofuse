@@ -2,8 +2,7 @@
 #include <stdint.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   char buf[64];
 
@@ -122,6 +121,4 @@ int main(int argc, char *argv[]) {
   size_t printed = sys_printf("%d %u\n", -1, 1u);
   test_assert(printed == 5); // "-1 1\n"
 
-  sys_exit();
-  return 0;
 }

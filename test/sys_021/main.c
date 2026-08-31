@@ -28,8 +28,7 @@ static void dispatch(void) {
 #endif
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   // A single wait group handle is reused across every round below - no
   // deinit/reinit between add()/wait() cycles.
@@ -54,6 +53,4 @@ int main(int argc, char *argv[]) {
 
   sys_waitgroup_deinit(_wg);
 
-  sys_exit();
-  return 0;
 }

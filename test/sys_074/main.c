@@ -33,8 +33,7 @@ static bool is_default_disposition(int sig) {
 }
 #endif
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
 #if !defined(SYSTEM_NAME_PICO)
   ///////////////////////////////////////////////////////////////////////
@@ -123,6 +122,4 @@ int main(int argc, char *argv[]) {
   test_assert(!sys_env_signalhandler(0, NULL));
 #endif
 
-  sys_exit();
-  return 0;
 }

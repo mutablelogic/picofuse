@@ -36,8 +36,7 @@ static void worker(void *arg) {
   test_assert(sys_waitgroup_done(_wg));
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   _mutex = sys_mutex_init();
   test_assert(_mutex != NULL);
@@ -71,6 +70,4 @@ int main(int argc, char *argv[]) {
 
   sys_mutex_deinit(_mutex);
 
-  sys_exit();
-  return 0;
 }

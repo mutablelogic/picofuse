@@ -2,8 +2,7 @@
 #include <math.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // Same shared grammar as sys_string_parse_float32 - one form each, to
@@ -130,6 +129,4 @@ int main(int argc, char *argv[]) {
     test_assert(v == 2.5);
   }
 
-  sys_exit();
-  return 0;
 }

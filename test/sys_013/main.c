@@ -2,8 +2,7 @@
 #include <stdint.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   // sys_init() already called sys_timestamp_ms() once to establish the
   // baseline, so the very next call should be small - just startup
@@ -38,6 +37,4 @@ int main(int argc, char *argv[]) {
   uint64_t after_two = sys_timestamp_ms();
   test_assert((after_two - before_two) >= 60);
 
-  sys_exit();
-  return 0;
 }

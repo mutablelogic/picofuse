@@ -2,8 +2,7 @@
 #include <math.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // Plain integers, signed and unsigned
@@ -213,6 +212,4 @@ int main(int argc, char *argv[]) {
     test_assert(v == 2.5f);
   }
 
-  sys_exit();
-  return 0;
 }

@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // Same shared grammar as sys_string_parse_int32 - one form each, just
@@ -123,6 +122,4 @@ int main(int argc, char *argv[]) {
     test_assert(v == 429);
   }
 
-  sys_exit();
-  return 0;
 }

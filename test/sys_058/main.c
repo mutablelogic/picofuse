@@ -21,8 +21,7 @@ static void expect_token(sys_scanner_t *it, const char *expect_text,
   test_assert(memcmp(buf, expect_text, expect_bytes) == 0);
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // Without the flag, a decimal point splits a number from what follows
@@ -225,6 +224,4 @@ int main(int argc, char *argv[]) {
     sys_iostream_close(s);
   }
 
-  sys_exit();
-  return 0;
 }

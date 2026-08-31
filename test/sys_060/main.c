@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL / not an escape at all - len 0 throughout this section (NUL-
@@ -197,6 +196,4 @@ int main(int argc, char *argv[]) {
     test_assert(r == RUNE_ERROR);
   }
 
-  sys_exit();
-  return 0;
 }

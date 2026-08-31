@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_string_hasprefix
@@ -40,6 +39,4 @@ int main(int argc, char *argv[]) {
   test_assert(sys_string_hassuffix("caf\xC3\xA9lait", "lait") == true);
   test_assert(sys_string_hassuffix("caf\xC3\xA9lait", "\xC3\xA9lait") == true);
 
-  sys_exit();
-  return 0;
 }

@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_rune_to_upper / sys_rune_to_lower - ASCII round trip
@@ -68,6 +67,4 @@ int main(int argc, char *argv[]) {
   test_assert(sys_rune_to_lower(0x0391) == 0x0391); // Greek capital alpha
   test_assert(sys_rune_to_upper(0x0430) == 0x0430); // Cyrillic small a
 
-  sys_exit();
-  return 0;
 }

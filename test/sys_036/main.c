@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // One representative rune per class
@@ -67,6 +66,4 @@ int main(int argc, char *argv[]) {
     test_assert(sys_rune_isa(r) == expect);
   }
 
-  sys_exit();
-  return 0;
 }

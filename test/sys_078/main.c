@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL buffer and zero capacity are both rejected - cap == 0 would
@@ -121,6 +120,4 @@ int main(int argc, char *argv[]) {
     sys_iostream_close(s);
   }
 
-  sys_exit();
-  return 0;
 }
