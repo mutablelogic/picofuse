@@ -2,7 +2,7 @@
 #include <math.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // Plain integers, signed and unsigned

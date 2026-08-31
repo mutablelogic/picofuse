@@ -1,3 +1,4 @@
+#include "private.h"
 #include <picofuse/sys.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -339,6 +340,39 @@ sys_mem_arena_t *sys_mem_arena_next(sys_mem_arena_t *arena,
   sys_mem_arena_t *next = arena->next;
   _sys_mem_arena_unlock(arena);
   return next;
+}
+
+/** @brief Returns the previous arena in a chain (see private.h). */
+sys_mem_arena_t *_sys_mem_arena_prev(sys_mem_arena_t *arena,
+                                     sys_mem_arena_stats_t *stats) {
+  if (arena == NULL) {
+    return NULL;
+  }
+
+  if (!_sys_mem_arena_lock(arena)) {
+    return NULL;
+  }
+  if (stats != NULL) {
+    stats->size_bytes = arena->size;
+    stats->used_bytes = arena->used_bytes;
+    stats->allocations = arena->allocations;
+  }
+  sys_mem_arena_t *prev = arena->prev;
+  _sys_mem_arena_unlock(arena);
+  return prev;
+}
+
+/** @brief Returns the size of an allocation when owned by an arena (see
+ * private.h). */
+size_t _sys_mem_arena_alloc_size(sys_mem_arena_t *arena, void *ptr) {
+  if (arena == NULL || ptr == NULL || !_sys_mem_arena_lock(arena)) {
+    return 0;
+  }
+
+  sys_mem_arena_header_t *header = _sys_mem_arena_find_header(arena, ptr, NULL);
+  size_t size = header == NULL ? 0 : header->size;
+  _sys_mem_arena_unlock(arena);
+  return size;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -40,14 +40,6 @@
 #pragma once
 #include <stddef.h>
 
-/**
- * @brief Default capacity for the process-wide arena chain.
- * @ingroup SystemArenas
- */
-#ifndef SYS_MEM_CAPACITY
-#define SYS_MEM_CAPACITY ((size_t)(32u * 1024u))
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif

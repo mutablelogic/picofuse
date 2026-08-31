@@ -8,7 +8,7 @@
 // (e.g. a stuck, masked, or zero-extended value), not bad luck.
 #define SAMPLES 64
 
-test_main_sys() {
+test_main_sys(0) {
 
   // Two consecutive 32-bit draws colliding is a 1-in-2^32 event; a fixed or
   // broken generator would collide every time.

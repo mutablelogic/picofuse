@@ -36,7 +36,7 @@ static void worker(void *arg) {
   test_assert(sys_waitgroup_done(_wg));
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   _mutex = sys_mutex_init();
   test_assert(_mutex != NULL);

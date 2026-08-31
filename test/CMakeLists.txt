@@ -391,10 +391,7 @@ picofuse_test(sys_075
 	sys_075/main.c
 )
 
-# sys_env_arg_parse/_arg_parse_*/_arg_usage - not registered on Pico,
-# which has no real command line (see stub/arg.c) and so can't pass
-# these; sys_078 (sys_string_open) has nothing to do with arg parsing
-# and stays registered everywhere.
+# sys_env_arg_parse/_arg_parse_*/_arg_usage 
 if(NOT DEFINED PICO_BOARD)
 	# sys_env_arg_parse
 	picofuse_test(sys_076
@@ -420,8 +417,7 @@ if(NOT DEFINED PICO_BOARD)
 	)
 endif()
 
-# sys_timer_init/_start/_deinit lifecycle: argument validation,
-# double-start rejection, pool exhaustion and slot reuse.
+# sys_timer_init/_start/_deinit lifecycle
 picofuse_test(sys_080
 	sys_080/main.c
 )
@@ -447,3 +443,54 @@ if(NOT DEFINED PICO_BOARD)
 		sys_083/main.c
 	)
 endif()
+
+# sys_mem_arena_init argument validation: size/malloc_fn/free_fn rules for
+# both the first arena in a chain and appended ones.
+picofuse_test(sys_084
+	sys_084/main.c
+)
+
+# sys_mem_arena_alloc/_free basics: alignment, distinct regions, stats.
+picofuse_test(sys_085
+	sys_085/main.c
+)
+
+# Gap reuse after freeing a middle allocation (first-fit, address order).
+picofuse_test(sys_086
+	sys_086/main.c
+)
+
+# Arena exhaustion and recovery once space is freed.
+picofuse_test(sys_087
+	sys_087/main.c
+)
+
+# sys_mem_arena_realloc: shrink/grow in place, grow-that-moves, NULL/0
+# edge cases, and failure leaving the original allocation untouched.
+picofuse_test(sys_088
+	sys_088/main.c
+)
+
+# Arena chain growth: sys_mem_arena_next traversal, prev-must-be-tail
+# enforcement, and allocations never spilling into a successor arena.
+picofuse_test(sys_089
+	sys_089/main.c
+)
+
+# Tail-only sys_mem_arena_delete, including tearing down the last arena.
+picofuse_test(sys_090
+	sys_090/main.c
+)
+
+# Concurrent sys_mem_arena_alloc/_free from multiple threads/cores on one
+# shared arena - exercises the sys_mutex_t-backed locking.
+picofuse_test(sys_091
+	sys_091/main.c
+)
+
+# Concurrent sys_malloc/_calloc/_realloc/_free from multiple threads/cores
+# against the default arena, including forcing it to grow repeatedly under
+# concurrent load.
+picofuse_test(sys_092
+	sys_092/main.c
+)

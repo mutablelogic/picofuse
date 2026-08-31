@@ -2,7 +2,7 @@
 #include <string.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_env_serial - never NULL/empty on any platform, and calling it

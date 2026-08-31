@@ -30,7 +30,7 @@ static bool try_dispatch(void) {
 #endif
 }
 
-test_main_sys() {
+test_main_sys(0) {
   sys_atomic_init(&_release, 0);
 
   _wg = sys_waitgroup_init();

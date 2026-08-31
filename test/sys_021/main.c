@@ -28,7 +28,7 @@ static void dispatch(void) {
 #endif
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   // A single wait group handle is reused across every round below - no
   // deinit/reinit between add()/wait() cycles.

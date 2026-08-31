@@ -1,7 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_rune_is_digit (ASCII only - Latin-1 has no additional digits)

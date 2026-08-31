@@ -37,25 +37,30 @@
   } while (0)
 
 /**
- * @def test_main_sys()
+ * @def test_main_sys(arena_size)
  * @brief Declares a test's entry point in place of a raw main(). Wraps
  * sys_init()/sys_exit() around the test body and brackets it with
  * "[TEST] [INIT] <env>" / "[TEST] [EXIT] <env>" markers, where <env> is
- * sys_env_name().
+ * sys_env_name(). The test body receives the process's own (argc, argv) -
+ * unused by most tests, so they're marked maybe-unused to stay warning-free.
+ * @param arena_size Forwarded to sys_init() - the default arena's capacity
+ * in bytes, or `0` to leave sys_malloc() and friends routed to the system
+ * allocator.
  *
  * Usage:
- *   test_main_sys() {
- *     ...test body...
+ *   test_main_sys(0) {
+ *     ...test body, optionally using argc/argv...
  *   }
  */
-#define test_main_sys()                                                      \
-  static void _test_main(void);                                             \
+#define test_main_sys(arena_size)                                            \
+  static void _test_main(int argc, char *argv[]);                           \
   int main(int argc, char *argv[]) {                                         \
-    sys_init(argc, argv);                                                    \
+    sys_init(argc, argv, (arena_size));                                      \
     sys_printf("[TEST] [INIT] %s\n", sys_env_name());                        \
-    _test_main();                                                            \
+    _test_main(argc, argv);                                                  \
     sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                        \
     sys_exit();                                                              \
     return 0;                                                                \
   }                                                                          \
-  static void _test_main(void)
+  static void _test_main(int argc __attribute__((unused)),                   \
+                         char *argv[] __attribute__((unused)))

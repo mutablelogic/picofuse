@@ -1,7 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_rune_to_upper / sys_rune_to_lower - ASCII round trip

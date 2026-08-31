@@ -1,7 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL / not an escape at all - len 0 throughout this section (NUL-

@@ -33,7 +33,7 @@ static void waiter(void *arg) {
 }
 #endif
 
-test_main_sys() {
+test_main_sys(0) {
 
 #if !defined(SYSTEM_NAME_PICO)
   _mutex = sys_mutex_init();

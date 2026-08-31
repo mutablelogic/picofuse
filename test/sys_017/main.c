@@ -36,7 +36,7 @@ static void dispatch(sys_thread_func_t func, int index) {
 #endif
 }
 
-test_main_sys() {
+test_main_sys(0) {
   sys_atomic_init(&_flags, 0);
 
   uint32_t full_mask =

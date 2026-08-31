@@ -22,7 +22,7 @@ static void dispatch(sys_thread_func_t func) {
 #endif
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   _mutex = sys_mutex_init();
   test_assert(_mutex != NULL);

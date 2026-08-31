@@ -125,7 +125,7 @@ static void print_usage(void) {
 }
 
 int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+  sys_init(argc, argv, 0);
 
   sys_env_arg_t *args = sys_env_arg_parse(flags);
   if (args == NULL) {
