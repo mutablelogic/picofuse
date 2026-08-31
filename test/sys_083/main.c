@@ -34,11 +34,8 @@ static void slow_callback(sys_timer_t *timer) {
 // keeps the main thread on core 0 free to actually observe a callback
 // mid-flight and to exercise cross-core sys_timer_deinit().
 static void start_on_core1(void *arg) {
-  sys_printf("DEBUG start_on_core1 entered, core=%u\n", sys_thread_core());
   sys_timer_t *timer = (sys_timer_t *)arg;
-  bool ok = sys_timer_start(timer);
-  sys_printf("DEBUG sys_timer_start returned %d\n", (int)ok);
-  test_assert(ok);
+  test_assert(sys_timer_start(timer));
 }
 #endif
 
