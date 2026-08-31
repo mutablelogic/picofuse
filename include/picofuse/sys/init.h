@@ -10,8 +10,12 @@
 extern "C" {
 #endif
 
+/** @name Lifecycle
+ * @{ */
+
 /**
  * @brief Initializes the system on startup.
+ * @ingroup System
  * @param argc Argument count, as passed to `main()`.
  * @param argv Argument vector, as passed to `main()`. On platforms with no
  * real command line (such as Pico), pass `0`/`NULL`; nothing reads them.
@@ -23,8 +27,11 @@ void sys_init(int argc, char *argv[], size_t arena_size);
 
 /**
  * @brief Cleans up the system on shutdown.
+ * @ingroup System
  */
 void sys_exit(void);
+
+/** @} */
 
 #ifdef __cplusplus
 }
