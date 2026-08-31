@@ -74,7 +74,7 @@ test_main_sys(0) {
 
   // Every allocation was freed - a correctly-serialized arena has nothing
   // left outstanding.
-  sys_mem_arena_stats_t stats;
+  sys_mem_stats_t stats;
   sys_mem_arena_next(_arena, &stats);
   test_assert(stats.allocations == 0);
   test_assert(stats.used_bytes == 0);

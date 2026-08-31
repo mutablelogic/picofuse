@@ -18,6 +18,7 @@
 #include "sys/date.h"
 #include "sys/debugf.h"
 #include "sys/env.h"
+#include "sys/event.h"
 #include "sys/halt.h"
 #include "sys/hash.h"
 #include "sys/init.h"

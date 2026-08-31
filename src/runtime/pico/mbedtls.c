@@ -1,17 +1,16 @@
 #include <mbedtls/platform_time.h>
 #include <picofuse/sys.h>
 #include <runtime/mbedtls.h>
-#include <stdlib.h>
 
 /**
- * Custom calloc function for mbedtls, using the standard C library allocator.
+ * Custom calloc function for mbedtls, using the default sys allocator.
  */
-void *sys_mbedtls_calloc(size_t n, size_t size) { return calloc(n, size); }
+void *sys_mbedtls_calloc(size_t n, size_t size) { return sys_calloc(n, size); }
 
 /**
- * Custom free function for mbedtls, using the standard C library allocator.
+ * Custom free function for mbedtls, using the default sys allocator.
  */
-void sys_mbedtls_free(void *ptr) { free(ptr); }
+void sys_mbedtls_free(void *ptr) { sys_free(ptr); }
 
 /**
  * Custom function to get the current time in milliseconds for mbedtls.

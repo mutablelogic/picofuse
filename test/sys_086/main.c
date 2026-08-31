@@ -17,12 +17,12 @@ test_main_sys(0) {
   void *block_c = sys_mem_arena_alloc(a, 64);
   test_assert(block_a != NULL && block_b != NULL && block_c != NULL);
 
-  sys_mem_arena_stats_t before;
+  sys_mem_stats_t before;
   sys_mem_arena_next(a, &before);
 
   sys_mem_arena_free(a, block_b);
 
-  sys_mem_arena_stats_t after_free;
+  sys_mem_stats_t after_free;
   sys_mem_arena_next(a, &after_free);
   test_assert(after_free.allocations == before.allocations - 1);
   test_assert(after_free.used_bytes == before.used_bytes - 64);
@@ -31,7 +31,7 @@ test_main_sys(0) {
   test_assert(block_d != NULL);
   test_assert(block_d == block_b); // reused the exact gap block_b left behind
 
-  sys_mem_arena_stats_t after_reuse;
+  sys_mem_stats_t after_reuse;
   sys_mem_arena_next(a, &after_reuse);
   test_assert(after_reuse.allocations == before.allocations);
   test_assert(after_reuse.used_bytes == before.used_bytes);
@@ -53,7 +53,7 @@ test_main_sys(0) {
   sys_mem_arena_free(a, small);
   sys_mem_arena_free(a, block_c);
 
-  sys_mem_arena_stats_t empty;
+  sys_mem_stats_t empty;
   sys_mem_arena_next(a, &empty);
   test_assert(empty.allocations == 0);
   test_assert(empty.used_bytes == 0);
@@ -63,7 +63,7 @@ test_main_sys(0) {
     test_assert(p != NULL);
     sys_mem_arena_free(a, p);
   }
-  sys_mem_arena_stats_t after_cycles;
+  sys_mem_stats_t after_cycles;
   sys_mem_arena_next(a, &after_cycles);
   test_assert(after_cycles.allocations == 0);
   test_assert(after_cycles.used_bytes == 0);

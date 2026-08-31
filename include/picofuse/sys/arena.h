@@ -59,11 +59,11 @@ typedef struct sys_mem_arena_t sys_mem_arena_t;
  * @ingroup SystemArenas
  * @headerfile arena.h picofuse/sys.h
  */
-typedef struct sys_mem_arena_stats_t {
+typedef struct sys_mem_stats_t {
   size_t size_bytes;  ///< Total payload capacity of the arena in bytes.
   size_t used_bytes;  ///< Number of payload bytes currently allocated.
   size_t allocations; ///< Number of active allocations in the arena.
-} sys_mem_arena_stats_t;
+} sys_mem_stats_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -121,7 +121,7 @@ void sys_mem_arena_delete(sys_mem_arena_t *arena);
  *         `arena` is the tail.
  */
 sys_mem_arena_t *sys_mem_arena_next(sys_mem_arena_t *arena,
-                                    sys_mem_arena_stats_t *stats);
+                                    sys_mem_stats_t *stats);
 
 /** @} */
 

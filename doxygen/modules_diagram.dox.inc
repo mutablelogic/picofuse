@@ -5,6 +5,9 @@ digraph modules {
   edge [color="#7F8FBF"];
 
   System     [label="System Abstractions", URL="\ref System"];
+  Memory     [label="Memory",                URL="\ref SystemMemory"];
+  Arenas     [label="Arenas",                URL="\ref SystemArenas"];
+  Heap       [label="Default Allocator",     URL="\ref SystemHeap"];
   Sync       [label="Synchronization",      URL="\ref SystemSync"];
   Mutex      [label="Mutex",                URL="\ref SystemSyncMutex"];
   Cond       [label="Condition Variables",  URL="\ref SystemSyncCond"];
@@ -24,10 +27,17 @@ digraph modules {
   Timers      [label="Timers",                   URL="\ref SystemTimer"];
   SleepHalt   [label="Sleep and Halt",           URL="\ref SystemSleepHalt"];
   Env         [label="Environment",              URL="\ref SystemEnv"];
+  Events      [label="Events",                   URL="\ref SystemEvents"];
+  EventQueue  [label="Queue",                    URL="\ref SystemEventQueue"];
 
+  System -> Memory;
   System -> Sync;
   System -> Data;
   System -> Execution;
+  System -> Events;
+  Memory -> Arenas;
+  Memory -> Heap;
+  Events -> EventQueue;
   Sync -> Mutex;
   Sync -> Cond;
   Sync -> WaitGroup;

@@ -44,7 +44,7 @@ test_main_sys(0) {
     sys_mem_arena_free(a, blocks[i]);
   }
 
-  sys_mem_arena_stats_t stats;
+  sys_mem_stats_t stats;
   sys_mem_arena_next(a, &stats);
   test_assert(stats.allocations == 0);
   test_assert(stats.used_bytes == 0);
