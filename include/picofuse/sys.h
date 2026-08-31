@@ -28,6 +28,7 @@
 #include "sys/panicf.h"
 #include "sys/printf.h"
 #include "sys/random.h"
+#include "sys/runloop.h"
 #include "sys/rune.h"
 #include "sys/scanner.h"
 #include "sys/sleep.h"
