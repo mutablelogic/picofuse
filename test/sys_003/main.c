@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   // sys_init() may already hold some pool slots for its own subsystems
   // (e.g. printf's mutex), so drain whatever's left rather than assuming a
@@ -38,6 +37,4 @@ int main(int argc, char *argv[]) {
   test_assert(mutex != NULL);
   sys_mutex_deinit(mutex);
 
-  sys_exit();
-  return 0;
 }

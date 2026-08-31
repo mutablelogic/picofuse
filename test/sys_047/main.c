@@ -2,8 +2,7 @@
 #include <string.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_string_read - construction
@@ -246,6 +245,4 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  sys_exit();
-  return 0;
 }

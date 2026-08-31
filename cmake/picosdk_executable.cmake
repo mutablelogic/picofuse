@@ -68,6 +68,19 @@ function(picofuse_executable)
     if(DEFINED PICO_BOARD)
         set_target_properties(${_ARG_NAME} PROPERTIES SUFFIX ".elf")
 
+        # PICO_ON_DEVICE (and pico.h itself) normally reach a translation
+        # unit via pico_platform_headers, an INTERFACE dependency of
+        # pico_base_headers. picofuse_add_pico_sdk_bundle() only forwards
+        # bundled targets' INTERFACE_SOURCES into picosdk_static, not their
+        # INTERFACE_COMPILE_DEFINITIONS/usage requirements, so anything
+        # compiled directly into this executable (rather than folded into the
+        # bundle) never sees them. Without PICO_ON_DEVICE,
+        # pico/binary_info.h's bi_decl() silently expands to nothing (see
+        # binary_info.h: !PICO_ON_DEVICE implies PICO_NO_BINARY_INFO), which
+        # is what this target's generated *_name_bi.c/*_version_bi.c sources
+        # below rely on.
+        target_link_libraries(${_ARG_NAME} PRIVATE pico_base_headers)
+
         # pico-sdk static libs genuinely call into each other in both
         # directions (e.g. hardware_gpio's panic() calls pico_stdio's wrapped
         # puts()), which a single left-to-right archive scan can miss
@@ -86,6 +99,22 @@ function(picofuse_executable)
             target_sources(${_ARG_NAME} PRIVATE "${_version_src}")
             target_link_libraries(${_ARG_NAME} PRIVATE pico_binary_info_headers)
         endif()
+
+        # Same reasoning as the version string above: pico_standard_binary_info's
+        # own bi_program_name() (in standard_binary_info.c) is gated on
+        # PICO_TARGET_NAME, but that file is compiled once into the shared
+        # picosdk archive, so no per-executable define ever reaches it. Emit
+        # our own bi_program_name() into a tiny per-target source file instead,
+        # so sys_env_name() (picofuse/sys/env.h) can read back this target's
+        # real name via binary_info at runtime instead of falling back to
+        # "unknown".
+        set(_name_src "${CMAKE_CURRENT_BINARY_DIR}/${_ARG_NAME}_name_bi.c")
+        file(WRITE "${_name_src}"
+            "#include <pico/binary_info.h>\n"
+            "bi_decl(bi_program_name(\"${_ARG_NAME}\"))\n"
+        )
+        target_sources(${_ARG_NAME} PRIVATE "${_name_src}")
+        target_link_libraries(${_ARG_NAME} PRIVATE pico_binary_info_headers)
     else()
         target_link_libraries(${_ARG_NAME} PRIVATE ${_static_libs})
     endif()

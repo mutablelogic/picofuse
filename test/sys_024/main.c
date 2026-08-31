@@ -30,8 +30,7 @@ static bool try_dispatch(void) {
 #endif
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
   sys_atomic_init(&_release, 0);
 
   _wg = sys_waitgroup_init();
@@ -61,6 +60,4 @@ int main(int argc, char *argv[]) {
   sys_waitgroup_wait(_wg);
   sys_waitgroup_deinit(_wg);
 
-  sys_exit();
-  return 0;
 }

@@ -36,8 +36,7 @@ static void dispatch(sys_thread_func_t func, int index) {
 #endif
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
   sys_atomic_init(&_flags, 0);
 
   uint32_t full_mask =
@@ -79,6 +78,4 @@ int main(int argc, char *argv[]) {
 
   test_assert(sys_atomic_get(&_flags) == 0);
 
-  sys_exit();
-  return 0;
 }

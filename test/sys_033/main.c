@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_rune_is_digit (ASCII only - Latin-1 has no additional digits)
@@ -159,6 +158,4 @@ int main(int argc, char *argv[]) {
   test_assert(sys_rune_is_digit(0x10FFFF) == false); // max valid codepoint
   test_assert(sys_rune_is_alpha(0x10FFFF) == false);
 
-  sys_exit();
-  return 0;
 }

@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL rejection - safe and side-effect-free on every platform.
@@ -53,6 +52,4 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  sys_exit();
-  return 0;
 }

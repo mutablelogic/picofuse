@@ -21,8 +21,7 @@ static void expect_digest(sys_hash_algorithm_t algorithm, const char *str,
   sys_hash_deinit(hash);
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_hash_size(NULL) is safe (no assert on this path) and returns 0,
@@ -172,6 +171,4 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  sys_exit();
-  return 0;
 }

@@ -33,8 +33,7 @@ static void waiter(void *arg) {
 }
 #endif
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
 #if !defined(SYSTEM_NAME_PICO)
   _mutex = sys_mutex_init();
@@ -88,6 +87,4 @@ int main(int argc, char *argv[]) {
   sys_mutex_deinit(_mutex);
 #endif
 
-  sys_exit();
-  return 0;
 }

@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL flags/stream are both rejected.
@@ -185,6 +184,4 @@ int main(int argc, char *argv[]) {
     sys_iostream_close(stream);
   }
 
-  sys_exit();
-  return 0;
 }

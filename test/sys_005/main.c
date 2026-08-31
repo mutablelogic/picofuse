@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   char buf[64];
 
@@ -38,6 +37,4 @@ int main(int argc, char *argv[]) {
   size_t printed = sys_printf("%c%c%c\n", 'a', 'b', 'c');
   test_assert(printed == 4); // 'a', 'b', 'c', '\n'
 
-  sys_exit();
-  return 0;
 }

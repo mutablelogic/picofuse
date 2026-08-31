@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_rune_count
@@ -56,6 +55,4 @@ int main(int argc, char *argv[]) {
   test_assert(sys_rune_valid("hello\x80") == false);
   test_assert(sys_rune_valid("\xC2\xA3\xE2\x82\xAC\x80") == false);
 
-  sys_exit();
-  return 0;
 }

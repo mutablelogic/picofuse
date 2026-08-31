@@ -10,8 +10,7 @@ static const char *custom_handler(char spec, va_list *va) {
   return NULL; // Not handled by this custom handler.
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   char buf[64];
 
@@ -53,6 +52,4 @@ int main(int argc, char *argv[]) {
   size_t n = sys_sprintf_ex(buf, sizeof(buf), "%@", custom_handler, (void *)1);
   test_assert(n == 5); // strlen("<obj>")
 
-  sys_exit();
-  return 0;
 }

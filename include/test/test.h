@@ -35,3 +35,27 @@
                  _test_expected, _test_actual, __FILE__, __LINE__);          \
     }                                                                         \
   } while (0)
+
+/**
+ * @def test_main_sys()
+ * @brief Declares a test's entry point in place of a raw main(). Wraps
+ * sys_init()/sys_exit() around the test body and brackets it with
+ * "[TEST] [INIT] <env>" / "[TEST] [EXIT] <env>" markers, where <env> is
+ * sys_env_name().
+ *
+ * Usage:
+ *   test_main_sys() {
+ *     ...test body...
+ *   }
+ */
+#define test_main_sys()                                                      \
+  static void _test_main(void);                                             \
+  int main(int argc, char *argv[]) {                                         \
+    sys_init(argc, argv);                                                    \
+    sys_printf("[TEST] [INIT] %s\n", sys_env_name());                        \
+    _test_main();                                                            \
+    sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                        \
+    sys_exit();                                                              \
+    return 0;                                                                \
+  }                                                                          \
+  static void _test_main(void)

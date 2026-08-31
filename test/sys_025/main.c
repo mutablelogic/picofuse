@@ -24,8 +24,7 @@ static void core_check_worker(void *arg) {
   test_assert(sys_waitgroup_done(_wg));
 }
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   uint8_t numcores = sys_thread_numcores();
   test_assert(numcores >= 1);
@@ -74,6 +73,4 @@ int main(int argc, char *argv[]) {
     sys_waitgroup_deinit(_wg);
   }
 
-  sys_exit();
-  return 0;
 }

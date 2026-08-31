@@ -2,8 +2,7 @@
 #include <string.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL is a no-op, doesn't crash
@@ -102,6 +101,4 @@ int main(int argc, char *argv[]) {
     test_assert(memcmp(buf, once, sizeof(buf)) == 0);
   }
 
-  sys_exit();
-  return 0;
 }

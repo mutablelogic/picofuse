@@ -20,8 +20,7 @@
 #define PTR_PAD_CD "0x00000000000000cd"
 #endif
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   char buf[64];
 
@@ -61,6 +60,4 @@ int main(int argc, char *argv[]) {
   size_t printed = sys_printf("%p\n", (void *)(uintptr_t)0x1);
   test_assert(printed == n + 1); // n + '\n'
 
-  sys_exit();
-  return 0;
 }

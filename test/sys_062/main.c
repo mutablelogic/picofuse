@@ -2,8 +2,7 @@
 #include <string.h>
 #include <test/test.h>
 
-int main(int argc, char *argv[]) {
-  sys_init(argc, argv);
+test_main_sys() {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL / not a quote at all
@@ -228,6 +227,4 @@ int main(int argc, char *argv[]) {
     test_assert(sys_string_parse_quoted("\"hello\"", 0, NULL, 64) == 0);
   }
 
-  sys_exit();
-  return 0;
 }
