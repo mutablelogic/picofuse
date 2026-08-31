@@ -20,6 +20,9 @@ void sys_init(int argc, char *argv[], size_t arena_size) {
   (void)argc;
   (void)argv;
 
+  // Configure the default arena backing sys_malloc() and friends, if asked
+  _sys_mem_module_init(arena_size, malloc, free);
+
   // Initalize stdout
   sys_stdout = uart_get_instance(PICO_DEFAULT_UART);
   sys_assert(sys_stdout != NULL);
@@ -47,6 +50,9 @@ void sys_init(int argc, char *argv[], size_t arena_size) {
 }
 
 void sys_exit(void) {
+  // Tear down the default arena, if one was configured
+  _sys_mem_module_exit();
+
   // Stop and release any still-active timers
   _sys_timer_module_exit();
 

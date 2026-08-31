@@ -165,14 +165,6 @@ sys_event_t sys_event_queue_timed_pop(sys_event_queue_t *queue,
 size_t sys_event_queue_size(sys_event_queue_t *queue);
 
 /**
- * @brief Return the configured maximum queue capacity.
- * @ingroup SystemEventQueue
- * @param queue Queue to inspect.
- * @return Maximum event capacity, or `0` when queue is invalid.
- */
-size_t sys_event_queue_capacity(sys_event_queue_t *queue);
-
-/**
  * @brief Report whether a queue is empty.
  * @ingroup SystemEventQueue
  * @param queue Queue to inspect.
@@ -192,6 +184,10 @@ void sys_event_queue_shutdown(sys_event_queue_t *queue);
  * @ingroup SystemEventQueue
  * @param queue Queue to lock.
  * @return `true` on success, `false` on error.
+ *
+ * Required around sys_event_queue_peek(), the only operation that does not
+ * lock internally - every other operation here (sys_event_queue_push(),
+ * sys_event_queue_pop(), etc.) is safe to call without holding this lock.
  *
  * Thread-context use only (this may block); never call from an IRQ handler.
  * On backends where pushes are IRQ-safe, this does not exclude a concurrent

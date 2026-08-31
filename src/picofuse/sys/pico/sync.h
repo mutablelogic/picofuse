@@ -2,7 +2,8 @@
 
 /**
  * @brief Initializes the critical section shared by the mutex, condition
- * variable, and wait-group pools.
+ * variable, and wait-group pools, and by event queues' ring-buffer
+ * bookkeeping (see sys/event/lock.c).
  */
 extern void _sys_sync_module_init(void);
 
