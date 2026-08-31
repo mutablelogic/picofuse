@@ -6,9 +6,7 @@
 #include <runtime/stdout.h>
 
 void sys_init(int argc, char *argv[]) {
-  // Pico has no real command line - crt0's `bl main` doesn't set up r0/r1
-  // as argc/argv at all, so whatever main() was declared to receive here
-  // is meaningless and must not be used for anything.
+  // Pico has no command line arguments
   (void)argc;
   (void)argv;
 
