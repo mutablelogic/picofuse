@@ -21,9 +21,7 @@ struct sys_mem_arena_t {
   void *(*malloc_fn)(size_t size); // shared across the whole chain
   void (*free_fn)(void *ptr);      // shared across the whole chain
   sys_mem_arena_header_t *alloc_head;
-  size_t size;
-  size_t used_bytes;
-  size_t allocations;
+  sys_mem_stats_t stats;
 };
 
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 201112L
@@ -121,9 +119,10 @@ _sys_mem_arena_find_header(sys_mem_arena_t *arena, void *ptr,
 /** @brief Finds space for a new allocation and links its header into the list.
  * Allocations are kept address-sorted, so free space is simply the gap
  * between two consecutive headers (or the arena's start/end) - there is no
- * separate free-block bookkeeping to maintain or coalesce. */
+ * separate free-block bookkeeping to maintain or coalesce. Caller must hold
+ * arena->lock. */
 static sys_mem_arena_header_t *
-_sys_mem_arena_alloc_locked(sys_mem_arena_t *arena, size_t size) {
+_sys_mem_arena_alloc_locked_header(sys_mem_arena_t *arena, size_t size) {
   sys_assert(arena != NULL);
 
   if (size == 0) {
@@ -144,13 +143,14 @@ _sys_mem_arena_alloc_locked(sys_mem_arena_t *arena, size_t size) {
       return NULL;
     }
 
-    if (ptr_offset > arena->size || size > arena->size - ptr_offset) {
+    if (ptr_offset > arena->stats.size_bytes ||
+        size > arena->stats.size_bytes - ptr_offset) {
       return NULL;
     }
 
     size_t end_offset = ptr_offset + size;
     size_t limit_offset = current == NULL
-                              ? arena->size
+                              ? arena->stats.size_bytes
                               : (size_t)((uint8_t *)current -
                                          _sys_mem_arena_payload_begin(arena));
     if (end_offset <= limit_offset) {
@@ -167,8 +167,8 @@ _sys_mem_arena_alloc_locked(sys_mem_arena_t *arena, size_t size) {
         prev->next = header;
       }
 
-      arena->used_bytes += size;
-      arena->allocations++;
+      arena->stats.used_bytes += size;
+      arena->stats.allocations++;
       return header;
     }
 
@@ -182,10 +182,10 @@ _sys_mem_arena_alloc_locked(sys_mem_arena_t *arena, size_t size) {
   }
 }
 
-/** @brief Unlinks a header and updates stats. */
-static void _sys_mem_arena_free_locked(sys_mem_arena_t *arena,
-                                       sys_mem_arena_header_t *prev,
-                                       sys_mem_arena_header_t *header) {
+/** @brief Unlinks a header and updates stats. Caller must hold arena->lock. */
+static void _sys_mem_arena_free_locked_header(sys_mem_arena_t *arena,
+                                              sys_mem_arena_header_t *prev,
+                                              sys_mem_arena_header_t *header) {
   sys_assert(arena != NULL);
   sys_assert(header != NULL);
 
@@ -195,22 +195,126 @@ static void _sys_mem_arena_free_locked(sys_mem_arena_t *arena,
     prev->next = header->next;
   }
 
-  sys_assert(arena->used_bytes >= header->size);
-  sys_assert(arena->allocations > 0);
-  arena->used_bytes -= header->size;
-  arena->allocations--;
+  sys_assert(arena->stats.used_bytes >= header->size);
+  sys_assert(arena->stats.allocations > 0);
+  arena->stats.used_bytes -= header->size;
+  arena->stats.allocations--;
+}
+
+/** @brief Creates a detached arena struct + backing region, with prev/lock
+ * left unset for the caller to fill in. */
+static sys_mem_arena_t *_sys_mem_arena_create_region(size_t size,
+                                                      void *(*malloc_fn)(size_t),
+                                                      void (*free_fn)(void *)) {
+  size_t payload_offset = _sys_mem_arena_payload_offset();
+  if (size > SIZE_MAX - payload_offset) {
+    return NULL;
+  }
+  size_t requested_size = payload_offset + size;
+  if (requested_size > SIZE_MAX - 63u) {
+    return NULL;
+  }
+  size_t aligned_size = (requested_size + 63u) & ~(size_t)63u;
+
+  void *region = malloc_fn(aligned_size);
+  if (region == NULL) {
+    return NULL;
+  }
+
+  sys_mem_arena_t *arena = region;
+  memset(arena, 0, sizeof(sys_mem_arena_t));
+  arena->malloc_fn = malloc_fn;
+  arena->free_fn = free_fn;
+  arena->stats.size_bytes = aligned_size - payload_offset;
+  return arena;
 }
 
 /** @brief Locks the mutex shared by an arena's whole chain. */
 static bool _sys_mem_arena_lock(sys_mem_arena_t *arena) {
-  sys_assert(arena != NULL);
   return sys_mutex_lock(arena->lock);
 }
 
 /** @brief Unlocks the mutex shared by an arena's whole chain. */
 static void _sys_mem_arena_unlock(sys_mem_arena_t *arena) {
-  sys_assert(arena != NULL);
   sys_mutex_unlock(arena->lock);
+}
+
+/** @brief Locked implementation of sys_mem_arena_realloc(). `ptr` must be
+ * non-NULL and `size` must be nonzero - callers handle those cases before
+ * locking. Caller must hold arena->lock. */
+static void *_sys_mem_arena_realloc_locked(sys_mem_arena_t *arena, void *ptr,
+                                           size_t size) {
+  sys_mem_arena_header_t *header = _sys_mem_arena_find_header(arena, ptr, NULL);
+  if (header == NULL) {
+    return NULL;
+  }
+
+  if (size <= header->size) {
+    arena->stats.used_bytes -= header->size - size;
+    header->size = size;
+    return header->ptr;
+  }
+
+  // Try to grow in place, into the gap that follows this allocation.
+  size_t limit_offset = arena->stats.size_bytes;
+  if (header->next != NULL) {
+    limit_offset =
+        (size_t)((uint8_t *)header->next - _sys_mem_arena_payload_begin(arena));
+  }
+  size_t ptr_offset =
+      (size_t)((uint8_t *)header->ptr - _sys_mem_arena_payload_begin(arena));
+  if (size <= limit_offset - ptr_offset) {
+    arena->stats.used_bytes += size - header->size;
+    header->size = size;
+    return header->ptr;
+  }
+
+  // No room in place - allocate elsewhere, copy, and free the original.
+  // _sys_mem_arena_alloc_locked_header() may itself insert its new header
+  // into the gap immediately before `header` (the search doesn't exclude
+  // `header` as a boundary) - if it does, `prev`'s successor is no longer
+  // `header`, it's the new allocation. Freeing `header` with a `prev`
+  // captured before this allocation would then overwrite that link and
+  // orphan the new allocation from the list while its pointer is already
+  // live in the caller's hands. Re-find `header`'s current predecessor
+  // right before the free to avoid that.
+  sys_mem_arena_header_t *replacement =
+      _sys_mem_arena_alloc_locked_header(arena, size);
+  if (replacement == NULL) {
+    return NULL;
+  }
+
+  sys_mem_arena_header_t *current_prev = NULL;
+  sys_mem_arena_header_t *refound =
+      _sys_mem_arena_find_header(arena, ptr, &current_prev);
+  sys_assert(refound == header);
+
+  memcpy(replacement->ptr, header->ptr, header->size);
+  _sys_mem_arena_free_locked_header(arena, current_prev, header);
+  return replacement->ptr;
+}
+
+/** @brief Locked implementation of sys_mem_arena_init() for appending to an
+ * existing chain: `prev`'s lock must already be held, `prev` must be the
+ * current tail, and the new arena inherits `prev`'s allocator. Returns NULL
+ * if `prev` isn't the tail or the underlying allocation fails. */
+static sys_mem_arena_t *_sys_mem_arena_append_locked(size_t size,
+                                                     sys_mem_arena_t *prev) {
+  sys_assert(prev != NULL);
+  if (prev->next != NULL || prev->malloc_fn == NULL || prev->free_fn == NULL) {
+    return NULL;
+  }
+
+  sys_mem_arena_t *arena =
+      _sys_mem_arena_create_region(size, prev->malloc_fn, prev->free_fn);
+  if (arena == NULL) {
+    return NULL;
+  }
+
+  arena->prev = prev;
+  arena->lock = prev->lock;
+  prev->next = arena;
+  return arena;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -224,76 +328,29 @@ sys_mem_arena_t *sys_mem_arena_init(size_t size, sys_mem_arena_t *prev,
     if (size == 0 || malloc_fn == NULL || free_fn == NULL) {
       return NULL;
     }
-  } else {
-    if (malloc_fn != NULL || free_fn != NULL) {
+
+    sys_mem_arena_t *arena = _sys_mem_arena_create_region(size, malloc_fn, free_fn);
+    if (arena == NULL) {
       return NULL;
     }
-    if (!_sys_mem_arena_lock(prev)) {
-      return NULL;
-    }
-    if (prev->next != NULL || prev->malloc_fn == NULL ||
-        prev->free_fn == NULL) {
-      _sys_mem_arena_unlock(prev);
-      return NULL;
-    }
-    malloc_fn = prev->malloc_fn;
-    free_fn = prev->free_fn;
-  }
-  sys_assert(malloc_fn != NULL);
-  sys_assert(free_fn != NULL);
 
-  // Create a memory region large enough for the arena header plus payload,
-  // rounded up to a 64-byte boundary.
-  size_t payload_offset = _sys_mem_arena_payload_offset();
-  if (size > SIZE_MAX - payload_offset) {
-    if (prev != NULL) {
-      _sys_mem_arena_unlock(prev);
-    }
-    return NULL;
-  }
-  size_t arena_struct_size = sizeof(sys_mem_arena_t);
-  size_t requested_size = payload_offset + size;
-  if (requested_size > SIZE_MAX - 63u) {
-    if (prev != NULL) {
-      _sys_mem_arena_unlock(prev);
-    }
-    return NULL;
-  }
-  size_t aligned_size = (requested_size + 63u) & ~(size_t)63u;
-  void *region = malloc_fn(aligned_size);
-  if (region == NULL) {
-    if (prev != NULL) {
-      _sys_mem_arena_unlock(prev);
-    }
-    return NULL;
-  }
-
-  // Initialize the arena
-  sys_mem_arena_t *arena = region;
-  memset(arena, 0, arena_struct_size);
-  arena->malloc_fn = malloc_fn;
-  arena->free_fn = free_fn;
-  arena->alloc_head = NULL;
-  arena->size = aligned_size - payload_offset;
-  arena->used_bytes = 0;
-  arena->allocations = 0;
-
-  if (prev == NULL) {
     arena->lock = sys_mutex_init();
     if (arena->lock == NULL) {
-      free_fn(region);
+      free_fn(arena);
       return NULL;
     }
-  } else {
-    arena->prev = prev;
-    arena->lock = prev->lock;
-    prev->next = arena;
+
+    return arena;
   }
 
-  if (prev != NULL) {
-    _sys_mem_arena_unlock(prev);
+  if (malloc_fn != NULL || free_fn != NULL) {
+    return NULL;
   }
-
+  if (!_sys_mem_arena_lock(prev)) {
+    return NULL;
+  }
+  sys_mem_arena_t *arena = _sys_mem_arena_append_locked(size, prev);
+  _sys_mem_arena_unlock(prev);
   return arena;
 }
 
@@ -324,18 +381,15 @@ void sys_mem_arena_delete(sys_mem_arena_t *arena) {
 
 /** @brief Returns the next arena in a chain. */
 sys_mem_arena_t *sys_mem_arena_next(sys_mem_arena_t *arena,
-                                    sys_mem_arena_stats_t *stats) {
+                                    sys_mem_stats_t *stats) {
   if (arena == NULL) {
     return NULL;
   }
-
   if (!_sys_mem_arena_lock(arena)) {
     return NULL;
   }
   if (stats != NULL) {
-    stats->size_bytes = arena->size;
-    stats->used_bytes = arena->used_bytes;
-    stats->allocations = arena->allocations;
+    *stats = arena->stats;
   }
   sys_mem_arena_t *next = arena->next;
   _sys_mem_arena_unlock(arena);
@@ -344,35 +398,19 @@ sys_mem_arena_t *sys_mem_arena_next(sys_mem_arena_t *arena,
 
 /** @brief Returns the previous arena in a chain (see private.h). */
 sys_mem_arena_t *_sys_mem_arena_prev(sys_mem_arena_t *arena,
-                                     sys_mem_arena_stats_t *stats) {
+                                     sys_mem_stats_t *stats) {
   if (arena == NULL) {
     return NULL;
   }
-
   if (!_sys_mem_arena_lock(arena)) {
     return NULL;
   }
   if (stats != NULL) {
-    stats->size_bytes = arena->size;
-    stats->used_bytes = arena->used_bytes;
-    stats->allocations = arena->allocations;
+    *stats = arena->stats;
   }
   sys_mem_arena_t *prev = arena->prev;
   _sys_mem_arena_unlock(arena);
   return prev;
-}
-
-/** @brief Returns the size of an allocation when owned by an arena (see
- * private.h). */
-size_t _sys_mem_arena_alloc_size(sys_mem_arena_t *arena, void *ptr) {
-  if (arena == NULL || ptr == NULL || !_sys_mem_arena_lock(arena)) {
-    return 0;
-  }
-
-  sys_mem_arena_header_t *header = _sys_mem_arena_find_header(arena, ptr, NULL);
-  size_t size = header == NULL ? 0 : header->size;
-  _sys_mem_arena_unlock(arena);
-  return size;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -383,8 +421,7 @@ void *sys_mem_arena_alloc(sys_mem_arena_t *arena, size_t size) {
   if (arena == NULL || size == 0 || !_sys_mem_arena_lock(arena)) {
     return NULL;
   }
-
-  sys_mem_arena_header_t *header = _sys_mem_arena_alloc_locked(arena, size);
+  sys_mem_arena_header_t *header = _sys_mem_arena_alloc_locked_header(arena, size);
   _sys_mem_arena_unlock(arena);
   return header == NULL ? NULL : header->ptr;
 }
@@ -404,48 +441,7 @@ void *sys_mem_arena_realloc(sys_mem_arena_t *arena, void *ptr, size_t size) {
   if (!_sys_mem_arena_lock(arena)) {
     return NULL;
   }
-
-  sys_mem_arena_header_t *prev = NULL;
-  sys_mem_arena_header_t *header =
-      _sys_mem_arena_find_header(arena, ptr, &prev);
-  if (header == NULL) {
-    _sys_mem_arena_unlock(arena);
-    return NULL;
-  }
-
-  if (size <= header->size) {
-    arena->used_bytes -= header->size - size;
-    header->size = size;
-    _sys_mem_arena_unlock(arena);
-    return header->ptr;
-  }
-
-  // Try to grow in place, into the gap that follows this allocation.
-  size_t limit_offset = arena->size;
-  if (header->next != NULL) {
-    limit_offset =
-        (size_t)((uint8_t *)header->next - _sys_mem_arena_payload_begin(arena));
-  }
-  size_t ptr_offset =
-      (size_t)((uint8_t *)header->ptr - _sys_mem_arena_payload_begin(arena));
-  if (size <= limit_offset - ptr_offset) {
-    arena->used_bytes += size - header->size;
-    header->size = size;
-    _sys_mem_arena_unlock(arena);
-    return header->ptr;
-  }
-
-  // No room in place - allocate elsewhere, copy, and free the original.
-  sys_mem_arena_header_t *replacement =
-      _sys_mem_arena_alloc_locked(arena, size);
-  if (replacement == NULL) {
-    _sys_mem_arena_unlock(arena);
-    return NULL;
-  }
-
-  memcpy(replacement->ptr, header->ptr, header->size);
-  _sys_mem_arena_free_locked(arena, prev, header);
-  void *result = replacement->ptr;
+  void *result = _sys_mem_arena_realloc_locked(arena, ptr, size);
   _sys_mem_arena_unlock(arena);
   return result;
 }
@@ -455,13 +451,22 @@ void sys_mem_arena_free(sys_mem_arena_t *arena, void *ptr) {
   if (arena == NULL || ptr == NULL || !_sys_mem_arena_lock(arena)) {
     return;
   }
-
   sys_mem_arena_header_t *prev = NULL;
-  sys_mem_arena_header_t *header =
-      _sys_mem_arena_find_header(arena, ptr, &prev);
+  sys_mem_arena_header_t *header = _sys_mem_arena_find_header(arena, ptr, &prev);
   if (header != NULL) {
-    _sys_mem_arena_free_locked(arena, prev, header);
+    _sys_mem_arena_free_locked_header(arena, prev, header);
   }
-
   _sys_mem_arena_unlock(arena);
+}
+
+/** @brief Returns the current payload size of the allocation at `ptr` if
+ * `arena` owns it, or `0` if it doesn't (see private.h). */
+size_t _sys_mem_arena_alloc_size(sys_mem_arena_t *arena, void *ptr) {
+  if (arena == NULL || ptr == NULL || !_sys_mem_arena_lock(arena)) {
+    return 0;
+  }
+  sys_mem_arena_header_t *header = _sys_mem_arena_find_header(arena, ptr, NULL);
+  size_t size = header == NULL ? 0 : header->size;
+  _sys_mem_arena_unlock(arena);
+  return size;
 }

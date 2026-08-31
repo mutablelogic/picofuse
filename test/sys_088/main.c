@@ -18,7 +18,7 @@ test_main_sys(0) {
   void *freed = sys_mem_arena_realloc(a, p, 0);
   test_assert(freed == NULL);
 
-  sys_mem_arena_stats_t stats;
+  sys_mem_stats_t stats;
   sys_mem_arena_next(a, &stats);
   test_assert(stats.allocations == 0);
 

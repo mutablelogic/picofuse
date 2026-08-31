@@ -14,7 +14,7 @@ test_main_sys(0) {
   // (but not necessarily exactly) the requested size, due to alignment
   // rounding.
 
-  sys_mem_arena_stats_t stats;
+  sys_mem_stats_t stats;
   sys_mem_arena_t *next = sys_mem_arena_next(a, &stats);
   test_assert(next == NULL);
   test_assert(stats.size_bytes >= 4096);

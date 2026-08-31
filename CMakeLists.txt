@@ -53,8 +53,7 @@ if(DEFINED PICO_BOARD)
             ${_pico_runtime_dir}/runtime.c
             ${_pico_clib_interface_dir}/newlib_interface.c
             ${_pico_clib_interface_dir}/cxa_guard.c
-            ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/puts.c # Our own stub in place of newlib's puts()
-            ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/stdout.c
+            ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/stdout.c # Also stubs newlib's own puts()
             ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/mbedtls.c
         HEADER_DEPS pico_binary_info_headers pico_runtime_headers
     )
