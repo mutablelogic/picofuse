@@ -149,7 +149,31 @@ function(picofuse_test NAME)
         SOURCES ${_sources}
     )
     target_include_directories(${NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
-    add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${NAME}>)
+
+    if(DEFINED PICO_BOARD)
+        # A pico .elf can't run directly on the (host) machine driving
+        # CTest, so route it through testrunner, which flashes it onto real
+        # hardware via openocd and reports pass/fail from the device's own
+        # serial output. testrunner is a host tool built by this project's
+        # separate host build tree (see README/build docs), not by this
+        # PICO_BOARD-configured one, so its path is taken from a cache
+        # variable rather than a target this build knows how to produce.
+        set(PICOFUSE_TESTRUNNER "${CMAKE_SOURCE_DIR}/build/src/test/testrunner"
+            CACHE FILEPATH "Path to the host-built testrunner tool used to run PICO_BOARD tests via openocd")
+
+        if(PICO_RP2040)
+            set(_pico_openocd_chip "rp2040")
+        elseif(PICO_RP2350)
+            set(_pico_openocd_chip "rp2350")
+        else()
+            set(_pico_openocd_chip "${PICO_PLATFORM}")
+        endif()
+
+        add_test(NAME ${NAME} COMMAND ${PICOFUSE_TESTRUNNER}
+            $<TARGET_FILE:${NAME}> --target "target/${_pico_openocd_chip}.cfg")
+    else()
+        add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${NAME}>)
+    endif()
 endfunction()
 
 # picofuse_library(NAME <target>
