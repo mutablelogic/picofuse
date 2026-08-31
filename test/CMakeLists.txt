@@ -544,3 +544,49 @@ picofuse_test(sys_099
 picofuse_test(sys_100
 	sys_100/main.c
 )
+
+# sys_runloop_run() entry-argument validation (NULL queue/event_fn) and a
+# basic single-worker round trip through sys_runloop_shutdown()'s exit value.
+picofuse_test(sys_101
+	sys_101/main.c
+)
+
+# Calling sys_runloop_run() again while already running fails immediately
+# (0) instead of recursing, and doesn't corrupt the singleton for later runs.
+picofuse_test(sys_102
+	sys_102/main.c
+)
+
+# init_fn/exit_fn hooks: called exactly once per worker that actually
+# started (including worker 0), regardless of how work happened to be
+# split between them.
+picofuse_test(sys_103
+	sys_103/main.c
+)
+
+# sys_runloop_post(): fails before the loop is running and after it stops,
+# succeeds (from another thread/core) while running, and preserves FIFO
+# order alongside events pre-seeded directly on the queue.
+picofuse_test(sys_104
+	sys_104/main.c
+)
+
+# sys_runloop_shutdown(): a safe no-op when nothing is running, wakes an
+# idle loop with nothing queued, and drains already-pending events before
+# the loop actually stops.
+picofuse_test(sys_105
+	sys_105/main.c
+)
+
+# poll_fn fires on a steady cadence while worker 0 is otherwise idle, with
+# no events ever posted.
+picofuse_test(sys_106
+	sys_106/main.c
+)
+
+# Concurrent producers posting via sys_runloop_post() against a single
+# small queue while the run loop consumes - verifies no event is ever
+# lost, duplicated, or corrupted.
+picofuse_test(sys_107
+	sys_107/main.c
+)
