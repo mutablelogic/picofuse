@@ -10,7 +10,7 @@ static const char *custom_handler(char spec, va_list *va) {
   return NULL; // Not handled by this custom handler.
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   char buf[64];
 

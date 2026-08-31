@@ -22,6 +22,7 @@
 #include "sys/hash.h"
 #include "sys/init.h"
 #include "sys/io.h"
+#include "sys/mem.h"
 #include "sys/mutex.h"
 #include "sys/panicf.h"
 #include "sys/printf.h"

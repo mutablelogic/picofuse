@@ -45,7 +45,7 @@ static void dispatch(sys_thread_func_t func) {
 #endif
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   // Single-threaded sanity: inc/dec return the post-operation value, not
   // the pre-operation one.

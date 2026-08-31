@@ -4,12 +4,18 @@
 #include <hardware/uart.h>
 #include <picofuse/sys.h>
 #include <runtime/stdout.h>
+#include <stdlib.h>
 
 // Defined in timer.c.
 extern void _sys_timer_module_init(void);
 extern void _sys_timer_module_exit(void);
 
-void sys_init(int argc, char *argv[]) {
+// Defined in mem/mem.c.
+extern bool _sys_mem_module_init(size_t capacity, void *(*malloc_fn)(size_t),
+                          void (*free_fn)(void *));
+extern void _sys_mem_module_exit(void);
+
+void sys_init(int argc, char *argv[], size_t arena_size) {
   // Pico has no command line arguments
   (void)argc;
   (void)argv;

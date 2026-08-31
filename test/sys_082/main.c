@@ -10,7 +10,7 @@ static void oneshot_callback(sys_timer_t *timer) {
   sys_timer_deinit(timer);
 }
 
-test_main_sys() {
+test_main_sys(0) {
   sys_atomic_init(&_fire_count, 0);
 
   sys_timer_t *t = sys_timer_init(20, oneshot_callback, NULL);

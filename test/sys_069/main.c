@@ -1,7 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL vs empty string - NULL returns 0, distinct from "" (the djb2

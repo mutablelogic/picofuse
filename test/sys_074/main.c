@@ -33,7 +33,7 @@ static bool is_default_disposition(int sig) {
 }
 #endif
 
-test_main_sys() {
+test_main_sys(0) {
 
 #if !defined(SYSTEM_NAME_PICO)
   ///////////////////////////////////////////////////////////////////////

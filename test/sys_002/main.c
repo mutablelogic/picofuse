@@ -1,7 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   for (int i = 0; i < 50; i++) {
     sys_mutex_t *mutex = sys_mutex_init();

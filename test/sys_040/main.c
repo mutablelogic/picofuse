@@ -2,7 +2,7 @@
 #include <string.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL is a no-op, doesn't crash

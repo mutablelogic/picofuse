@@ -1,7 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   // sys_init() may already hold some pool slots for its own subsystems
   // (e.g. printf's mutex), so drain whatever's left rather than assuming a

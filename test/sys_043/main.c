@@ -1,7 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   // Empty substring is found at offset 0, always, matching Go's
   // strings.Index semantics.

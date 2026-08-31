@@ -29,7 +29,7 @@ static void dispatch(sys_thread_func_t func) {
 #endif
 }
 
-test_main_sys() {
+test_main_sys(0) {
   sys_atomic_init(&_released_count, 0);
 
   _wg = sys_waitgroup_init();

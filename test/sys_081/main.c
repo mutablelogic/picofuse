@@ -12,7 +12,7 @@ static void periodic_callback(sys_timer_t *timer) {
   sys_atomic_inc(&_tick_count);
 }
 
-test_main_sys() {
+test_main_sys(0) {
   sys_atomic_init(&_tick_count, 0);
 
   sys_timer_t *t = sys_timer_init(20, periodic_callback, "periodic");

@@ -39,7 +39,7 @@ static void start_on_core1(void *arg) {
 }
 #endif
 
-test_main_sys() {
+test_main_sys(0) {
   sys_atomic_init(&_active_count, 0);
   sys_atomic_init(&_overlap_detected, 0);
   sys_atomic_init(&_fire_count, 0);

@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <test/test.h>
 
-test_main_sys() {
+test_main_sys(0) {
 
   // sys_init() already called sys_timestamp_ms() once to establish the
   // baseline, so the very next call should be small - just startup

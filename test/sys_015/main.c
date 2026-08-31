@@ -9,7 +9,7 @@ static void worker(void *arg) {
   test_assert(sys_waitgroup_done(wg));
 }
 
-test_main_sys() {
+test_main_sys(0) {
   sys_atomic_init(&worker_ran, 0);
 
   uint8_t numcores = sys_thread_numcores();

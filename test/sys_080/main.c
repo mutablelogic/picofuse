@@ -3,7 +3,7 @@
 
 static void noop_callback(sys_timer_t *timer) { (void)timer; }
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////////
   // Argument validation.

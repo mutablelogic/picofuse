@@ -37,7 +37,7 @@ static void deinit_target_waiter(void *arg) {
   test_assert(sys_waitgroup_done(_wg));
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   // Part A: bare sys_cond_wait() (no timeout) actually blocks until
   // signaled - a distinct code path from timedwait's semaphore-with-

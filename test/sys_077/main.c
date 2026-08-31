@@ -1,9 +1,9 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(void) {
-  char *argv[] = {"prog", "--name=bob", "--big=5000000000", "--pi=3.14"};
-  sys_init(4, argv);
+test_main_sys(0) {
+  char *fake_argv[] = {"prog", "--name=bob", "--big=5000000000", "--pi=3.14"};
+  sys_init(4, fake_argv, 0);
   sys_env_arg_flag_t flags[] = {
       {.long_name = "name", .short_name = NULL, .type = SYS_ENV_ARG_STRING,
        .value = "default"},
@@ -114,6 +114,4 @@ int main(void) {
     test_assert(sys_env_arg_parse_string(args, "name", NULL, 0) == 3);
   }
 
-  sys_exit();
-  return 0;
 }

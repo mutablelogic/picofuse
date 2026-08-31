@@ -30,7 +30,7 @@ static void worker(void *arg) {
   test_assert(sys_waitgroup_done(_wg));
 }
 
-test_main_sys() {
+test_main_sys(0) {
   sys_atomic_init(&_counter, 0);
 
   _wg = sys_waitgroup_init();

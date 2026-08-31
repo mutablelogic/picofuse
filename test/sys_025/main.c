@@ -24,7 +24,7 @@ static void core_check_worker(void *arg) {
   test_assert(sys_waitgroup_done(_wg));
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   uint8_t numcores = sys_thread_numcores();
   test_assert(numcores >= 1);

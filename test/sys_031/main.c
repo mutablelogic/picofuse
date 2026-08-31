@@ -16,7 +16,7 @@ static void check(const char *label, const char *str, rune_t expect_rune,
   }
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // NULL / empty-string handling

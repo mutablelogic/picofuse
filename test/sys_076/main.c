@@ -1,8 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-int main(void) {
-  sys_init(0, NULL);
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // Long-form: attached ("--name=value") and space-separated
@@ -10,7 +9,7 @@ int main(void) {
 
   {
     char *argv[] = {"prog", "--name=bob"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "name", .short_name = NULL, .type = SYS_ENV_ARG_STRING,
          .value = "default"},
@@ -24,7 +23,7 @@ int main(void) {
   }
   {
     char *argv[] = {"prog", "--count", "42"};
-    sys_init(3, argv);
+    sys_init(3, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "count", .short_name = "c", .type = SYS_ENV_ARG_INT,
          .value = "0"},
@@ -38,7 +37,7 @@ int main(void) {
   }
   {
     char *argv[] = {"prog", "-c", "7"};
-    sys_init(3, argv);
+    sys_init(3, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "count", .short_name = "c", .type = SYS_ENV_ARG_INT,
          .value = "0"},
@@ -52,7 +51,7 @@ int main(void) {
   }
   {
     char *argv[] = {"prog", "-c=9"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "count", .short_name = "c", .type = SYS_ENV_ARG_INT,
          .value = "0"},
@@ -72,7 +71,7 @@ int main(void) {
 
   {
     char *argv[] = {"prog", "--verbose"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
          .value = "false"},
@@ -86,7 +85,7 @@ int main(void) {
   }
   {
     char *argv[] = {"prog", "--no-verbose"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
          .value = "true"},
@@ -100,7 +99,7 @@ int main(void) {
   }
   {
     char *argv[] = {"prog", "--no-verbose=true"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
          .value = "false"},
@@ -120,7 +119,7 @@ int main(void) {
 
   {
     char *argv[] = {"prog", "--verboseness"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
          .value = "false"},
@@ -134,7 +133,7 @@ int main(void) {
 
   {
     char *argv[] = {"prog", "in.txt", "--verbose", "out.txt"};
-    sys_init(4, argv);
+    sys_init(4, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
          .value = "false"},
@@ -156,7 +155,7 @@ int main(void) {
 
   {
     char *argv[] = {"prog", "-", "--not-a-flag", "-x"};
-    sys_init(4, argv);
+    sys_init(4, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
          .value = "false"},
@@ -175,7 +174,7 @@ int main(void) {
 
   {
     char *argv[] = {"prog", "--name=bob", "-c", "3", "--limit=9", "--verbose"};
-    sys_init(6, argv);
+    sys_init(6, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "name", .short_name = NULL, .type = SYS_ENV_ARG_STRING,
          .value = "default"},
@@ -211,7 +210,7 @@ int main(void) {
 
   {
     char *argv[] = {"prog", "--bogus"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
          .value = "false"},
@@ -221,7 +220,7 @@ int main(void) {
   }
   {
     char *argv[] = {"prog", "--count=abc"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "count", .short_name = NULL, .type = SYS_ENV_ARG_INT,
          .value = "0"},
@@ -231,7 +230,7 @@ int main(void) {
   }
   {
     char *argv[] = {"prog", "--limit=-1"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "limit", .short_name = NULL, .type = SYS_ENV_ARG_UINT,
          .value = "0"},
@@ -241,7 +240,7 @@ int main(void) {
   }
   {
     char *argv[] = {"prog", "--count"};
-    sys_init(2, argv);
+    sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "count", .short_name = NULL, .type = SYS_ENV_ARG_INT,
          .value = "0"},
@@ -251,7 +250,7 @@ int main(void) {
   }
   {
     char *argv[] = {"prog"};
-    sys_init(1, argv);
+    sys_init(1, argv, 0);
     test_assert(sys_env_arg_parse(NULL) == NULL);
   }
 
@@ -264,7 +263,7 @@ int main(void) {
     for (int i = 1; i < SYS_ENV_ARG_CAPACITY + 2; i++) {
       argv[i] = "x";
     }
-    sys_init(SYS_ENV_ARG_CAPACITY + 2, argv);
+    sys_init(SYS_ENV_ARG_CAPACITY + 2, argv, 0);
     sys_env_arg_flag_t flags[] = {{0}};
     test_assert(sys_env_arg_parse(flags) == NULL);
   }
@@ -275,7 +274,7 @@ int main(void) {
 
   {
     char *argv1[] = {"prog", "--bogus"};
-    sys_init(2, argv1);
+    sys_init(2, argv1, 0);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
          .value = "false"},
@@ -284,7 +283,7 @@ int main(void) {
     test_assert(sys_env_arg_parse(flags) == NULL);
 
     char *argv2[] = {"prog", "--verbose"};
-    sys_init(2, argv2);
+    sys_init(2, argv2, 0);
     sys_env_arg_t *args = sys_env_arg_parse(flags);
     test_assert(args != NULL);
     bool verbose = false;
@@ -292,6 +291,4 @@ int main(void) {
     test_assert(verbose == true);
   }
 
-  sys_exit();
-  return 0;
 }

@@ -24,7 +24,7 @@ static void stuck_waiter(void *arg) {
   sys_atomic_set(&_released, 1);
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   _wg = sys_waitgroup_init();
   test_assert(_wg != NULL);

@@ -20,7 +20,7 @@
 #define PTR_PAD_CD "0x00000000000000cd"
 #endif
 
-test_main_sys() {
+test_main_sys(0) {
 
   char buf[64];
 

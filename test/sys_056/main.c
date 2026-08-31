@@ -21,7 +21,7 @@ static void expect_token(sys_scanner_t *it, const char *expect_text,
   test_assert(memcmp(buf, expect_text, expect_bytes) == 0);
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // Without the flag, "0b01" is just the number "0" followed by a

@@ -21,7 +21,7 @@ static void expect_digest(sys_hash_algorithm_t algorithm, const char *str,
   sys_hash_deinit(hash);
 }
 
-test_main_sys() {
+test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
   // sys_hash_size(NULL) is safe (no assert on this path) and returns 0,
