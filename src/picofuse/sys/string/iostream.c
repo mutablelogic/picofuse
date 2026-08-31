@@ -146,25 +146,16 @@ sys_iostream_t *sys_string_open(char *buf, size_t cap) {
     return NULL;
   }
 
-  // If buf already holds a valid C string (a '\0' somewhere within cap),
-  // that's the starting content. Otherwise there's no way to know where
-  // real content is meant to end, so start empty.
-  size_t length = 0;
-  bool found = false;
-  for (size_t i = 0; i < cap; i++) {
-    if (buf[i] == '\0') {
-      length = i;
-      found = true;
-      break;
-    }
-  }
-  if (!found) {
-    buf[0] = '\0';
-  }
+  // Always starts empty. Scanning buf for an existing '\0' to "resume" a
+  // prior string was tried and reverted: there's no way to tell real
+  // prior content apart from uninitialized memory that happens to
+  // contain a stray zero byte, and every real caller (a freshly declared
+  // stack buffer) hits exactly that case.
+  buf[0] = '\0';
 
   s->backend.buffer.data = buf;
   s->backend.buffer.cap = cap;
-  s->backend.buffer.length = length;
+  s->backend.buffer.length = 0;
   s->backend.buffer.pos = 0;
   return s;
 }

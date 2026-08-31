@@ -15,8 +15,13 @@ int main(int argc, char *argv[]) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // No existing '\0' anywhere within cap bytes: treated as empty, and
-  // sys_string_open() writes one at buf[0] itself.
+  // Always starts empty, regardless of whatever the buffer previously
+  // held - including a buffer that already looks like a valid,
+  // NUL-terminated C string. There's no reliable way to distinguish
+  // genuine prior content from uninitialized memory that happens to
+  // contain a stray '\0' (an uninitialized char buf[N] on the stack, the
+  // overwhelmingly common case, is exactly that), so sys_string_open()
+  // doesn't try.
 
   {
     char buf[8] = {'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X'};
@@ -27,45 +32,26 @@ int main(int argc, char *argv[]) {
     test_assert(sys_iostream_read(s, out, sizeof(out)) == 0);
     sys_iostream_close(s);
   }
-
-  ///////////////////////////////////////////////////////////////////////
-  // Opening a buffer that already holds a string: the existing content
-  // is read back correctly, and the tracked length matches strlen(), not
-  // the full physical capacity - reading past it returns 0, not garbage
-  // bytes sitting between the content and the end of the buffer.
-
   {
-    char buf[16] = "hello";
+    char buf[16] = "hello"; // looks like a valid string already
     sys_iostream_t *s = sys_string_open(buf, sizeof(buf));
     test_assert(s != NULL);
+    test_assert(buf[0] == '\0'); // wiped, not preserved
     char out[8] = {0};
-    test_assert(sys_iostream_read(s, out, sizeof(out)) == 5);
-    test_assert(sys_string_compare(out, "hello") == 0);
     test_assert(sys_iostream_read(s, out, sizeof(out)) == 0);
     sys_iostream_close(s);
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // A '\0' found exactly at the last valid index (cap - 1) is a
-  // legitimate max-length existing string, not an error.
-
-  {
-    char buf[4] = {'a', 'b', 'c', '\0'};
-    sys_iostream_t *s = sys_string_open(buf, sizeof(buf));
-    test_assert(s != NULL);
-    char out[8] = {0};
-    test_assert(sys_iostream_read(s, out, sizeof(out)) == 3);
-    test_assert(sys_string_compare(out, "abc") == 0);
-    sys_iostream_close(s);
-  }
-
-  ///////////////////////////////////////////////////////////////////////
   // Seeking never goes past the tracked content length, even though
-  // there's physically more capacity available in the buffer.
+  // there's physically more capacity available in the buffer - content
+  // has to be established with a real write first, since opening no
+  // longer infers a starting length from the buffer's prior bytes.
 
   {
-    char buf[16] = "hi"; // length 2, cap 16
+    char buf[16];
     sys_iostream_t *s = sys_string_open(buf, sizeof(buf));
+    test_assert(sys_iostream_write(s, "hi", 2) == 2); // length now 2
     test_assert(sys_iostream_seek(s, 2, true) == 2);
     test_assert(sys_iostream_seek(s, 3, true) == -1);
     test_assert(sys_iostream_seek(s, 15, true) == -1); // well within cap,
@@ -79,11 +65,9 @@ int main(int argc, char *argv[]) {
   // not just once writing is "done".
 
   {
-    char buf[16] = "hi";
+    char buf[16];
     sys_iostream_t *s = sys_string_open(buf, sizeof(buf));
-    // pos starts at 0 per the documented contract, not at the end of the
-    // existing content - seek to the end explicitly to append.
-    test_assert(sys_iostream_seek(s, 2, true) == 2);
+    test_assert(sys_iostream_write(s, "hi", 2) == 2);
     test_assert(sys_iostream_write(s, " there", 6) == 6);
     test_assert(sys_string_compare(buf, "hi there") == 0);
     test_assert(sys_iostream_seek(s, 8, true) == 8); // the new, grown length
@@ -96,8 +80,9 @@ int main(int argc, char *argv[]) {
   // shrink or otherwise disturb the tracked length.
 
   {
-    char buf[16] = "hello world";
+    char buf[16];
     sys_iostream_t *s = sys_string_open(buf, sizeof(buf));
+    test_assert(sys_iostream_write(s, "hello world", 11) == 11);
     test_assert(sys_iostream_seek(s, 0, true) == 0);
     test_assert(sys_iostream_write(s, "HELLO", 5) == 5); // same length
     test_assert(sys_string_compare(buf, "HELLO world") == 0); // tail intact
@@ -113,7 +98,7 @@ int main(int argc, char *argv[]) {
   // full, not silently dropped.
 
   {
-    char buf[5] = {0}; // usable capacity 4
+    char buf[5]; // usable capacity 4
     sys_iostream_t *s = sys_string_open(buf, sizeof(buf));
     test_assert(sys_iostream_write(s, "abcdefgh", 8) == 4);
     test_assert(sys_string_compare(buf, "abcd") == 0);
