@@ -149,10 +149,8 @@ extern sys_iostream_t *sys_string_read(const char *str);
  * buffer.
  * @ingroup SystemDataString
  * @param buf The buffer to read from and write into (no copy is made -
- * buf must stay alive for the stream's lifetime). If it already holds a
- * NUL-terminated string within the first `cap` bytes, that's the starting
- * content (like sys_string_read()); otherwise it's treated as empty and
- * buf[0] is set to '\0'.
+ * buf must stay alive for the stream's lifetime). Always starts empty -
+ * buf[0] is set to '\0' regardless of whatever it previously contained.
  * @param cap The buffer's total capacity in bytes, including room for a
  * trailing NUL terminator. Must be at least 1.
  * @return A new stream, or NULL if buf is NULL, cap is 0, or the

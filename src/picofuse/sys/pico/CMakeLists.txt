@@ -6,7 +6,9 @@ picofuse_library(
     HEADERS pico_stdlib_headers
     SOURCES
         init.c
+        env.c
         halt.c
+        hash.c
         mutex.c
         cond.c
         waitgroup.c
@@ -19,7 +21,6 @@ picofuse_library(
         date.c
         ../date/date.c
         ../stub/signal.c
-        env.c
         ../stub/arg.c
         ../string/rune.c
         ../string/count.c
@@ -40,7 +41,6 @@ picofuse_library(
         ../string/iostream.c
         ../iostream/iostream.c
         ../hash/djb2.c
-        hash.c
         ../printf/debugf.c
         ../printf/mutex.c
         ../printf/panicf.c

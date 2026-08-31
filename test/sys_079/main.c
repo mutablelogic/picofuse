@@ -161,11 +161,11 @@ int main(int argc, char *argv[]) {
   // succeeds.
 
   {
-    char buf[16] = "unchanged";
+    char buf[16];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {{0}};
     test_assert(sys_env_arg_usage(flags, stream));
-    test_assert(sys_string_compare(buf, "unchanged") == 0); // nothing written
+    test_assert(sys_string_compare(buf, "") == 0); // nothing written
     sys_iostream_close(stream);
   }
 
