@@ -73,7 +73,7 @@ typedef void (*sys_runloop_init_func_t)(uint8_t worker_index);
  * @ingroup SystemEventRunloop
  * @param event The event posted via sys_runloop_post().
  */
-typedef void (*sys_runloop_func_t)(sys_event_t event);
+typedef void (*sys_runloop_event_func_t)(sys_event_t event);
 
 /**
  * @brief Optional periodic poll callback invoked by worker 0.
@@ -111,24 +111,24 @@ typedef void (*sys_runloop_exit_func_t)(uint8_t worker_index);
  * @param queue Event queue to use for runloop dispatch. Must be valid; its
  *              lifetime remains the caller's responsibility -
  *              sys_runloop_run() neither initializes nor deinitializes it.
- * @param init  Called once per worker before it starts. May be `NULL`.
- * @param callback Handler invoked on a worker for each event dequeued.
+ * @param init_fn  Called once per worker before it starts. May be `NULL`.
+ * @param event_fn Handler invoked on a worker for each event dequeued.
  * @param poll_fn Optional periodic poll callback invoked by worker 0.
  *                May be `NULL`.
- * @param exit  Called once per worker after the queue is drained. May be
+ * @param exit_fn  Called once per worker after the queue is drained. May be
  * `NULL`.
  * @return Exit value passed to sys_runloop_shutdown() once all workers have
  *         finished draining the queue.
  *
  * The calling thread becomes worker 0. If @p num_workers is greater than 1,
  * additional workers (1, 2, …) are started on other cores or threads, each
- * receiving their index in @p init and @p exit.
+ * receiving their index in @p init_fn and @p exit_fn.
  */
 uint32_t sys_runloop_run(uint8_t num_workers, sys_event_queue_t *queue,
-                         sys_runloop_init_func_t init,
-                         sys_runloop_func_t callback,
+                         sys_runloop_init_func_t init_fn,
+                         sys_runloop_event_func_t event_fn,
                          sys_runloop_poll_func_t poll_fn,
-                         sys_runloop_exit_func_t exit);
+                         sys_runloop_exit_func_t exit_fn);
 
 /**
  * @brief Signal the run loop to stop accepting events and exit when drained.
@@ -155,13 +155,6 @@ void sys_runloop_shutdown(uint32_t exit_value);
  * Events are processed in the order posted.
  */
 bool sys_runloop_post(sys_event_t event);
-
-/**
- * @brief Get the active runloop event queue.
- * @ingroup SystemEventRunloop
- * @return Active queue pointer while runloop is running, else `NULL`.
- */
-sys_event_queue_t *sys_runloop_queue(void);
 
 /** @} */
 
