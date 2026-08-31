@@ -10,6 +10,7 @@ void sys_init(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
 
+  // Initalize stdout
   sys_stdout = uart_get_instance(PICO_DEFAULT_UART);
   sys_assert(sys_stdout != NULL);
   gpio_pull_up(PICO_DEFAULT_UART_TX_PIN);
