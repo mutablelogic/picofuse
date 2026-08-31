@@ -29,6 +29,7 @@ digraph modules {
   Env         [label="Environment",              URL="\ref SystemEnv"];
   Events      [label="Events",                   URL="\ref SystemEvents"];
   EventQueue  [label="Queue",                    URL="\ref SystemEventQueue"];
+  Runloop     [label="Run Loop",                 URL="\ref SystemEventRunloop"];
 
   System -> Memory;
   System -> Sync;
@@ -38,6 +39,7 @@ digraph modules {
   Memory -> Arenas;
   Memory -> Heap;
   Events -> EventQueue;
+  Events -> Runloop;
   Sync -> Mutex;
   Sync -> Cond;
   Sync -> WaitGroup;
