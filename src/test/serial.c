@@ -65,6 +65,9 @@ int serial_open(const char *path, uint32_t baud) {
     return -1;
   }
 
+  // Discard anything already sitting in the receive buffer
+  tcflush(fd, TCIFLUSH);
+
   return fd;
 }
 
@@ -75,8 +78,8 @@ void serial_close(int fd) {
 }
 
 bool serial_wait_for_marker(int fd, uint64_t deadline_ms,
-                             const char *success_prefix,
-                             const char *fail_prefix) {
+                            const char *success_prefix,
+                            const char *fail_prefix) {
   char line[512];
   size_t line_len = 0;
 
