@@ -17,7 +17,8 @@ OPTIMIZE_OUTPUT_FOR_C  = YES
 ENABLE_PREPROCESSING   = YES
 MACRO_EXPANSION        = YES
 EXPAND_ONLY_PREDEF     = YES
-PREDEFINED             = __attribute__(x)=
+PREDEFINED             = __attribute__(x)= \
+                          _Noreturn=
 EXTRACT_STATIC         = YES
 EXTRACT_LOCAL_CLASSES  = YES
 EXTRACT_LOCAL_METHODS  = YES

@@ -3,7 +3,7 @@
 #include <picofuse/sys.h>
 #include <stdarg.h>
 
-void sys_panicf(const char *format, ...) {
+_Noreturn void sys_panicf(const char *format, ...) {
   sys_mutex_lock(_sys_printf_mutex);
   sys_puts("[PANIC] ");
 

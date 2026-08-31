@@ -31,6 +31,16 @@ function(picofuse_add_pico_sdk_library TARGET)
     target_link_options(${TARGET}_static PUBLIC
         $<TARGET_PROPERTY:${TARGET}_usage_probe,INTERFACE_LINK_OPTIONS>)
 
+    # See the matching comment in picofuse_add_pico_sdk_bundle(): bundling
+    # into a real .a archive means self-registering init code (anything
+    # only ever found via a linker-script section walk, like
+    # pico_runtime_init's .preinit_array entries, never called by name)
+    # can get silently dropped by ld's symbol-driven archive extraction.
+    # --whole-archive restores the same behavior a normal, non-archived
+    # pico-sdk build gets for free.
+    target_link_options(${TARGET}_static INTERFACE
+        "LINKER:--whole-archive,$<TARGET_FILE:${TARGET}_static>,--no-whole-archive")
+
     set_property(GLOBAL APPEND PROPERTY PICOFUSE_SDK_LIBRARIES ${TARGET}_static)
 endfunction()
 
@@ -78,6 +88,32 @@ function(picofuse_add_pico_sdk_bundle NAME)
     # unlike LINK_LIBRARIES.
     target_link_options(${NAME}_static PUBLIC
         $<TARGET_PROPERTY:${NAME}_usage_probe,INTERFACE_LINK_OPTIONS>)
+
+    # Bundling the SDK into a real .a archive (rather than compiling its
+    # sources directly into each executable, as a normal pico-sdk project
+    # does) introduces a gotcha for self-registering init code:
+    # runtime_init_clocks() and friends (pico_runtime_init/runtime_init.c)
+    # are never called by name anywhere - they're only found by the linker
+    # script walking the .preinit_array section it places them in, which
+    # its own KEEP(*(.preinit_array.*)) correctly protects from
+    # --gc-sections *once an object is part of the link*. But a static
+    # archive uses symbol-driven selective extraction: ld only pulls an
+    # archive member in if something already-linked has an unresolved
+    # reference to a symbol IT defines. Nothing ever references
+    # runtime_init_clocks by name, so ld has no reason to extract
+    # runtime_init.c.o from this archive at all - it silently never makes
+    # it into the final binary, and the whole .preinit_array-driven boot
+    # sequence (clock configuration, early resets, ...) never runs.
+    # --whole-archive forces every member of this archive into the link
+    # regardless of symbol references, restoring the same behavior a
+    # normal (non-archived) pico-sdk build gets for free. It's applied as
+    # an extra explicit mention of this archive's own path, wrapped in
+    # --whole-archive/--no-whole-archive - consumers keep linking
+    # ${NAME}_static normally via target_link_libraries too, and ld
+    # tolerates a static archive appearing more than once on the command
+    # line (already-resolved members are simply skipped the second time).
+    target_link_options(${NAME}_static INTERFACE
+        "LINKER:--whole-archive,$<TARGET_FILE:${NAME}_static>,--no-whole-archive")
 
     set_property(GLOBAL APPEND PROPERTY PICOFUSE_SDK_LIBRARIES ${NAME}_static)
 endfunction()

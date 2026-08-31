@@ -101,6 +101,9 @@ add_subdirectory(src/picofuse)
 add_subdirectory(examples/helloworld)
 add_subdirectory(examples/flags)
 
+# Hardware test runner
+add_subdirectory(src/test)
+
 # Tests
 include(CTest)
 add_subdirectory("test")

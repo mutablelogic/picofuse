@@ -21,7 +21,7 @@ extern "C" {
  * @details This function emits a formatted fatal error message using the
  * platform-specific panic path and does not return to the caller.
  */
-void sys_panicf(const char *format, ...);
+_Noreturn void sys_panicf(const char *format, ...);
 
 ///////////////////////////////////////////////////////////////////////////////
 
