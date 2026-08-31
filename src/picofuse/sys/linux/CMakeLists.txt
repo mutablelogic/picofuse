@@ -25,6 +25,7 @@ picofuse_library(
         ../env/env.c
         ../env/arg.c
         env.c
+        timer.c
         ../pthread/mutex.c
         ../pthread/cond.c
         ../pthread/waitgroup.c
@@ -65,6 +66,11 @@ target_include_directories(picofuse-sys PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 find_package(Threads REQUIRED)
 target_link_libraries(picofuse-sys PRIVATE Threads::Threads)
+
+# timer_create()/timer_settime()/timer_delete() (timer.c) - historically in
+# librt; still provided (even if just as a compatibility shim) by glibc
+# releases that folded it into libc.
+target_link_libraries(picofuse-sys PRIVATE rt)
 
 if(OPENSSL_FOUND)
     target_link_libraries(picofuse-sys PRIVATE OpenSSL::Crypto)

@@ -13,7 +13,7 @@
  *
  * Callback model:
  * - The callback receives the owning `sys_timer_t *` handle.
- * - The timer userdata pointer is retrievable via `sys_timer_get_userdata()`.
+ * - The timer userdata pointer is retrievable via `sys_timer_userdata()`.
  * - One-shot behavior is implemented by calling `sys_timer_deinit()` from
  *   within the callback.
  *

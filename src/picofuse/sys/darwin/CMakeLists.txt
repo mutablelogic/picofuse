@@ -25,6 +25,7 @@ picofuse_library(
         ../env/env.c
         ../env/arg.c
         env.c
+        timer.c
         ../pthread/mutex.c
         ../pthread/cond.c
         ../pthread/waitgroup.c

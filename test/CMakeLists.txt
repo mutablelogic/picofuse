@@ -419,3 +419,25 @@ if(NOT DEFINED PICO_BOARD)
 		sys_079/main.c
 	)
 endif()
+
+# sys_timer_init/_start/_deinit lifecycle: argument validation,
+# double-start rejection, pool exhaustion and slot reuse.
+picofuse_test(sys_080
+	sys_080/main.c
+)
+
+# sys_timer_* periodic firing and sys_timer_userdata.
+picofuse_test(sys_081
+	sys_081/main.c
+)
+
+# sys_timer_* one-shot timer (self-deinit from within the callback).
+picofuse_test(sys_082
+	sys_082/main.c
+)
+
+# sys_timer_deinit blocking on an in-flight callback, and overlapping
+# fires being serialized/skipped rather than run concurrently.
+picofuse_test(sys_083
+	sys_083/main.c
+)
