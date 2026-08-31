@@ -1,4 +1,5 @@
 #include "exec.h"
+#include "serial.h"
 
 #include <picofuse/sys.h>
 
@@ -16,6 +17,24 @@ bool exec_openocd(const exec_openocd_opts_t *opts) {
   if (opts == NULL || opts->openocd == NULL || opts->interface == NULL ||
       opts->target == NULL || opts->elf == NULL) {
     return false;
+  }
+
+  // A single deadline covering both the flash and the UART wait below, so
+  // opts->timeout bounds the whole operation rather than each phase
+  // separately.
+  uint64_t deadline_ms = sys_timestamp_ms() + (uint64_t)opts->timeout * 1000u;
+
+  // Opened before openocd resets the target, so nothing the device prints
+  // right after reset - including an early "[TEST] [INIT] "/"[PANIC] " line
+  // - is missed.
+  int serial_fd = -1;
+  bool want_serial = opts->serial != NULL && opts->serial[0] != '\0';
+  if (want_serial) {
+    serial_fd = serial_open(opts->serial, opts->baud);
+    if (serial_fd < 0) {
+      sys_printf("Error: could not open serial port '%s'\n", opts->serial);
+      return false;
+    }
   }
 
   char command[512];
@@ -53,35 +72,47 @@ bool exec_openocd(const exec_openocd_opts_t *opts) {
   if (rc != 0) {
     sys_printf("Error: could not start '%s' (%s)\n", opts->openocd,
                strerror(rc));
+    serial_close(serial_fd);
     return false;
   }
 
-  uint32_t waited_ms = 0;
-  uint32_t timeout_ms = opts->timeout * 1000u;
+  bool flashed = false;
   for (;;) {
     int status;
     pid_t got = waitpid(pid, &status, WNOHANG);
     if (got == pid) {
       if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        return true;
-      }
-      if (WIFEXITED(status)) {
+        flashed = true;
+      } else if (WIFEXITED(status)) {
         sys_printf("Error: '%s' exited with status %d\n", opts->openocd,
                    WEXITSTATUS(status));
       } else if (WIFSIGNALED(status)) {
         sys_printf("Error: '%s' was killed by signal %d\n", opts->openocd,
                    WTERMSIG(status));
       }
-      return false;
+      break;
     }
-    if (timeout_ms > 0 && waited_ms >= timeout_ms) {
+    if (sys_timestamp_ms() >= deadline_ms) {
       kill(pid, SIGKILL);
       waitpid(pid, &status, 0); // reap
       sys_printf("Error: '%s' timed out after %u seconds\n", opts->openocd,
                  opts->timeout);
+      serial_close(serial_fd);
       return false;
     }
     sys_sleep_ms(50);
-    waited_ms += 50;
   }
+
+  if (!flashed) {
+    serial_close(serial_fd);
+    return false;
+  }
+  if (!want_serial) {
+    return true;
+  }
+
+  bool ok =
+      serial_wait_for_marker(serial_fd, deadline_ms, "[TEST] [EXIT] ", "[PANIC] ");
+  serial_close(serial_fd);
+  return ok;
 }
