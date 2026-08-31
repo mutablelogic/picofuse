@@ -22,6 +22,7 @@ picofuse_library(
         ../posix/date.c
         ../posix/signal.c
         ../date/date.c
+        ../mem/arena.c
         ../env/env.c
         ../env/arg.c
         env.c

@@ -21,6 +21,7 @@ picofuse_library(
         timer.c
         date.c
         ../date/date.c
+        ../mem/arena.c
         ../stub/signal.c
         ../stub/arg.c
         ../string/rune.c
