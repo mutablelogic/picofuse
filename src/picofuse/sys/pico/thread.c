@@ -54,12 +54,11 @@ static void _sys_thread_wrapper(void) {
 uint8_t sys_thread_numcores(void) { return (uint8_t)NUM_CORES; }
 
 /**
- * @brief Create a new thread. Always results in an error
+ * @brief Create a new thread on any available core. Pico has only one spare
+ * core (core 1), so this always targets core 1.
  */
 bool sys_thread_create(sys_thread_func_t func, void *arg) {
-  (void)func;
-  (void)arg;
-  return false;
+  return sys_thread_create_on_core(func, arg, 1);
 }
 
 /**

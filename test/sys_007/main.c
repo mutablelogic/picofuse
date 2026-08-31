@@ -50,14 +50,14 @@ int main(int argc, char *argv[]) {
   // %lu/%zu - unsigned, 64-bit path (_sys_printf_putuv64), values that only
   // fit in 64 bits to prove the wide path was actually taken.
 
-  sys_sprintf(buf, sizeof(buf), "%lu", (unsigned long)5000000000ULL);
+  sys_sprintf(buf, sizeof(buf), "%lu", 5000000000ULL);
   test_assert_strequal(buf, "5000000000");
 
   sys_sprintf(buf, sizeof(buf), "%zu", (size_t)5000000000ULL);
   test_assert_strequal(buf, "5000000000");
 
   // Zero-pad + '#' prefix on the 64-bit path too.
-  sys_sprintf(buf, sizeof(buf), "%#010lx", (unsigned long)0xABCDUL);
+  sys_sprintf(buf, sizeof(buf), "%#010lx", 0xABCDULL);
   test_assert_strequal(buf, "0x0000abcd");
 
   ///////////////////////////////////////////////////////////////////////////

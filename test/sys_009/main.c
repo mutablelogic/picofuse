@@ -85,10 +85,10 @@ int main(int argc, char *argv[]) {
   // 64-bit path (%lx/%lo/%lb) with a magnitude that genuinely exceeds 32
   // bits, proving it wasn't silently truncated.
 
-  sys_sprintf(buf, sizeof(buf), "%lx", (unsigned long)0x100000000ULL);
+  sys_sprintf(buf, sizeof(buf), "%lx", 0x100000000ULL);
   test_assert_strequal(buf, "100000000"); // 9 hex digits, not 8
 
-  sys_sprintf(buf, sizeof(buf), "%lx", (unsigned long)UINT64_MAX);
+  sys_sprintf(buf, sizeof(buf), "%lx", UINT64_MAX);
   test_assert_strequal(buf, "ffffffffffffffff");
 
   ///////////////////////////////////////////////////////////////////////////
