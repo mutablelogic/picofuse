@@ -11,6 +11,7 @@
  * environment metadata, and process control.
  */
 #pragma once
+#include "sys/arena.h"
 #include "sys/assert.h"
 #include "sys/atomic.h"
 #include "sys/cond.h"
