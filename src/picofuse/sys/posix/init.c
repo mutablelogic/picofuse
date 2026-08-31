@@ -2,6 +2,9 @@
 #include "../printf/mutex.h"
 #include <picofuse/sys.h>
 
+// Defined per-platform in darwin/timer.c and linux/timer.c.
+extern void _sys_timer_module_exit(void);
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -23,6 +26,8 @@ void sys_init(int argc, char *argv[]) {
  * @note This function should be called when the system is no longer needed.
  */
 void sys_exit(void) {
+  // Stop and release any still-active timers
+  _sys_timer_module_exit();
   // Deinitialize the printf mutex for thread-safe operations
   _sys_printf_exit();
 }

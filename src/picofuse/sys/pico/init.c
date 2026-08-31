@@ -5,6 +5,10 @@
 #include <picofuse/sys.h>
 #include <runtime/stdout.h>
 
+// Defined in timer.c.
+extern void _sys_timer_module_init(void);
+extern void _sys_timer_module_exit(void);
+
 void sys_init(int argc, char *argv[]) {
   // Pico has no command line arguments
   (void)argc;
@@ -26,6 +30,9 @@ void sys_init(int argc, char *argv[]) {
   // Initialize the shared critical section used by sync primitives
   _sys_sync_module_init();
 
+  // Initialize the critical section used by the timer pool
+  _sys_timer_module_init();
+
   // Initialize the printf mutex for thread-safe operations
   _sys_printf_init();
 
@@ -34,6 +41,9 @@ void sys_init(int argc, char *argv[]) {
 }
 
 void sys_exit(void) {
+  // Stop and release any still-active timers
+  _sys_timer_module_exit();
+
   /* TODO: Shutdown or reset any non-main cores */
 
   // Deinitialize the printf mutex for thread-safe operations

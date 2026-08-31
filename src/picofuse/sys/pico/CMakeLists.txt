@@ -18,6 +18,7 @@ picofuse_library(
         random.c
         timestamp.c
         sleep.c
+        timer.c
         date.c
         ../date/date.c
         ../stub/signal.c
