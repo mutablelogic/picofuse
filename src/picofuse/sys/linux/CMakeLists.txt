@@ -24,6 +24,10 @@ picofuse_library(
         ../date/date.c
         ../mem/arena.c
         ../mem/mem.c
+        ../event/init.c
+        ../event/lock.c
+        ../event/pushpop.c
+        ../event/size.c
         ../env/env.c
         ../env/arg.c
         env.c

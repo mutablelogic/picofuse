@@ -494,3 +494,53 @@ picofuse_test(sys_091
 picofuse_test(sys_092
 	sys_092/main.c
 )
+
+# sys_event_queue_init argument validation (capacity 0/overflow) and
+# sys_event_queue_deinit, including a degenerate single-slot queue.
+picofuse_test(sys_093
+	sys_093/main.c
+)
+
+# sys_event_queue_push/_try_push/_pop/_try_pop FIFO ordering, ring-buffer
+# wraparound, NULL-event rejection, and try_pop() on an empty queue.
+picofuse_test(sys_094
+	sys_094/main.c
+)
+
+# Full-queue behavior: try_push() fails without overwriting, push() always
+# succeeds by overwriting the oldest entry.
+picofuse_test(sys_095
+	sys_095/main.c
+)
+
+# sys_event_queue_peek() alongside sys_event_queue_lock/_unlock(), and
+# sys_event_queue_size/_empty() across a push/pop lifecycle.
+picofuse_test(sys_096
+	sys_096/main.c
+)
+
+# sys_event_queue_timed_pop(): the timeout_ms==0 alias, timing out with no
+# event, and waking early from a push on another thread/core.
+picofuse_test(sys_097
+	sys_097/main.c
+)
+
+# sys_event_queue_shutdown(): wakes a consumer blocked in pop(), fails all
+# future pushes, and drains already-queued events before pop() starts
+# returning NULL.
+picofuse_test(sys_098
+	sys_098/main.c
+)
+
+# NULL-safety across the whole event queue API: a NULL queue never crashes
+# and always reports a safe sentinel, and NULL is rejected as an event.
+picofuse_test(sys_099
+	sys_099/main.c
+)
+
+# Concurrent producers/consumer against one small event queue - exercises
+# try_push()'s full path and pop()'s blocking/wakeup path under real
+# contention, and verifies no event is ever lost, duplicated, or corrupted.
+picofuse_test(sys_100
+	sys_100/main.c
+)
