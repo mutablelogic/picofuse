@@ -234,18 +234,34 @@ bool sys_env_arg_usage(sys_env_arg_flag_t *flags, sys_iostream_t *stream) {
   }
 
   for (size_t i = 0; flags[i].long_name != NULL; i++) {
+    // Build the "(default: X, negate: --no-Y)" suffix, if there's
+    // anything to say for this flag - a default is shown whenever one
+    // was supplied, and a negate note whenever the flag is BOOL
+    // (regardless of whether a default was supplied), so either, both,
+    // or neither may end up present.
+    char note[96] = "";
+    bool has_default = flags[i].value != NULL;
+    bool is_bool = flags[i].type == SYS_ENV_ARG_BOOL;
+    if (has_default && is_bool) {
+      sys_sprintf(note, sizeof(note), " (default: %s, negate: --no-%s)",
+                  flags[i].value, flags[i].long_name);
+    } else if (is_bool) {
+      sys_sprintf(note, sizeof(note), " (negate: --no-%s)",
+                  flags[i].long_name);
+    } else if (has_default) {
+      sys_sprintf(note, sizeof(note), " (default: %s)", flags[i].value);
+    }
+
     char line[128];
     size_t len;
     if (flags[i].short_name != NULL) {
-      len =
-          sys_sprintf(line, sizeof(line), "  --%s, -%s <%s> (default: %s)\n",
-                      flags[i].long_name, flags[i].short_name,
-                      _sys_env_type_name(flags[i].type),
-                      flags[i].value != NULL ? flags[i].value : "none");
+      len = sys_sprintf(line, sizeof(line), "  --%s, -%s <%s>%s\n",
+                         flags[i].long_name, flags[i].short_name,
+                         _sys_env_type_name(flags[i].type), note);
     } else {
-      len = sys_sprintf(line, sizeof(line), "  --%s <%s> (default: %s)\n",
+      len = sys_sprintf(line, sizeof(line), "  --%s <%s>%s\n",
                          flags[i].long_name, _sys_env_type_name(flags[i].type),
-                         flags[i].value != NULL ? flags[i].value : "none");
+                         note);
     }
     size_t to_write = len < sizeof(line) ? len : sizeof(line) - 1;
     if (sys_iostream_write(stream, line, to_write) != to_write) {

@@ -391,24 +391,31 @@ picofuse_test(sys_075
 	sys_075/main.c
 )
 
-# sys_env_arg_parse 
-picofuse_test(sys_076
-	sys_076/main.c
-)
+# sys_env_arg_parse/_arg_parse_*/_arg_usage - not registered on Pico,
+# which has no real command line (see stub/arg.c) and so can't pass
+# these; sys_078 (sys_string_open) has nothing to do with arg parsing
+# and stays registered everywhere.
+if(NOT DEFINED PICO_BOARD)
+	# sys_env_arg_parse
+	picofuse_test(sys_076
+		sys_076/main.c
+	)
 
-# sys_env_arg_parse_bool/_int32/_uint32/_int64/_uint64/_float32/_float64/
-# _string
-picofuse_test(sys_077
-	sys_077/main.c
-)
+	# sys_env_arg_parse_bool/_int32/_uint32/_int64/_uint64/_float32/
+	# _float64/_string
+	picofuse_test(sys_077
+		sys_077/main.c
+	)
+endif()
 
-# sys_string_open - NULL/zero-cap rejection, opening an empty buffer vs.
-# one that already holds a string (including a terminator sitting exactly
-# at the last valid index), reads/seeks bounded by the tracked content
-# length rather than physical capacity, a write growing that length and
-# keeping the buffer correctly terminated at every step (not just once
-# writing is done), an in-place overwrite not disturbing the length, and
-# writes truncating at the (cap - 1)-byte usable capacity
+# sys_string_open
 picofuse_test(sys_078
 	sys_078/main.c
 )
+
+if(NOT DEFINED PICO_BOARD)
+	# sys_env_arg_usage
+	picofuse_test(sys_079
+		sys_079/main.c
+	)
+endif()

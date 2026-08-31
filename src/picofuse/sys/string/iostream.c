@@ -159,7 +159,7 @@ sys_iostream_t *sys_string_open(char *buf, size_t cap) {
     }
   }
   if (!found) {
-    length = cap - 1; // BUG: should stay 0 (treated as empty)
+    buf[0] = '\0';
   }
 
   s->backend.buffer.data = buf;
