@@ -5,8 +5,9 @@
  * @ingroup Picofuse
  *
  * The Hardware module provides cross-platform abstractions for on-board
- * peripherals such as GPIO.
+ * peripherals such as GPIO and ADC.
  */
 #pragma once
+#include "hw/adc.h"
 #include "hw/gpio.h"
 #include "hw/init.h"

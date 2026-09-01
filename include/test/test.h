@@ -41,8 +41,8 @@
  * @def test_main_sys(arena_size)
  * @brief Declares a test's entry point in place of a raw main(). Wraps
  * sys_init()/sys_exit() around the test body and brackets it with
- * "[TEST] [INIT] <env>" / "[TEST] [EXIT] <env>" markers, where <env> is
- * sys_env_name(). The test body receives the process's own (argc, argv) -
+ * "[TEST] [INIT] \<env\>" / "[TEST] [EXIT] \<env\>" markers, where `\<env\>`
+ * is sys_env_name(). The test body receives the process's own (argc, argv) -
  * unused by most tests, so they're marked maybe-unused to stay warning-free.
  * @param arena_size Forwarded to sys_init() - the default arena's capacity
  * in bytes, or `0` to leave sys_malloc() and friends routed to the system
