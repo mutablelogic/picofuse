@@ -18,6 +18,7 @@ if(DEFINED PICO_BOARD)
     add_compile_definitions(PICO_TIME_DEFAULT_ALARM_POOL_DISABLED=1)
     add_compile_definitions(LIB_PICO_MULTICORE=1)
     set(_picosdk_targets
+        hardware_adc
         hardware_gpio
         hardware_uart
         pico_multicore

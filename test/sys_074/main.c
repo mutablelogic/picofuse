@@ -4,7 +4,7 @@
 #if !defined(SYSTEM_NAME_PICO)
 #include <signal.h>
 
-static sys_env_signal_t last_signal = SYS_ENV_SIGNAL_NONE;
+static sys_env_signal_t last_signal = sys_env_signal_none;
 static int call_count = 0;
 
 static void record_callback(sys_env_signal_t signal) {
@@ -12,7 +12,7 @@ static void record_callback(sys_env_signal_t signal) {
   call_count++;
 }
 
-static sys_env_signal_t last_signal_b = SYS_ENV_SIGNAL_NONE;
+static sys_env_signal_t last_signal_b = sys_env_signal_none;
 static int call_count_b = 0;
 
 static void record_callback_b(sys_env_signal_t signal) {
@@ -44,21 +44,21 @@ test_main_sys(0) {
 
   {
     call_count = 0;
-    test_assert(sys_env_signalhandler(SYS_ENV_SIGNAL_TERM, record_callback));
+    test_assert(sys_env_signalhandler(sys_env_signal_term, record_callback));
     raise(SIGTERM);
-    test_assert(call_count == 1 && last_signal == SYS_ENV_SIGNAL_TERM);
+    test_assert(call_count == 1 && last_signal == sys_env_signal_term);
   }
   {
     call_count = 0;
-    test_assert(sys_env_signalhandler(SYS_ENV_SIGNAL_INT, record_callback));
+    test_assert(sys_env_signalhandler(sys_env_signal_int, record_callback));
     raise(SIGINT);
-    test_assert(call_count == 1 && last_signal == SYS_ENV_SIGNAL_INT);
+    test_assert(call_count == 1 && last_signal == sys_env_signal_int);
   }
   {
     call_count = 0;
-    test_assert(sys_env_signalhandler(SYS_ENV_SIGNAL_QUIT, record_callback));
+    test_assert(sys_env_signalhandler(sys_env_signal_quit, record_callback));
     raise(SIGQUIT);
-    test_assert(call_count == 1 && last_signal == SYS_ENV_SIGNAL_QUIT);
+    test_assert(call_count == 1 && last_signal == sys_env_signal_quit);
   }
 
   ///////////////////////////////////////////////////////////////////////
@@ -67,12 +67,12 @@ test_main_sys(0) {
 
   {
     call_count = 0;
-    test_assert(sys_env_signalhandler(SYS_ENV_SIGNAL_TERM | SYS_ENV_SIGNAL_INT,
+    test_assert(sys_env_signalhandler(sys_env_signal_term | sys_env_signal_int,
                                        record_callback));
     raise(SIGTERM);
     raise(SIGINT);
     test_assert(call_count == 2);
-    test_assert(last_signal == SYS_ENV_SIGNAL_INT); // most recent
+    test_assert(last_signal == sys_env_signal_int); // most recent
   }
 
   ///////////////////////////////////////////////////////////////////////
@@ -84,15 +84,15 @@ test_main_sys(0) {
   {
     call_count = 0;
     call_count_b = 0;
-    test_assert(sys_env_signalhandler(SYS_ENV_SIGNAL_TERM, record_callback));
-    test_assert(sys_env_signalhandler(SYS_ENV_SIGNAL_INT, record_callback_b));
+    test_assert(sys_env_signalhandler(sys_env_signal_term, record_callback));
+    test_assert(sys_env_signalhandler(sys_env_signal_int, record_callback_b));
 
     // SIGTERM must be back to its default disposition - checked without
     // raising it, since SIG_DFL for SIGTERM terminates the process.
     test_assert(is_default_disposition(SIGTERM));
 
     raise(SIGINT);
-    test_assert(call_count_b == 1 && last_signal_b == SYS_ENV_SIGNAL_INT);
+    test_assert(call_count_b == 1 && last_signal_b == sys_env_signal_int);
     test_assert(call_count == 0); // the old TERM callback never fires again
   }
 
@@ -118,7 +118,7 @@ test_main_sys(0) {
   // Pico has no POSIX-style signal delivery - sys_env_signalhandler is
   // documented to report "not supported" here, for any input.
 
-  test_assert(!sys_env_signalhandler(SYS_ENV_SIGNAL_TERM, NULL));
+  test_assert(!sys_env_signalhandler(sys_env_signal_term, NULL));
   test_assert(!sys_env_signalhandler(0, NULL));
 #endif
 

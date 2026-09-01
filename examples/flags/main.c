@@ -4,7 +4,7 @@ sys_env_arg_flag_t args[] = {
     {
         .long_name = "help",
         .short_name = "h",
-        .type = SYS_ENV_ARG_BOOL,
+        .type = sys_env_arg_type_bool,
         .value = "false",
     },
     {0},

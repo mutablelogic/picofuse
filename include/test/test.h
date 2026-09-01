@@ -3,6 +3,7 @@
  * @brief Assertion macros for picofuse system tests.
  */
 #pragma once
+#include <picofuse/hw.h>
 #include <picofuse/sys.h>
 #include <string.h>
 
@@ -58,6 +59,35 @@
     sys_init(argc, argv, (arena_size));                                      \
     sys_printf("[TEST] [INIT] %s\n", sys_env_name());                        \
     _test_main(argc, argv);                                                  \
+    sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                        \
+    sys_exit();                                                              \
+    return 0;                                                                \
+  }                                                                          \
+  static void _test_main(int argc __attribute__((unused)),                   \
+                         char *argv[] __attribute__((unused)))
+
+/**
+ * @def test_main_hw(arena_size)
+ * @brief Like test_main_sys(), but also wraps hw_init()/hw_exit() around the
+ * test body, inside the sys_init()/sys_exit() pair (hw depends on sys, so it
+ * must be initialized after and torn down before it).
+ * @param arena_size Forwarded to sys_init() - the default arena's capacity
+ * in bytes, or `0` to leave sys_malloc() and friends routed to the system
+ * allocator.
+ *
+ * Usage:
+ *   test_main_hw(0) {
+ *     ...test body, optionally using argc/argv...
+ *   }
+ */
+#define test_main_hw(arena_size)                                            \
+  static void _test_main(int argc, char *argv[]);                           \
+  int main(int argc, char *argv[]) {                                         \
+    sys_init(argc, argv, (arena_size));                                      \
+    sys_printf("[TEST] [INIT] %s\n", sys_env_name());                        \
+    hw_init();                                                               \
+    _test_main(argc, argv);                                                  \
+    hw_exit();                                                               \
     sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                        \
     sys_exit();                                                              \
     return 0;                                                                \

@@ -12,7 +12,7 @@ test_main_sys(0) {
     test_assert(stream != NULL);
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL,
-         .type = SYS_ENV_ARG_BOOL, .value = "false"},
+         .type = sys_env_arg_type_bool, .value = "false"},
         {0},
     };
     test_assert(!sys_env_arg_usage(NULL, stream));
@@ -28,7 +28,7 @@ test_main_sys(0) {
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
         {.long_name = "name", .short_name = "n",
-         .type = SYS_ENV_ARG_STRING, .value = "bob"},
+         .type = sys_env_arg_type_string, .value = "bob"},
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
@@ -47,7 +47,7 @@ test_main_sys(0) {
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
         {.long_name = "name", .short_name = NULL,
-         .type = SYS_ENV_ARG_STRING, .value = "default"},
+         .type = sys_env_arg_type_string, .value = "default"},
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
@@ -66,7 +66,7 @@ test_main_sys(0) {
     char buf[64];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "count", .short_name = NULL, .type = SYS_ENV_ARG_INT,
+        {.long_name = "count", .short_name = NULL, .type = sys_env_arg_type_int,
          .value = NULL},
         {0},
     };
@@ -78,7 +78,7 @@ test_main_sys(0) {
     char buf[64];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "count", .short_name = "c", .type = SYS_ENV_ARG_INT,
+        {.long_name = "count", .short_name = "c", .type = sys_env_arg_type_int,
          .value = NULL},
         {0},
     };
@@ -99,7 +99,7 @@ test_main_sys(0) {
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = "v",
-         .type = SYS_ENV_ARG_BOOL, .value = "false"},
+         .type = sys_env_arg_type_bool, .value = "false"},
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
@@ -113,7 +113,7 @@ test_main_sys(0) {
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = NULL,
-         .type = SYS_ENV_ARG_BOOL, .value = NULL}, // no default
+         .type = sys_env_arg_type_bool, .value = NULL}, // no default
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
@@ -132,14 +132,14 @@ test_main_sys(0) {
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = "v",
-         .type = SYS_ENV_ARG_BOOL, .value = "false"},
+         .type = sys_env_arg_type_bool, .value = "false"},
         {.long_name = "name", .short_name = NULL,
-         .type = SYS_ENV_ARG_STRING, .value = "default"},
-        {.long_name = "count", .short_name = "c", .type = SYS_ENV_ARG_INT,
+         .type = sys_env_arg_type_string, .value = "default"},
+        {.long_name = "count", .short_name = "c", .type = sys_env_arg_type_int,
          .value = "0"},
-        {.long_name = "limit", .short_name = NULL, .type = SYS_ENV_ARG_UINT,
+        {.long_name = "limit", .short_name = NULL, .type = sys_env_arg_type_uint,
          .value = "10"},
-        {.long_name = "ratio", .short_name = NULL, .type = SYS_ENV_ARG_FLOAT,
+        {.long_name = "ratio", .short_name = NULL, .type = sys_env_arg_type_float,
          .value = "1.0"},
         {0},
     };
@@ -177,7 +177,7 @@ test_main_sys(0) {
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = "v",
-         .type = SYS_ENV_ARG_BOOL, .value = "false"},
+         .type = sys_env_arg_type_bool, .value = "false"},
         {0},
     };
     test_assert(!sys_env_arg_usage(flags, stream));

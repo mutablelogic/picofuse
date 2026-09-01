@@ -75,7 +75,7 @@ static sys_env_arg_flag_t *_sys_env_find_flag(sys_env_arg_flag_t *flags,
       *attached_value = (value_sep != NULL) ? value_sep + 1 : NULL;
       return &flags[i];
     }
-    if (is_long && flags[i].type == SYS_ENV_ARG_BOOL &&
+    if (is_long && flags[i].type == sys_env_arg_type_bool &&
         sys_string_hasprefix(token, "no-") &&
         _sys_env_name_matches(token + 3, flags[i].long_name, &value_sep)) {
       *attached_value = (value_sep != NULL) ? value_sep + 1 : NULL;
@@ -108,21 +108,21 @@ static sys_env_arg_flag_t *_sys_env_find_by_name(sys_env_arg_flag_t *flags,
 
 static bool _sys_env_validate(sys_env_arg_type_t type, const char *value) {
   switch (type) {
-  case SYS_ENV_ARG_STRING:
+  case sys_env_arg_type_string:
     return true;
-  case SYS_ENV_ARG_BOOL: {
+  case sys_env_arg_type_bool: {
     bool out;
     return sys_string_parse_bool(value, &out);
   }
-  case SYS_ENV_ARG_INT: {
+  case sys_env_arg_type_int: {
     int64_t out;
     return sys_string_parse_int64(value, 0, &out);
   }
-  case SYS_ENV_ARG_UINT: {
+  case sys_env_arg_type_uint: {
     uint64_t out;
     return sys_string_parse_uint64(value, 0, &out);
   }
-  case SYS_ENV_ARG_FLOAT: {
+  case sys_env_arg_type_float: {
     double out;
     return sys_string_parse_float64(value, 0, &out);
   }
@@ -133,15 +133,15 @@ static bool _sys_env_validate(sys_env_arg_type_t type, const char *value) {
 
 static const char *_sys_env_type_name(sys_env_arg_type_t type) {
   switch (type) {
-  case SYS_ENV_ARG_BOOL:
+  case sys_env_arg_type_bool:
     return "bool";
-  case SYS_ENV_ARG_STRING:
+  case sys_env_arg_type_string:
     return "string";
-  case SYS_ENV_ARG_INT:
+  case sys_env_arg_type_int:
     return "int";
-  case SYS_ENV_ARG_UINT:
+  case sys_env_arg_type_uint:
     return "uint";
-  case SYS_ENV_ARG_FLOAT:
+  case sys_env_arg_type_float:
     return "float";
   default:
     return "?";
@@ -198,7 +198,7 @@ sys_env_arg_t *sys_env_arg_parse(sys_env_arg_flag_t *flags) {
       value = attached_value;
     } else if (negated) {
       value = "false";
-    } else if (flag->type == SYS_ENV_ARG_BOOL) {
+    } else if (flag->type == sys_env_arg_type_bool) {
       value = "true"; // presence alone means "on"
     } else {
       if (i + 1 >= _sys_env_argc) {
@@ -241,7 +241,7 @@ bool sys_env_arg_usage(sys_env_arg_flag_t *flags, sys_iostream_t *stream) {
     // or neither may end up present.
     char note[96] = "";
     bool has_default = flags[i].value != NULL;
-    bool is_bool = flags[i].type == SYS_ENV_ARG_BOOL;
+    bool is_bool = flags[i].type == sys_env_arg_type_bool;
     if (has_default && is_bool) {
       sys_sprintf(note, sizeof(note), " (default: %s, negate: --no-%s)",
                   flags[i].value, flags[i].long_name);

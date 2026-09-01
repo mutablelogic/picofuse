@@ -5,13 +5,13 @@ test_main_sys(0) {
   char *fake_argv[] = {"prog", "--name=bob", "--big=5000000000", "--pi=3.14"};
   sys_init(4, fake_argv, 0);
   sys_env_arg_flag_t flags[] = {
-      {.long_name = "name", .short_name = NULL, .type = SYS_ENV_ARG_STRING,
+      {.long_name = "name", .short_name = NULL, .type = sys_env_arg_type_string,
        .value = "default"},
-      {.long_name = "big", .short_name = NULL, .type = SYS_ENV_ARG_INT,
+      {.long_name = "big", .short_name = NULL, .type = sys_env_arg_type_int,
        .value = "0"}, // 5e9 overflows int32/uint32, fits int64
-      {.long_name = "pi", .short_name = NULL, .type = SYS_ENV_ARG_FLOAT,
+      {.long_name = "pi", .short_name = NULL, .type = sys_env_arg_type_float,
        .value = "0"},
-      {.long_name = "flag", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+      {.long_name = "flag", .short_name = NULL, .type = sys_env_arg_type_bool,
        .value = NULL}, // no default, never present on the command line
       {0},
   };

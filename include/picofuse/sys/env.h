@@ -53,10 +53,10 @@ extern "C" {
  * requests that applications should handle gracefully.
  */
 typedef enum {
-  SYS_ENV_SIGNAL_NONE = 0,  ///< No signal.
-  SYS_ENV_SIGNAL_TERM = 1u, ///< Termination request from the environment.
-  SYS_ENV_SIGNAL_INT = 2u,  ///< Interrupt request from the environment.
-  SYS_ENV_SIGNAL_QUIT = 4u, ///< Quit request from the environment.
+  sys_env_signal_none = 0,  ///< No signal.
+  sys_env_signal_term = 1u, ///< Termination request from the environment.
+  sys_env_signal_int = 2u,  ///< Interrupt request from the environment.
+  sys_env_signal_quit = 4u, ///< Quit request from the environment.
 } sys_env_signal_t;
 
 /**
@@ -74,11 +74,11 @@ typedef void (*sys_env_signal_callback_t)(sys_env_signal_t signal);
  * `sys_env_arg_parse()` to validate a matched argument's value.
  */
 typedef enum {
-  SYS_ENV_ARG_BOOL = 1,   ///< Argument flag expects a boolean value.
-  SYS_ENV_ARG_STRING = 2, ///< Argument flag expects a string value.
-  SYS_ENV_ARG_INT = 3,    ///< Argument flag expects an integer value.
-  SYS_ENV_ARG_UINT = 4,   ///< Argument flag expects an unsigned integer value.
-  SYS_ENV_ARG_FLOAT = 5,  ///< Argument flag expects a floating-point value.
+  sys_env_arg_type_bool = 1,   ///< Argument flag expects a boolean value.
+  sys_env_arg_type_string = 2, ///< Argument flag expects a string value.
+  sys_env_arg_type_int = 3,    ///< Argument flag expects an integer value.
+  sys_env_arg_type_uint = 4,   ///< Argument flag expects an unsigned integer value.
+  sys_env_arg_type_float = 5,  ///< Argument flag expects a floating-point value.
 } sys_env_arg_type_t;
 
 /**

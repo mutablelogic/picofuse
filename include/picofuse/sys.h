@@ -2,7 +2,7 @@
  * @file sys.h
  * @brief System abstraction headers and process lifecycle
  * hooks.
- * @defgroup System System Abstractions
+ * @defgroup System System
  * @ingroup Picofuse
  *
  * The System module provides the runtime foundation used by higher-level

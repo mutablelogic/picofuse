@@ -465,50 +465,42 @@ picofuse_test(sys_087
 	sys_087/main.c
 )
 
-# sys_mem_arena_realloc: shrink/grow in place, grow-that-moves, NULL/0
-# edge cases, and failure leaving the original allocation untouched.
+# sys_mem_arena_realloc
 picofuse_test(sys_088
 	sys_088/main.c
 )
 
-# Arena chain growth: sys_mem_arena_next traversal, prev-must-be-tail
-# enforcement, and allocations never spilling into a successor arena.
+# sys_mem_arena_next traversal
 picofuse_test(sys_089
 	sys_089/main.c
 )
 
-# Tail-only sys_mem_arena_delete, including tearing down the last arena.
+# sys_mem_arena_delete
 picofuse_test(sys_090
 	sys_090/main.c
 )
 
-# Concurrent sys_mem_arena_alloc/_free from multiple threads/cores on one
-# shared arena - exercises the sys_mutex_t-backed locking.
+# Concurrent sys_mem_arena_alloc/_free from multiple threads/cores
 picofuse_test(sys_091
 	sys_091/main.c
 )
 
 # Concurrent sys_malloc/_calloc/_realloc/_free from multiple threads/cores
-# against the default arena, including forcing it to grow repeatedly under
-# concurrent load.
 picofuse_test(sys_092
 	sys_092/main.c
 )
 
-# sys_event_queue_init argument validation (capacity 0/overflow) and
-# sys_event_queue_deinit, including a degenerate single-slot queue.
+# sys_event_queue_init and sys_event_queue_deinit
 picofuse_test(sys_093
 	sys_093/main.c
 )
 
-# sys_event_queue_push/_try_push/_pop/_try_pop FIFO ordering, ring-buffer
-# wraparound, NULL-event rejection, and try_pop() on an empty queue.
+# sys_event_queue_push/_try_push/_pop/_try_pop 
 picofuse_test(sys_094
 	sys_094/main.c
 )
 
-# Full-queue behavior: try_push() fails without overwriting, push() always
-# succeeds by overwriting the oldest entry.
+# sys_event_queue_push, try_push() fails 
 picofuse_test(sys_095
 	sys_095/main.c
 )
@@ -589,4 +581,20 @@ picofuse_test(sys_106
 # lost, duplicated, or corrupted.
 picofuse_test(sys_107
 	sys_107/main.c
+)
+
+# hw_gpio_* basic lifecycle: init/count/get_pin_num/get_mode/set/get/deinit.
+# Darwin has no GPIO backend at all yet, so there's nothing for this test to
+# exercise there.
+if(NOT APPLE)
+	picofuse_test(hw_001
+		hw_001/main.c
+	)
+endif()
+
+# hw_gpio_count/_init argument validation: an unsupported bank is rejected,
+# and hw_gpio_deinit(NULL) is a safe no-op. Meaningful on every platform
+# (including darwin's stub), so no guard.
+picofuse_test(hw_002
+	hw_002/main.c
 )
