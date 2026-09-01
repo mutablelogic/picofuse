@@ -45,7 +45,7 @@ if(DEFINED PICO_BOARD)
         pico_stdio_rtt
     )
     if(PICO_CYW43_SUPPORTED)
-        list(APPEND _picosdk_targets pico_cyw43_arch_none pico_lwip_nosys)
+        list(APPEND _picosdk_targets pico_cyw43_arch_lwip_poll)
     endif()
 
     # Generate the combined Pico SDK bundle
@@ -71,10 +71,18 @@ if(DEFINED PICO_BOARD)
     picofuse_add_pico_sdk_libs_target(pico_sdk_libs)
     target_include_directories(picosdk_static PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/include
-        # lwipopts.h and mbedtls_config.h are in 
+        # lwipopts.h and mbedtls_config.h are in
         # include/runtime itself must be on the search path.
         ${CMAKE_CURRENT_LIST_DIR}/include/runtime
     )
+
+    if(PICO_CYW43_SUPPORTED)
+        # printf support for cyw43: force-include a header that redirects
+        # CYW43_PRINTF to sys_debugf()
+        target_compile_options(picosdk_static PRIVATE
+            "$<$<COMPILE_LANGUAGE:C>:SHELL:-include ${CMAKE_CURRENT_LIST_DIR}/include/runtime/cyw43_debug.h>"
+        )
+    endif()
 endif()
 
 # Lowercase and uppercase system name

@@ -598,3 +598,14 @@ endif()
 picofuse_test(hw_002
 	hw_002/main.c
 )
+
+# hw_adc_* basic lifecycle: init a GPIO-backed channel and the temperature
+# sensor, channel<->pin round trip, reads at num_samples 0/1/many, and a
+# plausibility check on the temperature reading. Unlike GPIO, no host
+# platform has a real ADC backend (both darwin and linux route through the
+# same no-op stub), so this only has anything to exercise on Pico.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_003
+		hw_003/main.c
+	)
+endif()

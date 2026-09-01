@@ -4,6 +4,7 @@ picofuse_library(
         gpio.c
         init.c
         ../gpio/gpio.c
+        ../stub/adc.c
 )
 
 target_include_directories(picofuse-hw PRIVATE ${CMAKE_SOURCE_DIR}/include)

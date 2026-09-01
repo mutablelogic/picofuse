@@ -3,6 +3,7 @@ picofuse_library(
     LIBRARIES picosdk
     HEADERS pico_stdlib_headers
     SOURCES
+        adc.c
         gpio.c
         init.c
 )
