@@ -4,6 +4,8 @@
  * threads.
  * @defgroup SystemEventRunloop Run Loop
  * @ingroup SystemEvents
+ * @brief A process-wide singleton that drains an event queue across one or
+ * more workers.
  * @details
  * The run loop is a process-wide singleton that drains an event queue across
  * one or more workers.

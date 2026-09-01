@@ -3,6 +3,8 @@
  * @brief Defines the default heap allocator wrappers.
  * @defgroup SystemHeap Default Allocator
  * @ingroup SystemMemory
+ * @brief Drop-in sys_malloc()/sys_calloc()/sys_realloc()/sys_free() wrappers
+ * around the process's allocator, or a configured default arena.
  * @details
  * sys_malloc()/sys_calloc()/sys_realloc()/sys_free() are drop-in wrappers
  * around the process's allocator. Until a default arena has been configured,

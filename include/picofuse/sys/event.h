@@ -3,6 +3,8 @@
  * @brief Defines opaque event queues for producer/consumer coordination.
  * @defgroup SystemEvents Events
  * @ingroup System
+ * @brief The core event transport abstraction used by runloops and other
+ * producer/consumer workflows.
  * @details
  * The Events module provides the core event transport abstraction used by
  * runloops and other producer/consumer workflows. Events are represented as
@@ -20,6 +22,7 @@
 /**
  * @defgroup SystemEventQueue Queue
  * @ingroup SystemEvents
+ * @brief Thread-safe FIFO coordination between producers and consumers.
  * @details
  * Event queues provide thread-safe FIFO coordination between producers and
  * consumers.

@@ -3,6 +3,8 @@
  * @brief Periodic and one-shot timer scheduling.
  * @defgroup SystemTimer Timers
  * @ingroup Execution
+ * @brief Lightweight callback-based scheduling for periodic work and
+ * one-shot delays.
  * @details
  * The timer module provides lightweight callback-based scheduling for
  * periodic work and one-shot delays.

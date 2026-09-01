@@ -3,6 +3,8 @@
  * @brief Environment information.
  * @defgroup SystemEnv Environment
  * @ingroup Execution
+ * @brief Runtime metadata about the active execution context, plus
+ * process-level environment signal handling.
  * @details
  * The Environment module provides runtime metadata about the active execution
  * context and a lightweight interface for handling process-level environment
