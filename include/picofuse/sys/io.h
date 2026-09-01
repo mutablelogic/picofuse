@@ -1,19 +1,20 @@
 /**
  * @file io.h
- * @brief Opaque byte-stream type for reading and writing, backed by
- * different sources (strings today; files and others can be added later
- * without changing this interface).
+ * @brief Opaque byte streams for reading, writing, seeking, and readiness
+ * notification.
  * @defgroup SystemDataStream Stream I/O
  * @ingroup SystemData
  *
  * A sys_iostream_t is a small, fixed set of primitives - peek, read,
  * write, seek, close - implemented differently per backend. Instances
  * come from a static pool (SYS_IOSTREAM_CAPACITY), never the heap, and
- * are constructed by a source-specific function rather than directly;
- * sys_string_read() (sys/string.h) is the only backend today, wrapping
- * an existing string with no copy of its bytes. sys/rune.h's tokenizer
- * and sys/scanner.h's scanner are both built entirely on this interface,
- * so a future backend (a file, say) would work with them unchanged.
+ * are constructed by a source-specific function rather than directly.
+ * String-backed streams come from sys_string_read() and sys_string_open()
+ * (sys/string.h). Platform standard streams are exposed through sys_stdin
+ * and sys_stdout (sys/stdio.h). A backend can optionally support readiness
+ * callbacks through sys_iostream_set_callback(). sys/rune.h's tokenizer and
+ * sys/scanner.h's scanner are built entirely on this interface, so other
+ * backends can support them without changing their APIs.
  *
  * Example - read a stream in two passes by seeking back to the start:
  * @code
@@ -60,10 +61,11 @@ extern "C" {
  * @ingroup SystemDataStream
  * @headerfile io.h picofuse/sys.h
  *
- * Instances come from a static pool (SYS_IOSTREAM_CAPACITY) - no heap
- * allocation. Constructed by a source-specific function (e.g.
- * sys_string_read() in sys/string.h) and released with
- * sys_iostream_close().
+ * Instances come from a static pool (SYS_IOSTREAM_CAPACITY), with no heap
+ * allocation. Streams are constructed by source-specific functions such as
+ * sys_string_read() and sys_string_open(), or provided as platform standard
+ * streams through sys_stdin and sys_stdout. Release caller-owned streams
+ * with sys_iostream_close(); standard streams are released by sys_exit().
  */
 typedef struct sys_iostream_t sys_iostream_t;
 
