@@ -1,0 +1,178 @@
+/* Font: IBM Plex Sans for body text, IBM Plex Mono for code/snippets. */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+body, table, div, p, dl {
+	font-family: 'IBM Plex Sans', sans-serif;
+}
+
+/* @group Code Snippets */
+
+pre.fragment {
+	border: 1px solid #C4CFE5;
+	background-color: #FBFCFD;
+	padding: 4px 6px;
+	margin: 4px 8px 4px 2px;
+	overflow: auto;
+	word-wrap: break-word;
+	line-height: 125%;
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 105%;
+}
+
+div.fragment {
+	padding: 10px;
+	margin: 14px 18px;
+	background-color: #FBFCFD;
+	border: 1px solid #C4CFE5;
+	font-family: 'IBM Plex Mono', monospace;
+}
+
+div.line {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 13px;
+	min-height: 13px;
+	line-height: 1.0;
+	text-wrap: unrestricted;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	text-indent: -53px;
+	padding-left: 53px;
+	padding-bottom: 0px;
+	margin: 0px;
+}
+
+div.line:after {
+	content: "\000A";
+	white-space: pre;
+}
+
+span.lineno {
+	padding-right: 4px;
+	text-align: right;
+	border-right: 2px solid #0F0;
+	background-color: #E8E8E8;
+	white-space: pre;
+}
+
+span.lineno a {
+	background-color: #D8D8D8;
+}
+
+span.lineno a:hover {
+	background-color: #C8C8C8;
+}
+
+/* @end */
+
+/* @group Plain headers/footers - Doxygen's default theme uses repeating
+ * gradient PNGs (nav_h/nav_f/nav_g/tab_b) behind the page header, the
+ * breadcrumb/search bar, and each member's title/doc boxes. Flatten all of
+ * them to a solid color instead. */
+
+div.header {
+	background-image: none;
+	background-color: #F9FAFC;
+}
+
+.tabsearch {
+	background-image: none;
+	background-color: #F9FAFC;
+}
+
+.navpath ul {
+	background-image: none;
+	background-color: #EBEFF6;
+}
+
+.memtitle {
+	background-image: none;
+	background-color: #E2E8F2;
+}
+
+.memdoc, dl.reflist dd {
+	background-image: none;
+	background-color: #FFFFFF;
+}
+
+.fieldtable th {
+	background-image: none;
+	background-color: #E2E8F2;
+}
+
+/* The top tab bar (Main Page/Modules/Files/...) is a separate generated
+ * stylesheet, tabs.css, loaded before this one - its .sm-dox rules (including
+ * one re-applied inside a min-width media query) use tab_b.png for the bar
+ * itself and tab_s.png/tab_a.png for each tab's idle/hover state. Loading
+ * after tabs.css means these win regardless of viewport width. */
+
+.sm-dox, .sm-dox.sm-vertical a.disabled {
+	background-image: none;
+	background-color: #EBEFF6;
+}
+
+.sm-dox a, .sm-dox a:focus, .sm-dox a:active,
+.sm-dox ul a, .sm-dox ul a:focus, .sm-dox ul a:active {
+	background-image: none;
+}
+
+.sm-dox a:hover, .sm-dox a.highlighted,
+.sm-dox ul a:hover, .sm-dox ul a.highlighted {
+	background-image: none;
+	background-color: #3D578C;
+	text-shadow: none;
+}
+
+/* @end */
+
+/* @group Roomier tables - the module/file tree (.directory, used by the
+ * Modules and Files pages) and doxtable only get 2-3px of top padding and
+ * no bottom padding at all by default, so rows end up touching each other
+ * with almost no breathing room. Give every row real padding on both
+ * edges and a bit more line-height so the text itself isn't cramped. */
+
+.directory td.entry, .directory td.desc {
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+table.doxtable td, table.doxtable th {
+	padding: 6px 10px;
+}
+
+table.markdownTable td, table.markdownTable th {
+	padding: 6px 10px;
+}
+
+/* @end */
+
+/* Syntax highlighting */
+
+span.keyword {
+	color: #008000;
+}
+
+span.keywordtype {
+	color: #604020;
+}
+
+span.keywordflow {
+	color: #e08000;
+}
+
+span.comment {
+	color: #800000;
+}
+
+span.preprocessor {
+	color: #806020;
+}
+
+span.stringliteral {
+	color: #002080;
+}
+
+span.charliteral {
+	color: #008080;
+}
+
+/* @end */
