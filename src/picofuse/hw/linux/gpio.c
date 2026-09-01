@@ -59,9 +59,14 @@ static bool _hw_gpio_request(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode);
 ///////////////////////////////////////////////////////////////////////////////
 // OPS
 
-static uint8_t _hw_gpio_get_pin_num(hw_gpio_t *gpio) {
+static uint8_t _hw_gpio_pin(hw_gpio_t *gpio) {
   _hw_gpio_ctx_t *ctx = _hw_gpio_context(gpio);
   return ctx != NULL ? ctx->pin : 0;
+}
+
+static uint8_t _hw_gpio_bank(hw_gpio_t *gpio) {
+  _hw_gpio_ctx_t *ctx = _hw_gpio_context(gpio);
+  return ctx != NULL ? ctx->bank : 0;
 }
 
 static bool _hw_gpio_get(hw_gpio_t *gpio) {
@@ -165,7 +170,8 @@ static void _hw_gpio_deinit(hw_gpio_t *gpio) {
 }
 
 static const hw_gpio_ops_t _hw_gpio_ops = {
-    .get_pin_num = _hw_gpio_get_pin_num,
+    .pin = _hw_gpio_pin,
+    .bank = _hw_gpio_bank,
     .get = _hw_gpio_get,
     .set = _hw_gpio_set,
     .get_mode = _hw_gpio_get_mode,

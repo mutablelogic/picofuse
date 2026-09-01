@@ -28,7 +28,7 @@ test_main_hw(0) {
 
   hw_gpio_t *gpio = hw_gpio_init(bank, pin, hw_gpio_output);
   test_assert(gpio != NULL);
-  test_assert(hw_gpio_get_pin_num(gpio) == pin);
+  test_assert(hw_gpio_pin(gpio) == pin);
   test_assert(hw_gpio_get_mode(gpio) == hw_gpio_output);
 
   hw_gpio_set(gpio, true);

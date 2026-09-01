@@ -14,7 +14,8 @@
  * handle was constructed with.
  */
 typedef struct hw_gpio_ops_t {
-  uint8_t (*get_pin_num)(hw_gpio_t *gpio);
+  uint8_t (*pin)(hw_gpio_t *gpio);
+  uint8_t (*bank)(hw_gpio_t *gpio);
   bool (*get)(hw_gpio_t *gpio);
   void (*set)(hw_gpio_t *gpio, bool value);
   hw_gpio_mode_t (*get_mode)(hw_gpio_t *gpio);
