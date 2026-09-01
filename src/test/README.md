@@ -1,4 +1,4 @@
-# testrunner
+# Test Runner
 
 <!-- @brief: Runs picofuse tests on real Pico hardware through a debug probe. -->
 
@@ -18,7 +18,7 @@ CTest, on real hardware, via a debug probe. It's a small host-only tool
 
 Output is read one of two ways:
 
-- **RTT (default)** - `openocd` opens an RTT server against the target's
+- **[RTT](https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/) (default)** - `openocd` opens an RTT server against the target's
   `SEGGER RTT` control block and `testrunner` connects to it over TCP. No
   extra wiring required beyond the debug probe's SWD connection.
 - **Serial** (`--serial <device>`) - `openocd` programs and resets the
