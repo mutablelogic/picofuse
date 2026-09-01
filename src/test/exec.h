@@ -18,12 +18,9 @@ typedef struct {
   uint32_t baud;         // baud rate for serial, ignored if serial is unset
 } exec_openocd_opts_t;
 
-// Runs openocd to program, verify and reset the target with opts->elf, then
-// (when opts->serial is set) reads the device's own UART output looking for
-// a "[TEST] [EXIT] " line (success) or a "[PANIC] " line (failure), printing
-// every line as it arrives. opts->timeout bounds the whole operation -
-// flashing and waiting for the UART marker together, not each separately.
-// Returns false on a spawn failure, a nonzero openocd exit, a "[PANIC] "
-// line, or timing out before either marker appears; true otherwise (or as
-// soon as openocd exits cleanly, if opts->serial is unset).
+// Runs OpenOCD to program, verify, and reset opts->elf. An explicit
+// opts->serial reads test markers from the UART bridge; otherwise it starts
+// OpenOCD's RTT channel-0 TCP server and reads markers from there. opts->timeout
+// bounds flashing and marker collection together. Returns false on setup,
+// OpenOCD, or marker failure, including a "[PANIC] " line or timeout.
 bool exec_openocd(const exec_openocd_opts_t *opts);

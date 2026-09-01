@@ -13,12 +13,12 @@
  * condition and file/line context if it is not. Always checked, regardless
  * of NDEBUG.
  */
-#define test_assert(condition)                                                \
-  do {                                                                        \
-    if (!(condition)) {                                                      \
-      sys_panicf("[TEST] FAIL: %s, file %s, line %d", #condition, __FILE__,  \
-                 __LINE__);                                                   \
-    }                                                                         \
+#define test_assert(condition)                                                 \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      sys_panicf("[TEST] FAIL: %s, file %s, line %d", #condition, __FILE__,    \
+                 __LINE__);                                                    \
+    }                                                                          \
   } while (0)
 
 /**
@@ -26,15 +26,15 @@
  * @brief Asserts that two null-terminated strings are equal, panicking with
  * both values and file/line context if they are not.
  */
-#define test_assert_strequal(actual, expected)                                \
-  do {                                                                        \
-    const char *_test_actual = (actual);                                    \
-    const char *_test_expected = (expected);                                \
-    if (strcmp(_test_actual, _test_expected) != 0) {                        \
-      sys_panicf("[TEST] FAIL: expected \"%s\" but got \"%s\", file %s, "    \
-                 "line %d",                                                   \
-                 _test_expected, _test_actual, __FILE__, __LINE__);          \
-    }                                                                         \
+#define test_assert_strequal(actual, expected)                                 \
+  do {                                                                         \
+    const char *_test_actual = (actual);                                       \
+    const char *_test_expected = (expected);                                   \
+    if (strcmp(_test_actual, _test_expected) != 0) {                           \
+      sys_panicf("[TEST] FAIL: expected \"%s\" but got \"%s\", file %s, "      \
+                 "line %d",                                                    \
+                 _test_expected, _test_actual, __FILE__, __LINE__);            \
+    }                                                                          \
   } while (0)
 
 /**
@@ -53,17 +53,17 @@
  *     ...test body, optionally using argc/argv...
  *   }
  */
-#define test_main_sys(arena_size)                                            \
-  static void _test_main(int argc, char *argv[]);                           \
-  int main(int argc, char *argv[]) {                                         \
-    sys_init(argc, argv, (arena_size));                                      \
-    sys_printf("[TEST] [INIT] %s\n", sys_env_name());                        \
-    _test_main(argc, argv);                                                  \
-    sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                        \
-    sys_exit();                                                              \
-    return 0;                                                                \
-  }                                                                          \
-  static void _test_main(int argc __attribute__((unused)),                   \
+#define test_main_sys(arena_size)                                              \
+  static void _test_main(int argc, char *argv[]);                              \
+  int main(int argc, char *argv[]) {                                           \
+    sys_init(argc, argv, (arena_size), sys_stdio_rtt);                         \
+    sys_printf("[TEST] [INIT] %s\n", sys_env_name());                          \
+    _test_main(argc, argv);                                                    \
+    sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                          \
+    sys_exit();                                                                \
+    return 0;                                                                  \
+  }                                                                            \
+  static void _test_main(int argc __attribute__((unused)),                     \
                          char *argv[] __attribute__((unused)))
 
 /**
@@ -80,17 +80,17 @@
  *     ...test body, optionally using argc/argv...
  *   }
  */
-#define test_main_hw(arena_size)                                            \
-  static void _test_main(int argc, char *argv[]);                           \
-  int main(int argc, char *argv[]) {                                         \
-    sys_init(argc, argv, (arena_size));                                      \
-    sys_printf("[TEST] [INIT] %s\n", sys_env_name());                        \
-    hw_init();                                                               \
-    _test_main(argc, argv);                                                  \
-    hw_exit();                                                               \
-    sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                        \
-    sys_exit();                                                              \
-    return 0;                                                                \
-  }                                                                          \
-  static void _test_main(int argc __attribute__((unused)),                   \
+#define test_main_hw(arena_size)                                               \
+  static void _test_main(int argc, char *argv[]);                              \
+  int main(int argc, char *argv[]) {                                           \
+    sys_init(argc, argv, (arena_size), sys_stdio_rtt);                         \
+    sys_printf("[TEST] [INIT] %s\n", sys_env_name());                          \
+    hw_init();                                                                 \
+    _test_main(argc, argv);                                                    \
+    hw_exit();                                                                 \
+    sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                          \
+    sys_exit();                                                                \
+    return 0;                                                                  \
+  }                                                                            \
+  static void _test_main(int argc __attribute__((unused)),                     \
                          char *argv[] __attribute__((unused)))

@@ -17,7 +17,7 @@ static void stdin_callback(sys_iostream_t *stream, sys_iostream_event_t events,
 }
 
 int main(int argc, char *argv[]) {
-  sys_init(argc, argv, 0);
+  sys_init(argc, argv, 0, sys_stdio_none);
   sys_puts("Echoing standard input.\n");
 
   if (!sys_iostream_set_callback(sys_stdin, stdin_callback, NULL)) {

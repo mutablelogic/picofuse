@@ -26,13 +26,13 @@ extern void _sys_runloop_module_exit(void);
  * @brief Initializes the system.
  * @note This function should be called before any other system functions.
  */
-void sys_init(int argc, char *argv[], size_t arena_size) {
+void sys_init(int argc, char *argv[], size_t arena_size, sys_stdio_t stdio) {
   // Capture argc/argv for sys_env_args_parse()
   _sys_env_set_args(argc, argv);
   // Initialize the printf mutex for thread-safe operations
   _sys_printf_init();
   // Set up standard input and output streams
-  _sys_stdio_module_init(sys_stdio_none);
+  _sys_stdio_module_init(stdio);
   // Set the timestamp base for relative timing
   sys_timestamp_ms();
   // Configure the default arena backing sys_malloc() and friends, if asked
