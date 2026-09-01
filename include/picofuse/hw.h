@@ -9,5 +9,8 @@
  */
 #pragma once
 #include "hw/adc.h"
+#include "hw/deviceio.h"
 #include "hw/gpio.h"
+#include "hw/i2c.h"
 #include "hw/init.h"
+#include "hw/spi.h"
