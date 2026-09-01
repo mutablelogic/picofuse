@@ -583,29 +583,36 @@ picofuse_test(sys_107
 	sys_107/main.c
 )
 
-# hw_gpio_* basic lifecycle: init/count/get_pin_num/get_mode/set/get/deinit.
-# Darwin has no GPIO backend at all yet, so there's nothing for this test to
-# exercise there.
+# hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
 		hw_001/main.c
 	)
 endif()
 
-# hw_gpio_count/_init argument validation: an unsupported bank is rejected,
-# and hw_gpio_deinit(NULL) is a safe no-op. Meaningful on every platform
-# (including darwin's stub), so no guard.
+# hw_gpio_count/_init argument validation
 picofuse_test(hw_002
 	hw_002/main.c
 )
 
-# hw_adc_* basic lifecycle: init a GPIO-backed channel and the temperature
-# sensor, channel<->pin round trip, reads at num_samples 0/1/many, and a
-# plausibility check on the temperature reading. Unlike GPIO, no host
-# platform has a real ADC backend (both darwin and linux route through the
-# same no-op stub), so this only has anything to exercise on Pico.
+# hw_adc_* basic lifecycle
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_003
 		hw_003/main.c
+	)
+endif()
+
+# hw_adc_read_dma() round-robin capture
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_004
+		hw_004/main.c
+	)
+endif()
+
+# hw_adc_read_dma() driven from both cores at once, stressing hw_dma_fifo_t's
+# shared pool/IRQ-install/teardown machinery for cross-core safety
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_005
+		hw_005/main.c
 	)
 endif()

@@ -4,6 +4,7 @@ picofuse_library(
     HEADERS pico_stdlib_headers
     SOURCES
         adc.c
+        dma.c
         gpio.c
         init.c
 )
