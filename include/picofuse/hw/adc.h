@@ -31,7 +31,7 @@ typedef struct hw_adc_t hw_adc_t;
  * @param buf Pointer to the partition of hw_adc_read_dma()'s buffer that
  * was just filled with raw samples - not necessarily the start of the
  * buffer passed to hw_adc_read_dma(), see `partitions` there.
- * @param count Number of samples written to `buf`.
+ * @param samples Number of samples written to `buf`.
  * @param userdata User-defined data pointer passed to hw_adc_read_dma().
  * @retval true Continue: start capturing into the next partition.
  * @retval false Stop; no further partitions are captured.
@@ -46,7 +46,7 @@ typedef struct hw_adc_t hw_adc_t;
  * been filled once more before this memory is overwritten again.
  */
 typedef bool (*hw_adc_dma_callback_t)(hw_adc_t *adc, uint16_t *buf,
-                                      size_t count, void *userdata);
+                                      size_t samples, void *userdata);
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -79,13 +79,15 @@ hw_adc_t *hw_adc_init_temperature(void);
 void hw_adc_deinit(hw_adc_t *adc);
 
 /**
- * @brief Get the total number of available ADC channels.
+ * @brief Get the number of external, GPIO-mappable ADC channels.
  * @ingroup ADC
- * @return Number of ADC channels available on the current platform.
+ * @return Number of external ADC channels available on the current
+ * platform - use hw_adc_gpio_pin()/hw_adc_gpio_channel() to map between
+ * these and GPIO pin numbers.
  *
- * The returned count includes both GPIO-mappable ADC channels and any
- * internal ADC channels exposed by the system. For example, on Pico
- * platforms this includes the internal temperature sensor channel.
+ * Internal-only channels, such as the temperature sensor initialized by
+ * hw_adc_init_temperature(), aren't counted here - they have no GPIO
+ * mapping and aren't reachable by iterating 0..hw_adc_count()-1.
  */
 uint8_t hw_adc_count(void);
 
@@ -160,10 +162,10 @@ float hw_adc_read_temperature(hw_adc_t *adc, uint16_t num_samples);
  * @brief Start an asynchronous, DMA-driven read of raw samples.
  * @ingroup ADC
  * @param adc ADC handle.
- * @param buf Buffer to fill with raw samples, sized for `count *
+ * @param buf Buffer to fill with raw samples, sized for `samples *
  * partitions` samples. Must remain valid for as long as `callback` keeps
  * returning `true`.
- * @param count Number of samples per partition.
+ * @param samples Number of samples per partition.
  * @param partitions Number of equal-sized partitions to split `buf` into,
  * filled round-robin. `callback` (see hw_adc_dma_callback_t) must return
  * immediately - it should hand a completed partition off asynchronously
@@ -171,6 +173,9 @@ float hw_adc_read_temperature(hw_adc_t *adc, uint16_t num_samples);
  * whatever actually reads out the data time to do so before that memory
  * is reused, which matters given the ADC's own FIFO is only a handful of
  * samples deep and drops conversions once full.
+ * @param freq Desired free-running sample rate in Hz, or 0 for the ADC's
+ * maximum rate (back-to-back conversions, roughly 500 kHz on RP2040 and
+ * RP2350 at their standard 48 MHz ADC clock).
  * @param callback Called each time a partition finishes filling; its
  * return value decides whether capturing continues. See
  * hw_adc_dma_callback_t.
@@ -178,15 +183,18 @@ float hw_adc_read_temperature(hw_adc_t *adc, uint16_t num_samples);
  * @retval true The transfer was started; `callback` will be invoked after
  * each partition, until it returns `false`.
  * @retval false DMA-driven reads aren't set up/supported on this platform,
- * `partitions` is less than 2, or another transfer is already in progress
- * on this handle - `callback` is not invoked.
+ * `partitions` is less than 2, `freq` is outside the ADC's supported rate
+ * range (too high, or too low to fit the clock divider), or a transfer is
+ * already in progress - on this handle, or on any other, since the ADC's
+ * mux/FIFO/clock divider are shared hardware and only one handle can be
+ * capturing at a time - `callback` is not invoked.
  *
  * Not available on every system: DMA-driven ADC reads require a real DMA
  * controller wired to the ADC's FIFO (e.g. Pico), so host systems with no
  * ADC hardware at all always return false here.
  */
-bool hw_adc_read_dma(hw_adc_t *adc, uint16_t *buf, size_t count,
-                     size_t partitions, hw_adc_dma_callback_t callback,
-                     void *userdata);
+bool hw_adc_read_dma(hw_adc_t *adc, uint16_t *buf, size_t samples,
+                     size_t partitions, uint32_t freq,
+                     hw_adc_dma_callback_t callback, void *userdata);
 
 /** @} */

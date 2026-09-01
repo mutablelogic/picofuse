@@ -64,13 +64,14 @@ float hw_adc_read_temperature(hw_adc_t *adc, uint16_t num_samples) {
 }
 
 /** Stub implementation: no DMA-driven ADC reads on this platform. */
-bool hw_adc_read_dma(hw_adc_t *adc, uint16_t *buf, size_t count,
-                     size_t partitions, hw_adc_dma_callback_t callback,
-                     void *userdata) {
+bool hw_adc_read_dma(hw_adc_t *adc, uint16_t *buf, size_t samples,
+                     size_t partitions, uint32_t freq,
+                     hw_adc_dma_callback_t callback, void *userdata) {
   (void)adc;
   (void)buf;
-  (void)count;
+  (void)samples;
   (void)partitions;
+  (void)freq;
   (void)callback;
   (void)userdata;
   return false;

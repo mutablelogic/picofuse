@@ -22,8 +22,9 @@ test_main_hw(0) {
   test_assert(pin != UINT8_MAX);
   test_assert(hw_adc_gpio_channel(pin) == 0);
 
-  // The last channel (temperature) has no GPIO mapping.
-  test_assert(hw_adc_gpio_pin((uint8_t)(count - 1)) == UINT8_MAX);
+  // The internal temperature channel, one past the external ones
+  // hw_adc_count() reports, has no GPIO mapping.
+  test_assert(hw_adc_gpio_pin(count) == UINT8_MAX);
 
   // Init a GPIO-backed channel.
   hw_gpio_t *gpio = hw_gpio_init(0, pin, hw_gpio_none);
