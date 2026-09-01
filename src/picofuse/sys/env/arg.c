@@ -236,16 +236,21 @@ bool sys_env_arg_usage(sys_env_arg_flag_t *flags, sys_iostream_t *stream) {
   for (size_t i = 0; flags[i].long_name != NULL; i++) {
     // Build the "(default: X, negate: --no-Y)" suffix, if there's
     // anything to say for this flag - a default is shown whenever one
-    // was supplied, and a negate note whenever the flag is BOOL
-    // (regardless of whether a default was supplied), so either, both,
-    // or neither may end up present.
+    // was supplied. The negate note is only useful when passing --no-Y
+    // would actually change something: with no default, either form picks
+    // the value; with a "true" default, --no-Y is the only way to turn it
+    // off. A "false" default makes --no-Y a pure no-op (identical to
+    // omitting the flag entirely), so it's left out there.
     char note[96] = "";
     bool has_default = flags[i].value != NULL;
     bool is_bool = flags[i].type == sys_env_arg_type_bool;
-    if (has_default && is_bool) {
+    bool default_is_false =
+        has_default && sys_string_compare(flags[i].value, "false") == 0;
+    bool show_negate = is_bool && !default_is_false;
+    if (has_default && show_negate) {
       sys_sprintf(note, sizeof(note), " (default: %s, negate: --no-%s)",
                   flags[i].value, flags[i].long_name);
-    } else if (is_bool) {
+    } else if (show_negate) {
       sys_sprintf(note, sizeof(note), " (negate: --no-%s)",
                   flags[i].long_name);
     } else if (has_default) {

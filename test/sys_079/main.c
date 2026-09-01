@@ -88,14 +88,15 @@ test_main_sys(0) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // BOOL flags additionally always get a "negate: --no-<flag>" note,
-  // since --no-<flag> is a real, documented way to invoke them
-  // (sys_env_arg_parse()) that "<bool>" alone doesn't convey - present
-  // whether or not a default was also supplied, and combined with it
-  // (comma-separated in one set of parens) when both apply.
+  // BOOL flags get a "negate: --no-<flag>" note only when --no-<flag>
+  // would actually change something: with no default (either form picks
+  // the value) or a "true" default (--no-<flag> is the only way to turn
+  // it off). A "false" default makes --no-<flag> a pure no-op - identical
+  // to omitting the flag - so the note is left out there, though
+  // "(default: false)" is still shown on its own.
 
   {
-    char buf[96];
+    char buf[64];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = "v",
@@ -103,9 +104,22 @@ test_main_sys(0) {
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
+    test_assert(sys_string_compare(
+                    buf, "  --verbose, -v <bool> (default: false)\n") == 0);
+    sys_iostream_close(stream);
+  }
+  {
+    char buf[96];
+    sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
+    sys_env_arg_flag_t flags[] = {
+        {.long_name = "verbose", .short_name = "v",
+         .type = sys_env_arg_type_bool, .value = "true"},
+        {0},
+    };
+    test_assert(sys_env_arg_usage(flags, stream));
     test_assert(sys_string_compare(buf,
                                     "  --verbose, -v <bool> (default: "
-                                    "false, negate: --no-verbose)\n") == 0);
+                                    "true, negate: --no-verbose)\n") == 0);
     sys_iostream_close(stream);
   }
   {
@@ -125,14 +139,15 @@ test_main_sys(0) {
   ///////////////////////////////////////////////////////////////////////
   // Multiple flags of every type print one line each, in order,
   // concatenated - the type name shown matches the declared type, and
-  // only the BOOL entry gets the negate note.
+  // only the BOOL entry (with a non-"false" or absent default) gets the
+  // negate note.
 
   {
     char buf[256];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
         {.long_name = "verbose", .short_name = "v",
-         .type = sys_env_arg_type_bool, .value = "false"},
+         .type = sys_env_arg_type_bool, .value = "true"},
         {.long_name = "name", .short_name = NULL,
          .type = sys_env_arg_type_string, .value = "default"},
         {.long_name = "count", .short_name = "c", .type = sys_env_arg_type_int,
@@ -146,7 +161,7 @@ test_main_sys(0) {
     test_assert(sys_env_arg_usage(flags, stream));
     test_assert(
         sys_string_compare(
-            buf, "  --verbose, -v <bool> (default: false, negate: "
+            buf, "  --verbose, -v <bool> (default: true, negate: "
                  "--no-verbose)\n"
                  "  --name <string> (default: default)\n"
                  "  --count, -c <int> (default: 0)\n"
