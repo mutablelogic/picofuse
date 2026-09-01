@@ -2,7 +2,57 @@
 #include <string.h>
 #include <test/test.h>
 
+#if defined(SYSTEM_NAME_DARWIN) || defined(SYSTEM_NAME_LINUX)
+#include <unistd.h>
+
+static sys_atomic_t _sys_iostream_callback_events;
+
+static void _sys_iostream_callback(sys_iostream_t *stream,
+                                   sys_iostream_event_t events,
+                                   void *userdata) {
+  (void)stream;
+  (void)userdata;
+  sys_atomic_set(&_sys_iostream_callback_events, (uint32_t)events);
+}
+#endif
+
 test_main_sys(0) {
+
+  test_assert(sys_stdout != NULL);
+  test_assert(sys_stdin != NULL);
+
+#if defined(SYSTEM_NAME_DARWIN) || defined(SYSTEM_NAME_LINUX)
+  ///////////////////////////////////////////////////////////////////////
+  // sys_iostream_set_callback - stdin read readiness
+
+  {
+    int pipe_fds[2];
+    test_assert(pipe(pipe_fds) == 0);
+    int saved_stdin = dup(STDIN_FILENO);
+    test_assert(saved_stdin >= 0);
+    test_assert(dup2(pipe_fds[0], STDIN_FILENO) >= 0);
+    close(pipe_fds[0]);
+
+    sys_atomic_init(&_sys_iostream_callback_events, 0);
+    test_assert(
+        sys_iostream_set_callback(sys_stdin, _sys_iostream_callback, NULL));
+    test_assert(write(pipe_fds[1], "x", 1) == 1);
+
+    for (size_t i = 0;
+         i < 100 && sys_atomic_get(&_sys_iostream_callback_events) == 0; i++) {
+      sys_sleep_ms(10);
+    }
+    test_assert(sys_atomic_get(&_sys_iostream_callback_events) ==
+                sys_iostream_event_read);
+    char c;
+    test_assert(sys_iostream_read(sys_stdin, &c, 1) == 1 && c == 'x');
+    test_assert(sys_iostream_set_callback(sys_stdin, NULL, NULL));
+
+    test_assert(dup2(saved_stdin, STDIN_FILENO) >= 0);
+    close(saved_stdin);
+    close(pipe_fds[1]);
+  }
+#endif
 
   ///////////////////////////////////////////////////////////////////////
   // sys_string_read - construction
@@ -151,7 +201,7 @@ test_main_sys(0) {
 
   // Out-of-bounds seeks fail and leave the position unchanged.
   {
-    sys_iostream_t *s = sys_string_read("hi"); // length 2
+    sys_iostream_t *s = sys_string_read("hi");          // length 2
     test_assert(sys_iostream_seek(s, -1, true) == -1);  // negative absolute
     test_assert(sys_iostream_seek(s, 3, true) == -1);   // past the end
     test_assert(sys_iostream_seek(s, -1, false) == -1); // before the start
@@ -168,7 +218,8 @@ test_main_sys(0) {
   {
     sys_iostream_t *s = sys_string_read("hi");
     test_assert(sys_iostream_seek(s, 1, false) == 1); // now at position 1
-    test_assert(sys_iostream_seek(s, 5, false) == -1); // would go to 6, past length 2
+    test_assert(sys_iostream_seek(s, 5, false) ==
+                -1); // would go to 6, past length 2
     char buf[1];
     test_assert(sys_iostream_read(s, buf, 1) == 1 && buf[0] == 'i');
     sys_iostream_close(s);
@@ -193,6 +244,18 @@ test_main_sys(0) {
 
   // NULL stream is a no-op, not a crash.
   test_assert(sys_iostream_write(NULL, "a", 1) == 0);
+
+  ///////////////////////////////////////////////////////////////////////
+  // sys_fprintf - formatted output to a writable stream
+
+  {
+    char buf[16];
+    sys_iostream_t *s = sys_string_open(buf, sizeof(buf));
+    test_assert(s != NULL);
+    test_assert(sys_fprintf(s, "%s %d", "value", 42) == 8);
+    test_assert_strequal(buf, "value 42");
+    sys_iostream_close(s);
+  }
 
   ///////////////////////////////////////////////////////////////////////
   // sys_iostream_close - NULL is a no-op
@@ -227,7 +290,7 @@ test_main_sys(0) {
       }
       streams[count++] = s;
     }
-    test_assert(count == SYS_IOSTREAM_CAPACITY);
+    test_assert(count == SYS_IOSTREAM_CAPACITY - 2);
 
     // The pool is now exhausted: one more allocation must fail.
     test_assert(sys_string_read("x") == NULL);
@@ -244,5 +307,4 @@ test_main_sys(0) {
       sys_iostream_close(streams[i]);
     }
   }
-
 }

@@ -67,6 +67,34 @@ extern "C" {
  */
 typedef struct sys_iostream_t sys_iostream_t;
 
+/**
+ * @brief Stream readiness event flags.
+ * @ingroup SystemDataStream
+ *
+ * Values may be combined with bitwise OR when registering interest in
+ * multiple events.
+ */
+typedef enum sys_iostream_event_t {
+  /** @brief No event. */
+  sys_iostream_event_none = 0,
+  /** @brief Data is available to read. */
+  sys_iostream_event_read = 1u,
+  /** @brief The stream can accept output. */
+  sys_iostream_event_write = 2u,
+} sys_iostream_event_t;
+
+/**
+ * @brief Callback invoked when a stream becomes ready for I/O.
+ * @ingroup SystemDataStream
+ * @param stream Stream whose readiness changed.
+ * @param events Readiness events that occurred.
+ * @param userdata User-defined data pointer provided to
+ * sys_iostream_set_callback().
+ */
+typedef void (*sys_iostream_callback_t)(sys_iostream_t *stream,
+                                        sys_iostream_event_t events,
+                                        void *userdata);
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -132,6 +160,19 @@ extern size_t sys_iostream_write(sys_iostream_t *s, const char *buf, size_t n);
  */
 extern ptrdiff_t sys_iostream_seek(sys_iostream_t *s, ptrdiff_t offset,
                                    bool abs);
+
+/**
+ * @brief Set a callback for stream readiness events.
+ * @ingroup SystemDataStream
+ * @param stream Stream to observe.
+ * @param callback Callback to invoke, or NULL to remove the current callback.
+ * @param userdata User-defined data pointer passed to callback.
+ * @return true if the callback was registered, false if stream is NULL or its
+ * backend does not support readiness notifications.
+ */
+extern bool sys_iostream_set_callback(sys_iostream_t *stream,
+                                      sys_iostream_callback_t callback,
+                                      void *userdata);
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -88,8 +88,8 @@ static size_t _sys_iostream_buffer_write(sys_iostream_t *s, const char *buf,
   return put;
 }
 
-static ptrdiff_t _sys_iostream_buffer_seek(sys_iostream_t *s,
-                                           ptrdiff_t offset, bool abs) {
+static ptrdiff_t _sys_iostream_buffer_seek(sys_iostream_t *s, ptrdiff_t offset,
+                                           bool abs) {
   ptrdiff_t base = abs ? 0 : (ptrdiff_t)s->backend.buffer.pos;
   ptrdiff_t target = base + offset;
   if (target < 0 || (size_t)target > s->backend.buffer.length) {
@@ -106,6 +106,7 @@ static const sys_iostream_ops_t _ops = {
     .read = _sys_iostream_read,
     .write = _sys_iostream_write,
     .seek = _sys_iostream_seek,
+    .set_callback = NULL,
     .close = NULL, // nothing to release beyond the pool slot itself
 };
 
@@ -113,6 +114,7 @@ static const sys_iostream_ops_t _buffer_ops = {
     .read = _sys_iostream_buffer_read,
     .write = _sys_iostream_buffer_write,
     .seek = _sys_iostream_buffer_seek,
+    .set_callback = NULL,
     .close = NULL, // nothing to release - the caller owns the buffer
 };
 

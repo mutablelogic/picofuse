@@ -19,6 +19,8 @@ typedef struct sys_iostream_ops_t {
   size_t (*read)(sys_iostream_t *s, char *buf, size_t n);
   size_t (*write)(sys_iostream_t *s, const char *buf, size_t n);
   ptrdiff_t (*seek)(sys_iostream_t *s, ptrdiff_t offset, bool abs);
+  bool (*set_callback)(sys_iostream_t *s, sys_iostream_callback_t callback,
+                       void *userdata);
   void (*close)(sys_iostream_t *s); // optional, NULL if nothing to release
 } sys_iostream_ops_t;
 
@@ -28,19 +30,27 @@ struct sys_iostream_t {
   union {
     struct {
       const char *start; // original string, for absolute seeks
-      size_t length;      // sys_string_bytes(start), computed once
-      size_t pos;          // current offset from start, 0..length
+      size_t length;     // sys_string_bytes(start), computed once
+      size_t pos;        // current offset from start, 0..length
     } string;
     struct {
-      char *data;   // caller-owned, mutable
-      size_t cap;   // total physical capacity, including the reserved
-                    // trailing '\0' - never itself readable/seekable content
+      char *data;    // caller-owned, mutable
+      size_t cap;    // total physical capacity, including the reserved
+                     // trailing '\0' - never itself readable/seekable content
       size_t length; // current content length, 0..cap-1: always starts at
                      // 0 on open(), then only ever grown by write() -
                      // reads/seeks never go past this
       size_t pos;    // current offset from data, 0..length, shared by both
                      // reads and writes
     } buffer;
+    struct {
+      int value;
+    } fd;
+    struct {
+      void *instance;
+      sys_iostream_callback_t callback;
+      void *userdata;
+    } uart;
   } backend;
 };
 

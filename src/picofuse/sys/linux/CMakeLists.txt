@@ -16,6 +16,8 @@ picofuse_library(
         ../posix/halt.c
         ../posix/init.c
         ../posix/puts.c
+        ../posix/stdio.c
+        stdio.c
         ${_PICOFUSE_RANDOM_SOURCE}
         ../posix/sleep.c
         ../posix/timestamp.c

@@ -62,6 +62,7 @@
  *
  */
 #pragma once
+#include "io.h"
 #include <stdarg.h>
 #include <stddef.h>
 
@@ -110,6 +111,27 @@ extern size_t sys_printf(const char *format, ...);
  * @return The number of characters printed.
  */
 extern size_t sys_vprintf(const char *format, va_list args);
+
+/**
+ * @brief Prints formatted output to a stream.
+ * @ingroup SystemFormat
+ * @param stream Destination stream.
+ * @param format A printf-style format string.
+ * @param ... Additional arguments corresponding to format specifiers in format.
+ * @return The number of characters written.
+ */
+extern size_t sys_fprintf(sys_iostream_t *stream, const char *format, ...);
+
+/**
+ * @brief Prints formatted output to a stream using a va_list argument.
+ * @ingroup SystemFormat
+ * @param stream Destination stream.
+ * @param format A printf-style format string.
+ * @param args A va_list containing the arguments for the format string.
+ * @return The number of characters written.
+ */
+extern size_t sys_vfprintf(sys_iostream_t *stream, const char *format,
+                           va_list args);
 
 /**
  * @brief Prints formatted output to a string buffer.

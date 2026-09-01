@@ -1,4 +1,5 @@
 #pragma once
+#include <picofuse/sys/io.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -24,9 +25,10 @@ typedef enum {
 } sys_printf_flags_t;
 
 struct sys_printf_state {
-  char *buffer; /**< Buffer for formatted output */
-  size_t size;  /**< Size of the buffer, including null terminator */
-  size_t pos;   /**< Current position in the buffer */
+  char *buffer;           /**< Buffer for formatted output */
+  sys_iostream_t *stream; /**< Stream for formatted output */
+  size_t size;            /**< Size of the buffer, including null terminator */
+  size_t pos;             /**< Current position in the buffer */
   size_t (*putch)(struct sys_printf_state *state,
                   char ch); /**< Function to output a character */
   const char *(*custom)(char format, va_list *va); /**< Custom format handler */
@@ -62,12 +64,10 @@ size_t _sys_printf_putu(struct sys_printf_state *state, va_list *va);
 size_t _sys_printf_putd(struct sys_printf_state *state, va_list *va);
 
 /** @brief Handles the %f/%F/%e/%E/%g/%G specifiers. */
-size_t _sys_printf_putf(struct sys_printf_state *state, char spec,
-                         va_list *va);
+size_t _sys_printf_putf(struct sys_printf_state *state, char spec, va_list *va);
 
 /** @brief Dispatches a single format specifier to the handler above. */
-size_t _sys_printf_put(struct sys_printf_state *state, char spec,
-                        va_list *va);
+size_t _sys_printf_put(struct sys_printf_state *state, char spec, va_list *va);
 
 /** @brief Core formatted-output loop, shared by every public entry point.
  * Does not touch the printf mutex — callers that need atomicity across
@@ -83,3 +83,6 @@ size_t _sys_printf_putch(struct sys_printf_state *state, char ch);
 /** @brief putch callback that writes a character into a caller-supplied
  * buffer (struct sys_printf_state::buffer / ::size). */
 size_t _sys_sprintf_putch(struct sys_printf_state *state, char ch);
+
+/** @brief putch callback that writes a character to a stream. */
+size_t _sys_fprintf_putch(struct sys_printf_state *state, char ch);

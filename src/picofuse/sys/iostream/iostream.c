@@ -54,6 +54,15 @@ ptrdiff_t sys_iostream_seek(sys_iostream_t *s, ptrdiff_t offset, bool abs) {
   return s->ops->seek(s, offset, abs);
 }
 
+bool sys_iostream_set_callback(sys_iostream_t *s,
+                               sys_iostream_callback_t callback,
+                               void *userdata) {
+  if (s == NULL || s->ops->set_callback == NULL) {
+    return false;
+  }
+  return s->ops->set_callback(s, callback, userdata);
+}
+
 int sys_iostream_peek(sys_iostream_t *s) {
   if (s == NULL) {
     return SYS_IOSTREAM_EOF;

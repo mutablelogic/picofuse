@@ -1,3 +1,5 @@
 
-// Standard output stream for the runtime environment.
-extern void *sys_stdout;
+#pragma once
+#include <picofuse/sys/io.h>
+
+extern sys_iostream_t *sys_stdout;
