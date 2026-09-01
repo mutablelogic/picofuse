@@ -4,8 +4,8 @@
  * @defgroup SystemFormat Formatting
  * @ingroup SystemData
  *
- * This file declares types and functions for formatted output to the system
- * console or to a string buffer. It supports printf-style formatting with
+ * Types and functions for formatted output to the system console or to a
+ * string buffer. Supports printf-style formatting with
  * various format specifiers, width modifiers, and flags.
  *
  * The sys_printf() function is the main entry point for formatted output,

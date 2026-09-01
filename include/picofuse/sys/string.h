@@ -5,7 +5,7 @@
  * @defgroup SystemDataString Strings
  * @ingroup SystemData
  *
- * These operate on ordinary null-terminated `char *` strings, not a
+ * Operations on ordinary null-terminated `char *` strings, not a
  * dedicated string type - there's nothing to allocate or free beyond the
  * buffer you already have. The mutating functions (sys_string_to_upper(),
  * sys_string_trimspace(), sys_string_trimprefix(), sys_string_trimsuffix())

@@ -4,9 +4,8 @@
  * @defgroup SystemSync Synchronization
  * @ingroup System
  *
- * The SystemSync module groups the synchronization primitives - mutexes,
- * condition variables, wait groups and atomic values - used to coordinate
- * access to shared state across threads.
+ * Mutexes, condition variables, wait groups, and atomic values used to
+ * coordinate access to shared state across threads.
  */
 
 /**
