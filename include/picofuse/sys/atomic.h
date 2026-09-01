@@ -4,10 +4,10 @@
  * @defgroup SystemAtomic Atomic Operations
  * @ingroup SystemSync
  *
- * Implements atomic values which can be safely updated across threads.
+ * Atomic values that can be safely updated across threads.
  *
- * This API allows you to maintain a uint32_t value across threads safely.
- * The operations are to get, set, increment and decrement. For the increment
+ * A uint32_t value maintained safely across threads, with get, set,
+ * increment, and decrement operations. For the increment
  * and decrement operations return the new value.
  */
 #pragma once

@@ -4,13 +4,12 @@
  * @defgroup SystemDataHash Hashes
  * @ingroup SystemData
  *
- * Methods for hash generation, sometimes with hardware acceleration.
+ * Incremental MD5 and SHA-256 hash generation, sometimes with hardware
+ * acceleration.
  *
- * This file declares types and functions for generating hashes from data.
- * It supports MD5 and SHA-256 hashing algorithms. MD5 is not considered
- * secure, but it is still useful for checksums and other non-security
- * purposes. SHA-256 is recommended for security-sensitive uses and may have
- * hardware acceleration on some platforms.
+ * MD5 is not considered secure, but it is still useful for checksums and
+ * other non-security purposes. SHA-256 is recommended for security-sensitive
+ * uses and may have hardware acceleration on some platforms.
  */
 
 #pragma once
