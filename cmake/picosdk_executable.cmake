@@ -150,6 +150,13 @@ function(picofuse_test NAME)
     )
     target_include_directories(${NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
+    # picofuse-hw isn't built via picofuse_add_pico_sdk_library()/_bundle(),
+    # so (like sys/CMakeLists.txt linking it into hw) it's linked directly
+    # rather than through picofuse_executable()'s own LIBRARIES list - this
+    # lets any test use test_main_hw() (see test/test.h) without every test
+    # needing to opt in individually.
+    target_link_libraries(${NAME} PRIVATE picofuse-hw)
+
     if(DEFINED PICO_BOARD)
         # A pico .elf can't run directly on the (host) machine driving
         # CTest, so route it through testrunner, which flashes it onto real

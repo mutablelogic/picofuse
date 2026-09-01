@@ -37,7 +37,7 @@ block-beta
 <!-- DOXYGEN_MODULES_DIAGRAM -->
 
 * `sys`: [System-level functions.](https://mutablelogic.github.io/picofuse/group__System.html)
-* `hw` : Hardware for peripherals such as GPIO, I2C, SPI, etc.
+* `hw` : [Hardware for peripherals such as GPIO, I2C, SPI, etc.](https://mutablelogic.github.io/picofuse/group__Hardware.html)
 * `dev` : Device implementation for specific components.
 * `net`: Network stack for TCP/IP communication.
 * `fs` : Filesystem abstraction for persistent storage.

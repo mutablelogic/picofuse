@@ -14,13 +14,13 @@ static void _sys_env_signal_callback(int signo) {
   if (_sys_env_signal_callback_ex != NULL) {
     switch (signo) {
     case SIGTERM:
-      _sys_env_signal_callback_ex(SYS_ENV_SIGNAL_TERM);
+      _sys_env_signal_callback_ex(sys_env_signal_term);
       break;
     case SIGINT:
-      _sys_env_signal_callback_ex(SYS_ENV_SIGNAL_INT);
+      _sys_env_signal_callback_ex(sys_env_signal_int);
       break;
     case SIGQUIT:
-      _sys_env_signal_callback_ex(SYS_ENV_SIGNAL_QUIT);
+      _sys_env_signal_callback_ex(sys_env_signal_quit);
       break;
     default:
       return;
@@ -51,17 +51,17 @@ bool sys_env_signalhandler(sys_env_signal_t mask,
 
   // Set up new signal handlers.
   if (callback != NULL) {
-    if (mask & SYS_ENV_SIGNAL_TERM || mask == 0) {
+    if (mask & sys_env_signal_term || mask == 0) {
       if (signal(SIGTERM, _sys_env_signal_callback) == SIG_ERR) {
         success = false;
       }
     }
-    if (mask & SYS_ENV_SIGNAL_INT || mask == 0) {
+    if (mask & sys_env_signal_int || mask == 0) {
       if (signal(SIGINT, _sys_env_signal_callback) == SIG_ERR) {
         success = false;
       }
     }
-    if (mask & SYS_ENV_SIGNAL_QUIT || mask == 0) {
+    if (mask & sys_env_signal_quit || mask == 0) {
       if (signal(SIGQUIT, _sys_env_signal_callback) == SIG_ERR) {
         success = false;
       }

@@ -11,7 +11,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--name=bob"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "name", .short_name = NULL, .type = SYS_ENV_ARG_STRING,
+        {.long_name = "name", .short_name = NULL, .type = sys_env_arg_type_string,
          .value = "default"},
         {0},
     };
@@ -25,7 +25,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--count", "42"};
     sys_init(3, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "count", .short_name = "c", .type = SYS_ENV_ARG_INT,
+        {.long_name = "count", .short_name = "c", .type = sys_env_arg_type_int,
          .value = "0"},
         {0},
     };
@@ -39,7 +39,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "-c", "7"};
     sys_init(3, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "count", .short_name = "c", .type = SYS_ENV_ARG_INT,
+        {.long_name = "count", .short_name = "c", .type = sys_env_arg_type_int,
          .value = "0"},
         {0},
     };
@@ -53,7 +53,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "-c=9"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "count", .short_name = "c", .type = SYS_ENV_ARG_INT,
+        {.long_name = "count", .short_name = "c", .type = sys_env_arg_type_int,
          .value = "0"},
         {0},
     };
@@ -73,7 +73,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--verbose"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+        {.long_name = "verbose", .short_name = NULL, .type = sys_env_arg_type_bool,
          .value = "false"},
         {0},
     };
@@ -87,7 +87,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--no-verbose"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+        {.long_name = "verbose", .short_name = NULL, .type = sys_env_arg_type_bool,
          .value = "true"},
         {0},
     };
@@ -101,7 +101,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--no-verbose=true"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+        {.long_name = "verbose", .short_name = NULL, .type = sys_env_arg_type_bool,
          .value = "false"},
         {0},
     };
@@ -121,7 +121,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--verboseness"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+        {.long_name = "verbose", .short_name = NULL, .type = sys_env_arg_type_bool,
          .value = "false"},
         {0},
     };
@@ -135,7 +135,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "in.txt", "--verbose", "out.txt"};
     sys_init(4, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+        {.long_name = "verbose", .short_name = NULL, .type = sys_env_arg_type_bool,
          .value = "false"},
         {0},
     };
@@ -157,7 +157,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "-", "--not-a-flag", "-x"};
     sys_init(4, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+        {.long_name = "verbose", .short_name = NULL, .type = sys_env_arg_type_bool,
          .value = "false"},
         {0},
     };
@@ -176,13 +176,13 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--name=bob", "-c", "3", "--limit=9", "--verbose"};
     sys_init(6, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "name", .short_name = NULL, .type = SYS_ENV_ARG_STRING,
+        {.long_name = "name", .short_name = NULL, .type = sys_env_arg_type_string,
          .value = "default"},
-        {.long_name = "count", .short_name = "c", .type = SYS_ENV_ARG_INT,
+        {.long_name = "count", .short_name = "c", .type = sys_env_arg_type_int,
          .value = "0"},
-        {.long_name = "limit", .short_name = NULL, .type = SYS_ENV_ARG_UINT,
+        {.long_name = "limit", .short_name = NULL, .type = sys_env_arg_type_uint,
          .value = "0"},
-        {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+        {.long_name = "verbose", .short_name = NULL, .type = sys_env_arg_type_bool,
          .value = "false"},
         {0},
     };
@@ -212,7 +212,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--bogus"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+        {.long_name = "verbose", .short_name = NULL, .type = sys_env_arg_type_bool,
          .value = "false"},
         {0},
     };
@@ -222,7 +222,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--count=abc"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "count", .short_name = NULL, .type = SYS_ENV_ARG_INT,
+        {.long_name = "count", .short_name = NULL, .type = sys_env_arg_type_int,
          .value = "0"},
         {0},
     };
@@ -232,7 +232,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--limit=-1"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "limit", .short_name = NULL, .type = SYS_ENV_ARG_UINT,
+        {.long_name = "limit", .short_name = NULL, .type = sys_env_arg_type_uint,
          .value = "0"},
         {0},
     };
@@ -242,7 +242,7 @@ test_main_sys(0) {
     char *argv[] = {"prog", "--count"};
     sys_init(2, argv, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "count", .short_name = NULL, .type = SYS_ENV_ARG_INT,
+        {.long_name = "count", .short_name = NULL, .type = sys_env_arg_type_int,
          .value = "0"},
         {0},
     };
@@ -276,7 +276,7 @@ test_main_sys(0) {
     char *argv1[] = {"prog", "--bogus"};
     sys_init(2, argv1, 0);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL, .type = SYS_ENV_ARG_BOOL,
+        {.long_name = "verbose", .short_name = NULL, .type = sys_env_arg_type_bool,
          .value = "false"},
         {0},
     };

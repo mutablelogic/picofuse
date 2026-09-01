@@ -4,7 +4,7 @@ digraph modules {
   node [shape=box, style=filled, fontname="Helvetica", fillcolor="#E8ECFB"];
   edge [color="#7F8FBF"];
 
-  System     [label="System Abstractions", URL="\ref System"];
+  System     [label="System",             URL="\ref System"];
   Memory     [label="Memory",                URL="\ref SystemMemory"];
   Arenas     [label="Arenas",                URL="\ref SystemArenas"];
   Heap       [label="Default Allocator",     URL="\ref SystemHeap"];
@@ -30,6 +30,8 @@ digraph modules {
   Events      [label="Events",                   URL="\ref SystemEvents"];
   EventQueue  [label="Queue",                    URL="\ref SystemEventQueue"];
   Runloop     [label="Run Loop",                 URL="\ref SystemEventRunloop"];
+  Hardware    [label="Hardware",                 URL="\ref Hardware"];
+  GPIO        [label="GPIO",                     URL="\ref GPIO"];
 
   System -> Memory;
   System -> Sync;
@@ -56,5 +58,6 @@ digraph modules {
   Execution -> Timers;
   Execution -> SleepHalt;
   Execution -> Env;
+  Hardware -> GPIO;
 }
 \enddot
