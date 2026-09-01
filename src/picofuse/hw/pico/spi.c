@@ -1,3 +1,4 @@
+#include "../../sys/pico/sync.h"
 #include "../deviceio/private.h"
 #include <assert.h>
 #include <hardware/spi.h>
@@ -34,7 +35,9 @@ static_assert(sizeof(hw_spi_ctx_t) <= HW_DEVICEIO_CONTEXT_SIZE,
 // GLOBALS
 
 // Which handle (if any) currently owns each SPI adapter index - see
-// hw_spi_init().
+// hw_spi_init(). Mutations and scans must hold _sys_sync_pool_lock() -
+// this is a static array shared across both cores, same as
+// src/picofuse/hw/pico/i2c.c's _hw_i2c_bus[]/_hw_i2c_ctx_pool[].
 static hw_deviceio_t *_hw_spi_owner[NUM_SPIS] = {0};
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -157,7 +160,8 @@ static size_t _hw_spi_ops_write_reg(hw_deviceio_t *device, uint8_t reg,
  * src/picofuse/hw/pico/gpio.c's `static struct hw_gpio_t pins[...]`), not
  * a fresh allocation per hw_gpio_init() call - so releasing a pin a
  * replacement device has already taken over (see hw_spi_init()) would
- * invalidate it out from under that device too. */
+ * invalidate it out from under that device too. Must be called with
+ * _sys_sync_pool_lock() held. */
 static bool _hw_spi_pin_in_use(const hw_gpio_t *pin) {
   if (pin == NULL) {
     return false;
@@ -175,13 +179,39 @@ static bool _hw_spi_pin_in_use(const hw_gpio_t *pin) {
   return false;
 }
 
+/** @brief True if some other currently-open SPI device also uses
+ * `instance`. `instance` is one of only NUM_SPIS fixed peripherals
+ * (spi_get_instance(index) always returns the same pointer for the same
+ * index), so a replacement device on the same index (see hw_spi_init())
+ * has already called spi_init()/spi_set_format() on this exact instance
+ * by the time the device it's replacing is torn down - spi_deinit()-ing
+ * it here would undo that configuration out from under the replacement.
+ * Must be called with _sys_sync_pool_lock() held. */
+static bool _hw_spi_instance_in_use(const spi_inst_t *instance) {
+  for (size_t i = 0; i < NUM_SPIS; i++) {
+    if (_hw_spi_owner[i] == NULL) {
+      continue;
+    }
+    hw_spi_ctx_t *ctx = _hw_deviceio_context(_hw_spi_owner[i]);
+    if (ctx->instance == instance) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static void _hw_spi_ops_deinit(hw_deviceio_t *device) {
   hw_spi_ctx_t *ctx = _hw_deviceio_context(device);
 
-  // Clear this device's own ownership slot first, so the pin-in-use scan
-  // below doesn't see this (already-closing) device as still holding
-  // them, and so a plain hw_deviceio_deinit() (not a replacement) fully
-  // forgets about it.
+  // _hw_spi_owner[] is shared across both cores (see its declaration), so
+  // clearing this device's slot and taking the in-use snapshots below
+  // must all happen under one lock, atomically - otherwise a concurrent
+  // hw_spi_init() replacing this same device could register itself
+  // between two separate unlocked reads, and this teardown would see a
+  // stale "not in use" result and release a pin/instance the replacement
+  // already owns.
+  _sys_sync_pool_lock();
+
   for (size_t i = 0; i < NUM_SPIS; i++) {
     if (_hw_spi_owner[i] == device) {
       _hw_spi_owner[i] = NULL;
@@ -189,18 +219,30 @@ static void _hw_spi_ops_deinit(hw_deviceio_t *device) {
     }
   }
 
-  spi_deinit(ctx->instance);
+  bool instance_in_use = _hw_spi_instance_in_use(ctx->instance);
+  bool cs_in_use = ctx->cs_pin != NULL && _hw_spi_pin_in_use(ctx->cs_pin);
+  bool sck_in_use = _hw_spi_pin_in_use(ctx->sck_pin);
+  bool tx_in_use = _hw_spi_pin_in_use(ctx->tx_pin);
+  bool rx_in_use = _hw_spi_pin_in_use(ctx->rx_pin);
+
+  _sys_sync_pool_unlock();
+
+  // The actual hardware teardown happens outside the lock, same as
+  // src/picofuse/hw/pico/i2c.c's _hw_i2c_ops_deinit().
+  if (!instance_in_use) {
+    spi_deinit(ctx->instance);
+  }
   if (ctx->owns_pins) {
-    if (ctx->cs_pin != NULL && !_hw_spi_pin_in_use(ctx->cs_pin)) {
+    if (ctx->cs_pin != NULL && !cs_in_use) {
       hw_gpio_deinit(ctx->cs_pin);
     }
-    if (!_hw_spi_pin_in_use(ctx->sck_pin)) {
+    if (!sck_in_use) {
       hw_gpio_deinit(ctx->sck_pin);
     }
-    if (!_hw_spi_pin_in_use(ctx->tx_pin)) {
+    if (!tx_in_use) {
       hw_gpio_deinit(ctx->tx_pin);
     }
-    if (!_hw_spi_pin_in_use(ctx->rx_pin)) {
+    if (!rx_in_use) {
       hw_gpio_deinit(ctx->rx_pin);
     }
   }
@@ -338,8 +380,15 @@ hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin,
   // own the exact same pins (e.g. hw_spi_init_default() called twice in a
   // row), _hw_spi_ops_deinit()'s pin-reuse check (_hw_spi_pin_in_use())
   // sees this new device already holding them and skips releasing them.
+  // The read+write must be atomic together - _hw_spi_owner[] is shared
+  // across both cores - but _hw_deviceio_deinit() below takes the same
+  // lock internally for its own pool, so it must run after this one is
+  // released, not nested inside it.
+  _sys_sync_pool_lock();
   hw_deviceio_t *old_device = _hw_spi_owner[index];
   _hw_spi_owner[index] = device;
+  _sys_sync_pool_unlock();
+
   if (old_device != NULL) {
     hw_deviceio_deinit(old_device);
   }

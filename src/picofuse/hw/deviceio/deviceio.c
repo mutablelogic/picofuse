@@ -89,7 +89,7 @@ hw_deviceio_t *_hw_deviceio_alloc_handle(const hw_deviceio_ops_t *ops) {
 }
 
 void *_hw_deviceio_context(const hw_deviceio_t *device) {
-  return device != NULL ? (void *)device->context : NULL;
+  return _hw_deviceio_valid(device) ? (void *)device->context : NULL;
 }
 
 const hw_deviceio_ops_t *_hw_deviceio_ops(const hw_deviceio_t *device) {
