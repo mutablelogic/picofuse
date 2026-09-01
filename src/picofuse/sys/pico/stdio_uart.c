@@ -161,8 +161,8 @@ void _sys_stdio_uart_init(void) {
   irq_set_enabled(UART_IRQ_NUM(_sys_stdio_uart), true);
 
   sys_stdout = _sys_stdio_uart_open(_sys_stdio_uart);
-  sys_stdin = _sys_stdio_uart_open(_sys_stdio_uart);
-  sys_assert(sys_stdout != NULL && sys_stdin != NULL);
+  sys_stdin = sys_stdout;
+  sys_assert(sys_stdout != NULL);
   _sys_stdio_uart_buffer_read = 0;
   _sys_stdio_uart_buffer_write = 0;
   _sys_stdio_uart_buffer_count = 0;
@@ -179,7 +179,6 @@ void _sys_stdio_uart_exit(void) {
     uart_tx_wait_blocking(_sys_stdio_uart);
   }
   sys_iostream_close(sys_stdout);
-  sys_iostream_close(sys_stdin);
   sys_stdout = NULL;
   sys_stdin = NULL;
   if (_sys_stdio_uart != NULL) {

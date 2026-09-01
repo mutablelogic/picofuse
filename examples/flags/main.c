@@ -11,7 +11,7 @@ sys_env_arg_flag_t args[] = {
 };
 
 int main(int argc, char *argv[]) {
-  sys_init(argc, argv, 0);
+  sys_init(argc, argv, 0, sys_stdio_none);
   sys_puts("Hello, world!\n");
   sys_exit();
   return 0;

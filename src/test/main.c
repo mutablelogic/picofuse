@@ -14,8 +14,7 @@
 // Done here rather than left to exec_openocd() so a missing binary fails
 // fast with a clear message, instead of an opaque spawn error surfacing
 // after everything else has already been parsed.
-static bool resolve_openocd(const char *openocd, char *resolved,
-                            size_t cap) {
+static bool resolve_openocd(const char *openocd, char *resolved, size_t cap) {
   if (openocd == NULL || resolved == NULL || cap == 0) {
     return false;
   }
@@ -84,13 +83,12 @@ static sys_env_arg_flag_t flags[] = {
         .value = NULL,
     },
     {
-        // Hardcoded for now - this is the Debug Probe's UART bridge device
-        // on the current dev machine, and changes across replugs/reboots or
-        // on a different machine, so override with --serial as needed.
+        // When omitted, test output is read from OpenOCD's RTT server.
+        // Supply a Debug Probe UART bridge path to read serial output instead.
         .long_name = "serial",
         .short_name = NULL,
         .type = sys_env_arg_type_string,
-        .value = "/dev/tty.usbmodem83102",
+        .value = NULL,
     },
     {
         .long_name = "baud",
@@ -125,7 +123,7 @@ static void print_usage(void) {
 }
 
 int main(int argc, char *argv[]) {
-  sys_init(argc, argv, 0);
+  sys_init(argc, argv, 0, sys_stdio_none);
 
   sys_env_arg_t *args = sys_env_arg_parse(flags);
   if (args == NULL) {

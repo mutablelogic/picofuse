@@ -3,15 +3,23 @@
 
 test_main_sys(0) {
   char *fake_argv[] = {"prog", "--name=bob", "--big=5000000000", "--pi=3.14"};
-  sys_init(4, fake_argv, 0);
+  sys_init(4, fake_argv, 0, sys_stdio_rtt);
   sys_env_arg_flag_t flags[] = {
-      {.long_name = "name", .short_name = NULL, .type = sys_env_arg_type_string,
+      {.long_name = "name",
+       .short_name = NULL,
+       .type = sys_env_arg_type_string,
        .value = "default"},
-      {.long_name = "big", .short_name = NULL, .type = sys_env_arg_type_int,
+      {.long_name = "big",
+       .short_name = NULL,
+       .type = sys_env_arg_type_int,
        .value = "0"}, // 5e9 overflows int32/uint32, fits int64
-      {.long_name = "pi", .short_name = NULL, .type = sys_env_arg_type_float,
+      {.long_name = "pi",
+       .short_name = NULL,
+       .type = sys_env_arg_type_float,
        .value = "0"},
-      {.long_name = "flag", .short_name = NULL, .type = sys_env_arg_type_bool,
+      {.long_name = "flag",
+       .short_name = NULL,
+       .type = sys_env_arg_type_bool,
        .value = NULL}, // no default, never present on the command line
       {0},
   };
@@ -37,8 +45,7 @@ test_main_sys(0) {
     double f64;
     test_assert(!sys_env_arg_parse_float64(args, "bogus", &f64));
     char buf[8];
-    test_assert(sys_env_arg_parse_string(args, "bogus", buf, sizeof(buf)) ==
-                0);
+    test_assert(sys_env_arg_parse_string(args, "bogus", buf, sizeof(buf)) == 0);
   }
 
   ///////////////////////////////////////////////////////////////////////
@@ -102,16 +109,15 @@ test_main_sys(0) {
 
   {
     char exact[4] = {0};
-    test_assert(sys_env_arg_parse_string(args, "name", exact,
-                                          sizeof(exact)) == 3);
+    test_assert(sys_env_arg_parse_string(args, "name", exact, sizeof(exact)) ==
+                3);
     test_assert(sys_string_compare(exact, "bob") == 0);
 
     char small[2] = {0};
-    test_assert(sys_env_arg_parse_string(args, "name", small,
-                                          sizeof(small)) == 3);
+    test_assert(sys_env_arg_parse_string(args, "name", small, sizeof(small)) ==
+                3);
     test_assert(small[0] == 'b'); // truncated, but not overflowed
 
     test_assert(sys_env_arg_parse_string(args, "name", NULL, 0) == 3);
   }
-
 }

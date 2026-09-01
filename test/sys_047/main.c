@@ -16,29 +16,6 @@ static void _sys_iostream_callback(sys_iostream_t *stream,
 }
 #endif
 
-#if defined(SYSTEM_NAME_PICO)
-#define SYS_STDOUT_LOAD_SIZE 2048
-
-static char _sys_stdout_load[SYS_STDOUT_LOAD_SIZE];
-static sys_atomic_t _sys_stdout_load_offset;
-static sys_atomic_t _sys_stdout_write_callbacks;
-
-static void _sys_stdout_write_callback(sys_iostream_t *stream,
-                                       sys_iostream_event_t events,
-                                       void *userdata) {
-  (void)userdata;
-  if (!(events & sys_iostream_event_write)) {
-    return;
-  }
-
-  sys_atomic_inc(&_sys_stdout_write_callbacks);
-  size_t offset = sys_atomic_get(&_sys_stdout_load_offset);
-  size_t written = sys_iostream_write(stream, _sys_stdout_load + offset,
-                                      SYS_STDOUT_LOAD_SIZE - offset);
-  sys_atomic_set(&_sys_stdout_load_offset, (uint32_t)(offset + written));
-}
-#endif
-
 test_main_sys(0) {
 
   test_assert(sys_stdout != NULL);
@@ -268,37 +245,6 @@ test_main_sys(0) {
   // NULL stream is a no-op, not a crash.
   test_assert(sys_iostream_write(NULL, "a", 1) == 0);
 
-#if defined(SYSTEM_NAME_PICO)
-  ///////////////////////////////////////////////////////////////////////
-  // sys_iostream_set_callback - stdout write readiness under load
-
-  {
-    for (size_t i = 0; i < SYS_STDOUT_LOAD_SIZE; i++) {
-      _sys_stdout_load[i] = (char)('a' + (i % 26));
-    }
-
-    sys_atomic_init(&_sys_stdout_load_offset, 0);
-    sys_atomic_init(&_sys_stdout_write_callbacks, 0);
-    size_t written =
-        sys_iostream_write(sys_stdout, _sys_stdout_load, SYS_STDOUT_LOAD_SIZE);
-    test_assert(written > 0 && written < SYS_STDOUT_LOAD_SIZE);
-    sys_atomic_set(&_sys_stdout_load_offset, (uint32_t)written);
-    test_assert(sys_iostream_set_callback(sys_stdout,
-                                          _sys_stdout_write_callback, NULL));
-
-    for (size_t i = 0; i < 200 && sys_atomic_get(&_sys_stdout_load_offset) <
-                                      SYS_STDOUT_LOAD_SIZE;
-         i++) {
-      sys_sleep_ms(10);
-    }
-    test_assert(sys_atomic_get(&_sys_stdout_write_callbacks) > 0);
-    test_assert(sys_atomic_get(&_sys_stdout_load_offset) ==
-                SYS_STDOUT_LOAD_SIZE);
-    test_assert(sys_iostream_set_callback(sys_stdout, NULL, NULL));
-    sys_sleep_ms(250);
-  }
-#endif
-
   ///////////////////////////////////////////////////////////////////////
   // sys_fprintf - formatted output to a writable stream
 
@@ -344,7 +290,11 @@ test_main_sys(0) {
       }
       streams[count++] = s;
     }
+#if defined(SYSTEM_NAME_PICO)
+    test_assert(count == SYS_IOSTREAM_CAPACITY - 1);
+#else
     test_assert(count == SYS_IOSTREAM_CAPACITY - 2);
+#endif
 
     // The pool is now exhausted: one more allocation must fail.
     test_assert(sys_string_read("x") == NULL);

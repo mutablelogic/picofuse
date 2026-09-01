@@ -16,6 +16,7 @@ picofuse_library(
         sync.c
         stdio.c
         stdio_uart.c
+        stdio_rtt.c
         puts.c
         random.c
         timestamp.c

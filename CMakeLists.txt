@@ -40,6 +40,7 @@ if(DEFINED PICO_BOARD)
         pico_crt0
         pico_runtime_init
         pico_thread_local
+        pico_stdio_rtt
     )
     if(PICO_CYW43_SUPPORTED)
         list(APPEND _picosdk_targets pico_cyw43_arch_none pico_lwip_nosys)
@@ -63,9 +64,7 @@ if(DEFINED PICO_BOARD)
     picofuse_add_pico_sdk_libs_target(pico_sdk_libs)
     target_include_directories(picosdk_static PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/include
-        # lwipopts.h and mbedtls_config.h are located via a bare filename
-        # #include from vendored SDK code (lwIP's opt.h hardcodes
-        # "lwipopts.h" with no macro indirection to redirect it), so
+        # lwipopts.h and mbedtls_config.h are in 
         # include/runtime itself must be on the search path.
         ${CMAKE_CURRENT_LIST_DIR}/include/runtime
     )

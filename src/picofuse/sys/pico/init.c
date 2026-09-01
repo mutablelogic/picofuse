@@ -20,7 +20,7 @@ extern void _sys_mem_module_exit(void);
 extern bool _sys_runloop_module_init(void);
 extern void _sys_runloop_module_exit(void);
 
-void sys_init(int argc, char *argv[], size_t arena_size) {
+void sys_init(int argc, char *argv[], size_t arena_size, sys_stdio_t stdio) {
   // Pico has no command line arguments
   (void)argc;
   (void)argv;
@@ -29,7 +29,7 @@ void sys_init(int argc, char *argv[], size_t arena_size) {
   _sys_mem_module_init(arena_size, malloc, free);
 
   // Set up standard input and output streams
-  _sys_stdio_module_init(sys_stdio_none);
+  _sys_stdio_module_init(stdio);
 
   // Initialize the shared critical section used by sync primitives
   _sys_sync_module_init();

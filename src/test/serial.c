@@ -2,10 +2,12 @@
 
 #include <picofuse/sys.h>
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -69,6 +71,50 @@ int serial_open(const char *path, uint32_t baud) {
   tcflush(fd, TCIFLUSH);
 
   return fd;
+}
+
+int serial_open_rtt(uint16_t port) {
+  int fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (fd < 0) {
+    return -1;
+  }
+
+  struct sockaddr_in address = {
+      .sin_family = AF_INET,
+      .sin_port = htons(port),
+      .sin_addr.s_addr = htonl(INADDR_LOOPBACK),
+  };
+  if (connect(fd, (const struct sockaddr *)&address, sizeof(address)) != 0) {
+    close(fd);
+    return -1;
+  }
+  return fd;
+}
+
+bool serial_find_unused_port(uint16_t *port) {
+  if (port == NULL) {
+    return false;
+  }
+
+  int fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (fd < 0) {
+    return false;
+  }
+
+  struct sockaddr_in address = {
+      .sin_family = AF_INET,
+      .sin_port = 0,
+      .sin_addr.s_addr = htonl(INADDR_LOOPBACK),
+  };
+  socklen_t address_size = sizeof(address);
+  bool found =
+      bind(fd, (const struct sockaddr *)&address, sizeof(address)) == 0 &&
+      getsockname(fd, (struct sockaddr *)&address, &address_size) == 0;
+  if (found) {
+    *port = ntohs(address.sin_port);
+  }
+  close(fd);
+  return found;
 }
 
 void serial_close(int fd) {
