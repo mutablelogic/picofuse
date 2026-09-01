@@ -6,7 +6,10 @@ picofuse_library(
         adc.c
         dma.c
         gpio.c
+        i2c.c
         init.c
+        spi.c
+        ../deviceio/deviceio.c
 )
 
 target_link_libraries(picofuse-hw PRIVATE picofuse-sys)

@@ -23,6 +23,8 @@ if(DEFINED PICO_BOARD)
         hardware_adc
         hardware_dma
         hardware_gpio
+        hardware_i2c
+        hardware_spi
         hardware_uart
         pico_multicore
         pico_bit_ops

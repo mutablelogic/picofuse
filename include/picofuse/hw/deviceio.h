@@ -17,6 +17,26 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/**
+ * @def HW_DEVICEIO_CAPACITY
+ * @ingroup DeviceIO
+ * @brief Maximum number of open device I/O handles, across every backend
+ * (SPI, I2C, ...) combined.
+ */
+#ifndef HW_DEVICEIO_CAPACITY
+#define HW_DEVICEIO_CAPACITY 8
+#endif
+
+/**
+ * @def HW_DEVICEIO_CONTEXT_SIZE
+ * @ingroup DeviceIO
+ * @brief Size in bytes of the per-handle scratch context space embedded in
+ * every hw_deviceio_t, for a backend's own private per-device state.
+ */
+#ifndef HW_DEVICEIO_CONTEXT_SIZE
+#define HW_DEVICEIO_CONTEXT_SIZE 32
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -70,8 +90,8 @@ void hw_deviceio_deinit(hw_deviceio_t *device);
  * assertion on SPI - are defined by whichever bus `device` is actually
  * bound to.
  */
-size_t hw_deviceio_xfr(hw_deviceio_t *device, void *data, size_t tx,
-                       size_t rx, uint32_t timeout_ms);
+size_t hw_deviceio_xfr(hw_deviceio_t *device, void *data, size_t tx, size_t rx,
+                       uint32_t timeout_ms);
 
 /**
  * @brief Read bytes from a register on a device.
@@ -99,7 +119,6 @@ size_t hw_deviceio_read_reg(hw_deviceio_t *device, uint8_t reg, void *data,
  * @return Number of bytes written, or `0` on failure.
  */
 size_t hw_deviceio_write_reg(hw_deviceio_t *device, uint8_t reg,
-                             const void *data, size_t len,
-                             uint32_t timeout_ms);
+                             const void *data, size_t len, uint32_t timeout_ms);
 
 /** @} */

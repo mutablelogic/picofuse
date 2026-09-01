@@ -609,10 +609,30 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
-# hw_adc_read_dma() driven from both cores at once, stressing hw_dma_fifo_t's
-# shared pool/IRQ-install/teardown machinery for cross-core safety
+# hw_adc_read_dma() driven from both cores at once
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_005
 		hw_005/main.c
+	)
+endif()
+
+# hw_i2c_* basic lifecycle
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_006
+		hw_006/main.c
+	)
+endif()
+
+# hw_i2c_detect() swept across every 7-bit address
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_007
+		hw_007/main.c
+	)
+endif()
+
+# hw_spi_* basic lifecycle
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_008
+		hw_008/main.c
 	)
 endif()
