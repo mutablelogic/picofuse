@@ -25,14 +25,17 @@ void sys_init(int argc, char *argv[], size_t arena_size, sys_stdio_t stdio) {
   (void)argc;
   (void)argv;
 
+  // Initialize the shared critical section used by sync primitives - must
+  // come before _sys_mem_module_init() below, since configuring a nonzero
+  // arena creates a sys_mutex_t (see sys_mem_arena_init()), which depends on
+  // this critical section already being usable.
+  _sys_sync_module_init();
+
   // Configure the default arena backing sys_malloc() and friends, if asked
   _sys_mem_module_init(arena_size, malloc, free);
 
   // Set up standard input and output streams
   _sys_stdio_module_init(stdio);
-
-  // Initialize the shared critical section used by sync primitives
-  _sys_sync_module_init();
 
   // Create the mutex guarding the run loop singleton (depends on the sync
   // module's critical section above, since sys_mutex_init() uses it)

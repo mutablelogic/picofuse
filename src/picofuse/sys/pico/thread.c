@@ -20,6 +20,10 @@ static inline void _sys_thread_ensure_core1_worker(void) {
     return;
   }
   multicore_reset_core1();
+  // https://github.com/raspberrypi/pico-feedback/issues/366 -- when the
+  // preceding reset came from an OpenOCD debug probe (not power-on/BOOTSEL),
+  // core1 isn't actually launchable again until some time after this call.
+  sleep_ms(100);
   multicore_launch_core1(_sys_thread_wrapper);
   sys_atomic_set(&_sys_thread_core1_worker_started, 1);
 }
