@@ -10,6 +10,8 @@
  * @brief Defines thread creation and core query primitives.
  * @defgroup SystemThread Threads
  * @ingroup Execution
+ * @brief Cross-platform helpers for creating fire-and-forget worker threads
+ * and querying CPU core information.
  * @details
  * The SystemThread module provides lightweight cross-platform helpers for
  * creating fire-and-forget worker threads and querying CPU core information.

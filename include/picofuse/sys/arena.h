@@ -10,6 +10,8 @@
  * @brief Defines arena allocator types and operations.
  * @defgroup SystemArenas Arenas
  * @ingroup SystemMemory
+ * @brief Region-oriented allocation primitives used by the default memory
+ * wrappers and by callers that need deterministic allocation behavior.
  * @details
  * The arena API provides region-oriented allocation primitives used by the
  * default memory wrappers and by callers that need deterministic allocation

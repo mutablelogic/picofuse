@@ -1,5 +1,7 @@
 # testrunner
 
+<!-- @brief: Runs picofuse tests on real Pico hardware through a debug probe. -->
+
 ## Introduction
 
 `testrunner` runs a picofuse system test compiled for a Pico board through

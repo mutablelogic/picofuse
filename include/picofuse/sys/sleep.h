@@ -3,6 +3,7 @@
  * @brief Defines thread sleep primitives.
  * @defgroup SystemSleepHalt Sleep and Halt
  * @ingroup Execution
+ * @brief Pauses execution for a specified duration, or stops it permanently.
  * @details This file declares functions that pause execution for a specified
  * duration; sys/halt.h declares the counterpart that stops it permanently.
  */

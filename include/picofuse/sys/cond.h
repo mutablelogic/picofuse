@@ -3,6 +3,8 @@
  * @brief Defines condition variable primitives for thread synchronization.
  * @defgroup SystemSyncCond Condition Variables
  * @ingroup SystemSync
+ * @brief Condition variable primitives for threads waiting on a shared
+ * predicate.
  */
 
 #pragma once

@@ -1,5 +1,7 @@
 # NOTICE
 
+<!-- @brief: Third-party notices and licenses for components picofuse builds against or links. -->
+
 picofuse
 Copyright the picofuse contributors
 

@@ -3,6 +3,7 @@
  * @brief Defines timestamp APIs.
  * @defgroup SystemTime Date and Time
  * @ingroup SystemData
+ * @brief Monotonic timing and wall-clock date/time operations.
  * @details
  * The SystemTime module provides monotonic timing and wall-clock date/time
  * operations for scheduling, time measurement, and timestamped application
