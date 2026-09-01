@@ -87,14 +87,6 @@ hw_gpio_t *hw_gpio_init(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode);
  */
 void hw_gpio_deinit(hw_gpio_t *gpio);
 
-/** @} */
-
-///////////////////////////////////////////////////////////////////////////////
-// METHODS
-
-/** @name Methods
- * @{ */
-
 /**
  * @brief Get the total number of available GPIO pins for a given bank.
  * @ingroup GPIO
@@ -108,15 +100,6 @@ void hw_gpio_deinit(hw_gpio_t *gpio);
 uint8_t hw_gpio_count(uint8_t bank);
 
 /**
- * @brief Get the logical pin number for a GPIO handle.
- * @ingroup GPIO
- *
- * @param gpio Pointer to the GPIO structure.
- * @return The logical GPIO pin number.
- */
-uint8_t hw_gpio_get_pin_num(const hw_gpio_t *gpio);
-
-/**
  * @brief Set the global GPIO interrupt callback handler.
  * @ingroup GPIO
  *
@@ -125,6 +108,33 @@ uint8_t hw_gpio_get_pin_num(const hw_gpio_t *gpio);
  * @param userdata User-defined data pointer to pass to the callback.
  */
 void hw_gpio_set_callback(hw_gpio_callback_t callback, void *userdata);
+
+/** @} */
+
+///////////////////////////////////////////////////////////////////////////////
+// METHODS
+
+/** @name Methods
+ * @{ */
+
+/**
+ * @brief Get the logical pin number for a GPIO handle.
+ * @ingroup GPIO
+ *
+ * @param gpio Pointer to the GPIO structure.
+ * @return The logical GPIO pin number.
+ */
+uint8_t hw_gpio_pin(const hw_gpio_t *gpio);
+
+/**
+ * @brief Get the GPIO bank number for a GPIO handle.
+ * @ingroup GPIO
+ *
+ * @param gpio Pointer to the GPIO structure.
+ * @return The GPIO bank number. Always `0` on Pico, which only has one
+ * bank.
+ */
+uint8_t hw_gpio_bank(const hw_gpio_t *gpio);
 
 /**
  * @brief Get the current mode configuration of a GPIO pin.

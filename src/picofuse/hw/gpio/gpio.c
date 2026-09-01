@@ -83,11 +83,18 @@ void hw_gpio_deinit(hw_gpio_t *gpio) {
   sys_free(gpio);
 }
 
-uint8_t hw_gpio_get_pin_num(const hw_gpio_t *gpio) {
-  if (!_hw_gpio_valid(gpio) || gpio->ops->get_pin_num == NULL) {
+uint8_t hw_gpio_pin(const hw_gpio_t *gpio) {
+  if (!_hw_gpio_valid(gpio) || gpio->ops->pin == NULL) {
     return 0;
   }
-  return gpio->ops->get_pin_num((hw_gpio_t *)gpio);
+  return gpio->ops->pin((hw_gpio_t *)gpio);
+}
+
+uint8_t hw_gpio_bank(const hw_gpio_t *gpio) {
+  if (!_hw_gpio_valid(gpio) || gpio->ops->bank == NULL) {
+    return 0;
+  }
+  return gpio->ops->bank((hw_gpio_t *)gpio);
 }
 
 void hw_gpio_set_callback(hw_gpio_callback_t callback, void *userdata) {

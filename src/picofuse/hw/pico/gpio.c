@@ -76,9 +76,17 @@ void hw_gpio_deinit(hw_gpio_t *gpio) {
 /**
  * @brief Get the logical pin number for a GPIO handle.
  */
-uint8_t hw_gpio_get_pin_num(const hw_gpio_t *gpio) {
+uint8_t hw_gpio_pin(const hw_gpio_t *gpio) {
   sys_assert(_hw_gpio_valid(gpio));
   return gpio->pin;
+}
+
+/**
+ * @brief Get the GPIO bank number for a GPIO handle.
+ */
+uint8_t hw_gpio_bank(const hw_gpio_t *gpio) {
+  (void)gpio;
+  return 0; // Pico only supports bank 0
 }
 
 ///////////////////////////////////////////////////////////////////////////////

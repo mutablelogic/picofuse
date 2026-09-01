@@ -36,12 +36,12 @@ typedef struct hw_adc_t hw_adc_t;
  * @retval true Continue: start capturing into the next partition.
  * @retval false Stop; no further partitions are captured.
  *
- * Called synchronously from the DMA-complete interrupt on backends with a
- * real DMA controller (e.g. Pico) - the backend does not start capturing
+ * Called synchronously from the DMA-complete interrupt on systems with a
+ * real DMA controller (e.g. Pico) - the system does not start capturing
  * the next partition until this returns, so it must return immediately.
  * Don't process `buf` here: instead hand it off asynchronously (e.g. by
  * posting an event naming this partition) to be read out elsewhere, then
- * return. The backend cycles through `partitions` round-robin, so once
+ * return. The system cycles through `partitions` round-robin, so once
  * handed off, that consumer has until the other `partitions - 1` have each
  * been filled once more before this memory is overwritten again.
  */
@@ -53,17 +53,6 @@ typedef bool (*hw_adc_dma_callback_t)(hw_adc_t *adc, uint16_t *buf,
 
 /** @name Lifecycle
  * @{ */
-
-/**
- * @brief Get the total number of available ADC channels.
- * @ingroup ADC
- * @return Number of ADC channels available on the current platform.
- *
- * The returned count includes both GPIO-mappable ADC channels and any
- * internal ADC channels exposed by the backend. For example, on Pico
- * platforms this includes the internal temperature sensor channel.
- */
-uint8_t hw_adc_count(void);
 
 /**
  * @brief Initialize an ADC handle for a specific GPIO pin.
@@ -89,13 +78,16 @@ hw_adc_t *hw_adc_init_temperature(void);
  */
 void hw_adc_deinit(hw_adc_t *adc);
 
-/** @} */
-
-///////////////////////////////////////////////////////////////////////////////
-// METHODS
-
-/** @name Methods
- * @{ */
+/**
+ * @brief Get the total number of available ADC channels.
+ * @ingroup ADC
+ * @return Number of ADC channels available on the current platform.
+ *
+ * The returned count includes both GPIO-mappable ADC channels and any
+ * internal ADC channels exposed by the system. For example, on Pico
+ * platforms this includes the internal temperature sensor channel.
+ */
+uint8_t hw_adc_count(void);
 
 /**
  * @brief Get the ADC channel number for a GPIO pin on bank 0.
@@ -116,6 +108,14 @@ uint8_t hw_adc_gpio_channel(uint8_t pin);
  */
 uint8_t hw_adc_gpio_pin(uint8_t channel);
 
+/** @} */
+
+///////////////////////////////////////////////////////////////////////////////
+// METHODS
+
+/** @name Methods
+ * @{ */
+
 /**
  * @brief Read the current value from an ADC channel as a 12-bit value.
  * @ingroup ADC
@@ -123,7 +123,7 @@ uint8_t hw_adc_gpio_pin(uint8_t channel);
  * @param num_samples Number of conversions to average. 0 or 1 takes a
  * single, immediate reading; higher values sample the ADC FIFO that many
  * times and return the mean, which reduces noise at the cost of latency.
- * Backends may clamp this to an implementation-defined maximum to bound
+ * Systems may clamp this to an implementation-defined maximum to bound
  * how long the call can block.
  * @return Raw value in the 0-4095 range.
  */
@@ -181,8 +181,8 @@ float hw_adc_read_temperature(hw_adc_t *adc, uint16_t num_samples);
  * `partitions` is less than 2, or another transfer is already in progress
  * on this handle - `callback` is not invoked.
  *
- * Not available on every backend: DMA-driven ADC reads require a real DMA
- * controller wired to the ADC's FIFO (e.g. Pico), so host backends with no
+ * Not available on every system: DMA-driven ADC reads require a real DMA
+ * controller wired to the ADC's FIFO (e.g. Pico), so host systems with no
  * ADC hardware at all always return false here.
  */
 bool hw_adc_read_dma(hw_adc_t *adc, uint16_t *buf, size_t count,
