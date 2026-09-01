@@ -2,11 +2,14 @@ cmake_minimum_required(VERSION 3.20)
 
 # Logic if building for a Pico board
 if(DEFINED PICO_BOARD)
+    set(PICO_SDK_PATH
+        "${CMAKE_CURRENT_LIST_DIR}/third_party/pico-sdk"
+        CACHE PATH "Path to the Pico SDK used for Pico builds")
     # Point to the shared boards header directory
     set(PICO_BOARD_HEADER_DIRS "${CMAKE_CURRENT_LIST_DIR}/include/boards")
 
     # Load the Pico SDK toolchain before project() selects compilers.
-    include(third_party/pico-sdk/pico_sdk_init.cmake)
+    include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
 endif()
 
 project(picofuse C CXX ASM)
@@ -16,7 +19,6 @@ if(DEFINED PICO_BOARD)
     pico_sdk_init()
     include(${CMAKE_CURRENT_LIST_DIR}/cmake/picosdk_bundle.cmake)
     add_compile_definitions(PICO_TIME_DEFAULT_ALARM_POOL_DISABLED=1)
-    add_compile_definitions(LIB_PICO_MULTICORE=1)
     set(_picosdk_targets
         hardware_adc
         hardware_gpio
@@ -47,16 +49,21 @@ if(DEFINED PICO_BOARD)
     endif()
 
     # Generate the combined Pico SDK bundle
-    set(_pico_clib_interface_dir ${CMAKE_CURRENT_LIST_DIR}/third_party/pico-sdk/src/rp2_common/pico_clib_interface)
-    set(_pico_runtime_dir ${CMAKE_CURRENT_LIST_DIR}/third_party/pico-sdk/src/rp2_common/pico_runtime)
+    set(_pico_clib_interface_dir ${PICO_SDK_PATH}/src/rp2_common/pico_clib_interface)
+    set(_pico_runtime_dir ${PICO_SDK_PATH}/src/rp2_common/pico_runtime)
+    set(_pico_sdk_bundle_sources
+        ${_pico_runtime_dir}/runtime.c
+        ${_pico_clib_interface_dir}/newlib_interface.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/stdout.c # Also stubs newlib's own puts()
+        ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/mbedtls.c
+    )
+    # cxa_guard.c was only added in Pico SDK 2.3.0; older SDKs don't need/have it.
+    if(EXISTS ${_pico_clib_interface_dir}/cxa_guard.c)
+        list(APPEND _pico_sdk_bundle_sources ${_pico_clib_interface_dir}/cxa_guard.c)
+    endif()
     picofuse_add_pico_sdk_bundle(picosdk
         TARGETS ${_picosdk_targets}
-        SOURCES
-            ${_pico_runtime_dir}/runtime.c
-            ${_pico_clib_interface_dir}/newlib_interface.c
-            ${_pico_clib_interface_dir}/cxa_guard.c
-            ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/stdout.c # Also stubs newlib's own puts()
-            ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/mbedtls.c
+        SOURCES ${_pico_sdk_bundle_sources}
         HEADER_DEPS pico_binary_info_headers pico_runtime_headers
     )
 

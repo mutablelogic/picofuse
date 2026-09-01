@@ -3,6 +3,7 @@
 #include "../iostream/iostream.h"
 #include <errno.h>
 #include <stdio.h>
+#include <termios.h>
 #include <unistd.h>
 
 extern bool _sys_stdio_platform_init(void);
@@ -16,6 +17,11 @@ extern bool _sys_stdio_platform_set_callback(sys_iostream_t *stream,
 
 sys_iostream_t *sys_stdout = NULL;
 sys_iostream_t *sys_stdin = NULL;
+
+// Only set when stdin is an interactive tty and its original settings were
+// captured, so _sys_stdio_module_exit() knows whether to restore them.
+static struct termios _sys_stdio_orig_termios;
+static bool _sys_stdio_termios_saved = false;
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
@@ -73,6 +79,28 @@ void _sys_stdio_module_init(sys_stdio_t type) {
   (void)type; // sys_stdio_none selects the POSIX file descriptor default.
   sys_stdout = _sys_iostream_fd_open(STDOUT_FILENO);
   sys_stdin = _sys_iostream_fd_open(STDIN_FILENO);
+
+  // When stdin is an interactive tty, take it out of canonical mode and
+  // disable local echo: on Pico, sys_stdin is a raw byte stream with no
+  // line discipline and nothing echoes unless the app does it, and callers
+  // registering a read callback (see sys_iostream_set_callback()) expect it
+  // to fire per-byte, not only once a full line has been entered. Left in
+  // the tty's default canonical mode, a POSIX host wouldn't match either of
+  // those - reads (and read-readiness callbacks) would only unblock after
+  // Enter, and every keystroke would be echoed twice.
+  if (isatty(STDIN_FILENO)) {
+    struct termios raw;
+    if (tcgetattr(STDIN_FILENO, &_sys_stdio_orig_termios) == 0) {
+      raw = _sys_stdio_orig_termios;
+      raw.c_lflag &= ~(tcflag_t)(ICANON | ECHO);
+      raw.c_cc[VMIN] = 1;
+      raw.c_cc[VTIME] = 0;
+      if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) == 0) {
+        _sys_stdio_termios_saved = true;
+      }
+    }
+  }
+
   _sys_stdio_platform_init();
 }
 
@@ -82,4 +110,9 @@ void _sys_stdio_module_exit(void) {
   sys_iostream_close(sys_stdin);
   sys_stdout = NULL;
   sys_stdin = NULL;
+
+  if (_sys_stdio_termios_saved) {
+    tcsetattr(STDIN_FILENO, TCSANOW, &_sys_stdio_orig_termios);
+    _sys_stdio_termios_saved = false;
+  }
 }
