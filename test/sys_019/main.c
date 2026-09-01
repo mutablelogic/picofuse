@@ -1,9 +1,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-// Pico only has one spare core (core1), so true simultaneous multi-waiter
-// concurrency is only exercised on host platforms, which can spawn up to
-// the full thread pool via sys_thread_create.
+// Pico uses one worker
 #if defined(SYSTEM_NAME_PICO)
 #define NUM_WAITERS 1
 #else
@@ -15,8 +13,7 @@ static sys_atomic_t _released_count;
 
 static void waiter(void *arg) {
   (void)arg;
-  // Every waiter must be released together once the counter hits zero -
-  // not just the first one, and not only ones that happen to arrive late.
+  // Increment the released count once the waiter is unblocked.
   sys_waitgroup_wait(_wg);
   sys_atomic_inc(&_released_count);
 }
@@ -40,17 +37,14 @@ test_main_sys(0) {
     dispatch(waiter);
   }
 
-  // Give every waiter a generous head start to actually block inside
-  // sys_waitgroup_wait() before the counter drops to zero, so this
-  // genuinely exercises several threads blocked on the same wait group at
-  // once - not just threads that happen to arrive after it's already done.
+  // Wait for all waiters to start blocking on the wait group before marking it
+  // done.
   sys_sleep_ms(100);
 
+  // Mark the wait group as done, releasing all waiters.
   test_assert(sys_waitgroup_done(_wg));
 
-  // All waiters must eventually observe the release. Poll with a generous
-  // timeout rather than a fixed sleep, so this fails deterministically on a
-  // real bug (a waiter that's never released) instead of hanging forever.
+  // All waiters must eventually observe the release.
   uint64_t start = sys_timestamp_ms();
   while (sys_atomic_get(&_released_count) < NUM_WAITERS) {
     test_assert(sys_timestamp_ms() - start < 5000);
@@ -58,5 +52,4 @@ test_main_sys(0) {
   }
 
   sys_waitgroup_deinit(_wg);
-
 }
