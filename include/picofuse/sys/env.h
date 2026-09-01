@@ -195,9 +195,9 @@ const char *sys_env_version(void);
  * against the provided descriptors, either by long name (`--flag`) or short
  * name (`-f`).
  *
- * Boolean flags are treated as `true` if present, or --no-<flag> to explicitly
- * set them to `false`. If not present, the default value is used, or 'false'
- * if no default is specified.
+ * Boolean flags are treated as `true` if present, or `--no-\<flag\>` to
+ * explicitly set them to `false`. If not present, the default value is used,
+ * or 'false' if no default is specified.
  *
  * When a flag contains a "=" character, the portion after the "=" is treated
  * as the flag's value, else the next argv entry is treated as the value. The

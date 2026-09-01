@@ -32,6 +32,7 @@ digraph modules {
   Runloop     [label="Run Loop",                 URL="\ref SystemEventRunloop"];
   Hardware    [label="Hardware",                 URL="\ref Hardware"];
   GPIO        [label="GPIO",                     URL="\ref GPIO"];
+  ADC         [label="ADC",                      URL="\ref ADC"];
 
   System -> Memory;
   System -> Sync;
@@ -59,5 +60,6 @@ digraph modules {
   Execution -> SleepHalt;
   Execution -> Env;
   Hardware -> GPIO;
+  Hardware -> ADC;
 }
 \enddot
