@@ -167,12 +167,7 @@ float hw_adc_read_temperature(hw_adc_t *adc, uint16_t num_samples);
  * returning `true`.
  * @param samples Number of samples per partition.
  * @param partitions Number of equal-sized partitions to split `buf` into,
- * filled round-robin. `callback` (see hw_adc_dma_callback_t) must return
- * immediately - it should hand a completed partition off asynchronously
- * rather than process it inline - so `partitions` of 2 or more gives
- * whatever actually reads out the data time to do so before that memory
- * is reused, which matters given the ADC's own FIFO is only a handful of
- * samples deep and drops conversions once full.
+ * filled round-robin.
  * @param freq Desired free-running sample rate in Hz, or 0 for the ADC's
  * maximum rate (back-to-back conversions, roughly 500 kHz on RP2040 and
  * RP2350 at their standard 48 MHz ADC clock).
