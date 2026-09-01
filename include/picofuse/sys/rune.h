@@ -4,8 +4,8 @@
  * @defgroup SystemData Data types and utilities
  * @ingroup System
  *
- * Runes and strings (rune.h, string.h), the flag-driven scanner built on
- * them (scanner.h), and the stream I/O they read from (io.h).
+ * Runes and strings, the flag-driven scanner built on them, and the stream
+ * I/O they read from.
  */
 
 /**
