@@ -14,6 +14,8 @@ picofuse_library(
         waitgroup.c
         thread.c
         sync.c
+        stdio.c
+        stdio_uart.c
         puts.c
         random.c
         timestamp.c

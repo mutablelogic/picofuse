@@ -1,16 +1,17 @@
-#include <hardware/uart.h>
 #include <picofuse/sys.h>
-#include <runtime/stdout.h>
 
 void sys_puts(const char *str) {
-  if (sys_stdout != NULL && str != NULL && *str != '\0') {
-    uart_puts((uart_inst_t *)sys_stdout, str);
+  if (str != NULL) {
+    size_t len = 0;
+    while (str[len] != '\0') {
+      len++;
+    }
+    sys_iostream_write(sys_stdout, str, len);
   }
-  /* TODO: FLUSH */
 }
 
 void sys_putch(const char ch) {
-  if (sys_stdout != NULL && ch != '\0') {
-    uart_putc((uart_inst_t *)sys_stdout, ch);
+  if (ch != '\0') {
+    sys_iostream_write(sys_stdout, &ch, 1);
   }
 }

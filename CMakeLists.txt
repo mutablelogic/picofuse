@@ -100,6 +100,7 @@ add_subdirectory(src/picofuse)
 # Examples
 add_subdirectory(examples/helloworld)
 add_subdirectory(examples/flags)
+add_subdirectory(examples/stdin)
 
 # Hardware test runner
 add_subdirectory(src/test)

@@ -144,6 +144,10 @@ size_t _sys_sprintf_putch(struct sys_printf_state *state, char ch) {
   return 0;     // Return 0 so main loop doesn't double-increment
 }
 
+size_t _sys_fprintf_putch(struct sys_printf_state *state, char ch) {
+  return sys_iostream_write(state->stream, &ch, 1);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -168,6 +172,24 @@ size_t sys_vprintf_ex(const char *format, va_list args,
 
 size_t sys_vprintf(const char *format, va_list args) {
   return sys_vprintf_ex(format, args, NULL);
+}
+
+size_t sys_vfprintf(sys_iostream_t *stream, const char *format, va_list args) {
+  if (stream == NULL || format == NULL) {
+    return 0;
+  }
+
+  struct sys_printf_state state = {.putch = _sys_fprintf_putch,
+                                   .stream = stream};
+  va_list args_copy;
+  va_copy(args_copy, args);
+
+  sys_mutex_lock(_sys_printf_mutex);
+  size_t len = _sys_vprintf(&state, format, &args_copy);
+  sys_mutex_unlock(_sys_printf_mutex);
+
+  va_end(args_copy);
+  return len;
 }
 
 /** @brief Prints formatted output to a string buffer. Writes to caller-owned
