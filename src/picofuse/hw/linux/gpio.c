@@ -56,25 +56,6 @@ static void _hw_gpio_start_event_thread(void);
 static void _hw_gpio_event_thread(void *arg);
 static bool _hw_gpio_request(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode);
 
-static uint8_t _hw_gpio_get_pin_num(hw_gpio_t *gpio);
-static bool _hw_gpio_get(hw_gpio_t *gpio);
-static void _hw_gpio_set(hw_gpio_t *gpio, bool value);
-static hw_gpio_mode_t _hw_gpio_get_mode(hw_gpio_t *gpio);
-static void _hw_gpio_set_mode(hw_gpio_t *gpio, hw_gpio_mode_t mode);
-static void _hw_gpio_deinit(hw_gpio_t *gpio);
-
-///////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-static const hw_gpio_ops_t _hw_gpio_ops = {
-    .get_pin_num = _hw_gpio_get_pin_num,
-    .get = _hw_gpio_get,
-    .set = _hw_gpio_set,
-    .get_mode = _hw_gpio_get_mode,
-    .set_mode = _hw_gpio_set_mode,
-    .deinit = _hw_gpio_deinit,
-};
-
 ///////////////////////////////////////////////////////////////////////////////
 // OPS
 
@@ -182,6 +163,15 @@ static void _hw_gpio_deinit(hw_gpio_t *gpio) {
   }
   _hw_gpio_release_line(ctx->bank, ctx->pin);
 }
+
+static const hw_gpio_ops_t _hw_gpio_ops = {
+    .get_pin_num = _hw_gpio_get_pin_num,
+    .get = _hw_gpio_get,
+    .set = _hw_gpio_set,
+    .get_mode = _hw_gpio_get_mode,
+    .set_mode = _hw_gpio_set_mode,
+    .deinit = _hw_gpio_deinit,
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -460,7 +450,7 @@ static int _hw_gpio_request_line(uint8_t bank, uint8_t pin, uint64_t flags) {
 
 static void _hw_gpio_release_line(uint8_t bank, uint8_t pin) {
   sys_assert(bank < GPIO_MAX_BANKS);
-  sys_assert(pin < GPIO_MAX_LINES && pin < GPIO_V2_LINES_MAX);
+  sys_assert(pin < GPIO_MAX_LINES);
 
   sys_mutex_lock(_hw_gpio_mutex);
   int fd = _hw_gpio_lines[bank][pin].fd;
