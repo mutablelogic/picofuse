@@ -8,9 +8,15 @@
  * module provides functions to initialize I2C peripherals in master mode,
  * bound to a specific device address; transfers are performed through the
  * generic hw_deviceio_t interface (see deviceio.h) that hw_i2c_init*()
- * returns a handle to. Every bus runs at the fixed HW_I2C_BAUD_RATE - I2C
- * has no per-transfer rate negotiation, so there's nothing to gain from
- * letting different devices on the same bus disagree about it.
+ * returns a handle to.
+ *
+ * @note On Raspberry Pi OS, I2C controllers are disabled by default and must be
+ * enabled. Buses are enabled in `config.txt` with device tree overlays, for
+ * example `dtoverlay=i2c3,pins_4_5` for `/dev/i2c-3` on GPIO4/GPIO5, or
+ * `dtoverlay=i2c6,pins_22_23` for `/dev/i2c-6` on GPIO22/GPIO23; see
+ * `/boot/firmware/overlays/README` for the full list of overlays, buses,
+ * and pin options. `dtparam=i2c_baudrate=<hz>` sets the primary bus's
+ * clock speed (default 100000).
  */
 #pragma once
 #include "deviceio.h"
@@ -21,9 +27,8 @@
 /**
  * @def HW_I2C_BAUD_RATE
  * @ingroup I2C
- * @brief Fixed I2C baud rate in Hz, used for every bus. Standard-mode I2C
- * (100kHz) is supported by the widest range of devices; override before
- * including this header if a specific application needs a different rate.
+ * @brief Fixed I2C baud rate in Hz, used for every bus on the Pico.
+ * Standard-mode I2C (100kHz) is supported by the widest range of devices.
  */
 #ifndef HW_I2C_BAUD_RATE
 #define HW_I2C_BAUD_RATE 100000

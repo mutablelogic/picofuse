@@ -9,6 +9,14 @@
  * and configure device-specific framing; transfers are performed through
  * the generic hw_deviceio_t interface (see deviceio.h) that hw_spi_init*()
  * returns a handle to.
+ *
+ * @note On Raspberry Pi OS, SPI controllers are disabled by default and must be
+ * enabled. The primary bus is enabled in `config.txt` with `dtparam=spi=on`,
+ * giving `/dev/spidev0.0` / `/dev/spidev0.1` on GPIO8-11. Further buses are
+ * enabled with device tree overlays, for example `dtoverlay=spi1-3cs` for
+ * `/dev/spidev1.0`-`/dev/spidev1.2` on GPIO16-21; see
+ * `/boot/firmware/overlays/README` for the full list of overlays, buses,
+ * and pin options.
  */
 #pragma once
 #include "deviceio.h"
