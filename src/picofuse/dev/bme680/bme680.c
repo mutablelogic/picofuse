@@ -104,7 +104,7 @@ static bool _dev_bme680_read_register_retry(dev_bme680_t *bme680, uint8_t reg,
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - CONFIGURATION
 
-static uint8_t _dev_bme680_clamp_os(uint8_t os) {
+static uint8_t _dev_bme680_default_os(uint8_t os) {
   return os > BME680_OS_MAX ? 1u : os;
 }
 
@@ -206,7 +206,7 @@ static bool _dev_bme680_configure(dev_bme680_t *bme680) {
       (int8_t)((int8_t)(coeff[41] & BME680_RSERROR_MSK) / 16);
 
   uint8_t ctrl_hum =
-      _dev_bme680_clamp_os(bme680->config.os_hum) & BME680_OSH_MSK;
+      _dev_bme680_default_os(bme680->config.os_hum) & BME680_OSH_MSK;
   if (!_dev_bme680_write_register_retry(bme680, DEV_BME680_REG_CTRL_HUM,
                                         ctrl_hum)) {
     sys_debugf("dev", "bme680: ctrl_hum write failed");
@@ -512,9 +512,9 @@ bool dev_bme680_read(dev_bme680_t *bme680, dev_bme680_data_t *data) {
 
   uint8_t ctrl_meas = 0u;
   ctrl_meas = BME680_SET_BITS(ctrl_meas, BME680_OST_MSK, BME680_OST_POS,
-                              _dev_bme680_clamp_os(bme680->config.os_temp));
+                              _dev_bme680_default_os(bme680->config.os_temp));
   ctrl_meas = BME680_SET_BITS(ctrl_meas, BME680_OSP_MSK, BME680_OSP_POS,
-                              _dev_bme680_clamp_os(bme680->config.os_press));
+                              _dev_bme680_default_os(bme680->config.os_press));
   ctrl_meas =
       BME680_SET_BITS_POS_0(ctrl_meas, BME680_MODE_MSK, BME680_FORCED_MODE);
 
