@@ -145,7 +145,24 @@ size_t _sys_sprintf_putch(struct sys_printf_state *state, char ch) {
 }
 
 size_t _sys_fprintf_putch(struct sys_printf_state *state, char ch) {
-  return sys_iostream_write(state->stream, &ch, 1);
+  // sys_iostream_write() documents a short (including zero) write as a
+  // valid outcome - e.g. src/picofuse/sys/pico/stdio_uart.c's ring buffer
+  // returns 0 once full, relying on its IRQ handler to drain it as the
+  // real UART FIFO empties. A single fire-and-forget call here silently
+  // dropped output whenever a backend's buffer filled mid-printf - retry
+  // until the byte is actually accepted instead. Interrupts stay enabled
+  // during this (printf only holds its own mutex, not a critical
+  // section), so the drain this is waiting on can still run.
+  //
+  // A NULL stream is the one case sys_iostream_write() documents as
+  // permanently returning 0 rather than "not yet" - guard it explicitly
+  // so that case still no-ops instead of spinning forever.
+  if (state->stream == NULL) {
+    return 0;
+  }
+  while (sys_iostream_write(state->stream, &ch, 1) == 0) {
+  }
+  return 1;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
