@@ -3,6 +3,7 @@ picofuse_library(
     SOURCES
         init.c
         ../deviceio/deviceio.c
+        ../led/stub.c
         ../stub/adc.c
         ../stub/gpio.c
         ../stub/i2c.c
