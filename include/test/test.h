@@ -8,6 +8,19 @@
 #include <string.h>
 
 /**
+ * @def TEST_STDIO
+ * @brief Standard I/O backend test_main_sys()/test_main_hw() initialize.
+ * Defaults to sys_stdio_rtt - override by defining it before including this
+ * header (or via a compile definition, e.g. picofuse_test()'s TESTRUNNER_STDIO
+ * option) to route a test's output elsewhere instead, e.g. sys_stdio_uart
+ * when diagnosing whether a given test's own RTT traffic is itself the
+ * problem, as opposed to whatever it's actually testing.
+ */
+#ifndef TEST_STDIO
+#define TEST_STDIO sys_stdio_rtt
+#endif
+
+/**
  * @def test_assert(condition)
  * @brief Asserts that a condition is true, panicking with the failed
  * condition and file/line context if it is not. Always checked, regardless
@@ -56,7 +69,7 @@
 #define test_main_sys(arena_size)                                              \
   static void _test_main(int argc, char *argv[]);                              \
   int main(int argc, char *argv[]) {                                           \
-    sys_init(argc, argv, (arena_size), sys_stdio_rtt);                         \
+    sys_init(argc, argv, (arena_size), TEST_STDIO);                         \
     sys_printf("[TEST] [INIT] %s\n", sys_env_name());                          \
     _test_main(argc, argv);                                                    \
     sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                          \
@@ -83,7 +96,7 @@
 #define test_main_hw(arena_size)                                               \
   static void _test_main(int argc, char *argv[]);                              \
   int main(int argc, char *argv[]) {                                           \
-    sys_init(argc, argv, (arena_size), sys_stdio_rtt);                         \
+    sys_init(argc, argv, (arena_size), TEST_STDIO);                         \
     sys_printf("[TEST] [INIT] %s\n", sys_env_name());                          \
     hw_init();                                                                 \
     _test_main(argc, argv);                                                    \
