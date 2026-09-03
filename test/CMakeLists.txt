@@ -587,18 +587,21 @@ picofuse_test(sys_107
 if(NOT APPLE)
 	picofuse_test(hw_001
 		hw_001/main.c
+		LIBRARIES picofuse-hw
 	)
 endif()
 
 # hw_gpio_count/_init argument validation
 picofuse_test(hw_002
 	hw_002/main.c
+	LIBRARIES picofuse-hw
 )
 
 # hw_adc_* basic lifecycle
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_003
 		hw_003/main.c
+		LIBRARIES picofuse-hw
 	)
 endif()
 
@@ -606,6 +609,7 @@ endif()
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_004
 		hw_004/main.c
+		LIBRARIES picofuse-hw
 	)
 endif()
 
@@ -613,6 +617,7 @@ endif()
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_005
 		hw_005/main.c
+		LIBRARIES picofuse-hw
 	)
 endif()
 
@@ -620,6 +625,7 @@ endif()
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_006
 		hw_006/main.c
+		LIBRARIES picofuse-hw
 	)
 endif()
 
@@ -627,6 +633,7 @@ endif()
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_007
 		hw_007/main.c
+		LIBRARIES picofuse-hw
 	)
 endif()
 
@@ -634,5 +641,15 @@ endif()
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_008
 		hw_008/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
+
+# dev_bme680_* against a real sensor, detected over I2C (both addresses)
+# or SPI - see the detection order/reasoning in dev_bme680/main.c.
+if(DEFINED PICO_BOARD)
+	picofuse_test(dev_bme680
+		dev_bme680/main.c
+		LIBRARIES picofuse-hw picofuse-dev
 	)
 endif()
