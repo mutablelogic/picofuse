@@ -243,7 +243,7 @@ hw_deviceio_t *hw_spi_init_device(const char *device, uint32_t baud_rate,
     return NULL;
   }
 
-  hw_deviceio_t *handle = _hw_deviceio_alloc_handle(&_hw_spi_ops);
+  hw_deviceio_t *handle = _hw_deviceio_alloc_handle(&_hw_spi_ops, hw_deviceio_spi);
   if (handle == NULL) {
     sys_mutex_deinit(lock);
     close(fd);

@@ -31,13 +31,16 @@ typedef struct hw_deviceio_ops_t {
  * @brief Allocate a handle bound to a backend.
  *
  * `hw_deviceio_t`'s own layout stays private to deviceio.c - this is the
- * only way a backend gets to create one. The returned handle carries a
- * zeroed HW_DEVICEIO_CONTEXT_SIZE-byte scratch buffer for the backend's own
+ * only way a backend gets to create one. `bus` is what the public
+ * hw_deviceio_bus() reports back for this handle - pass whichever bus this
+ * backend actually is. The returned handle carries a zeroed
+ * HW_DEVICEIO_CONTEXT_SIZE-byte scratch buffer for the backend's own
  * per-device state (see _hw_deviceio_context()) - populate it after this
  * returns, there's no way to seed it here. Returns `NULL` if `ops` is
  * `NULL` or the static pool (HW_DEVICEIO_CAPACITY) is full.
  */
-hw_deviceio_t *_hw_deviceio_alloc_handle(const hw_deviceio_ops_t *ops);
+hw_deviceio_t *_hw_deviceio_alloc_handle(const hw_deviceio_ops_t *ops,
+                                         hw_deviceio_bus_t bus);
 
 /**
  * @brief Get a handle's embedded scratch context buffer.
