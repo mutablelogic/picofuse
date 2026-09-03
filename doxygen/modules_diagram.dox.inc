@@ -36,6 +36,8 @@ digraph modules {
   DeviceIO    [label="Device I/O",               URL="\ref DeviceIO"];
   SPI         [label="SPI",                      URL="\ref SPI"];
   I2C         [label="I2C",                      URL="\ref I2C"];
+  Device      [label="Device",                   URL="\ref Device"];
+  BME680      [label="BME680",                   URL="\ref BME680"];
 
   System -> Memory;
   System -> Sync;
@@ -67,5 +69,6 @@ digraph modules {
   Hardware -> DeviceIO;
   DeviceIO -> SPI;
   DeviceIO -> I2C;
+  Device -> BME680;
 }
 \enddot
