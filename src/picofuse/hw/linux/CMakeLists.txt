@@ -8,6 +8,7 @@ picofuse_library(
         spi.c
         ../deviceio/deviceio.c
         ../gpio/gpio.c
+        ../led/stub.c
         ../stub/adc.c
 )
 

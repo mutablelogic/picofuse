@@ -11,6 +11,7 @@ picofuse_library(
         pwm.c
         spi.c
         ../deviceio/deviceio.c
+        ../led/stub.c
 )
 
 target_link_libraries(picofuse-hw PRIVATE picofuse-sys)
