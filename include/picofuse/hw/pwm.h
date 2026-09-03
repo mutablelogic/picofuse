@@ -19,15 +19,16 @@
  * and duty cycle, control output state, and optionally receive wrap callbacks
  * at period boundaries.
  *
- * @note On Raspberry Pi OS, PWM outputs are disabled by default and must be
- * enabled in `config.txt` with a device tree overlay, for example
- * `dtoverlay=pwm,pin=18,func=2` for a single channel on GPIO18, or
+ * @note On Raspberry Pi OS
+ * PWM outputs are disabled by default and must be enabled in `config.txt`
+ * with a device tree overlay, for example `dtoverlay=pwm,pin=18,func=2` for
+ * a single channel on GPIO18, or
  * `dtoverlay=pwm-2chan,pin=18,func=2,pin2=19,func2=2` for both channels
  * (GPIO18/GPIO19); see `/boot/firmware/overlays/README` for the full pin/
  * function table, other pins, and other overlays. Once loaded, the kernel
  * exposes each channel under `/sys/class/pwm/pwmchipN/` rather than a
  * fixed device path.
- *
+ * @par
  * @note Pico backend details (RP2040/RP2350):
  * The hardware groups GPIOs into PWM slices. Each slice has two output
  * channels (A and B) that share the same period (wrap) and divider settings
