@@ -34,7 +34,13 @@
  * channels (A and B) that share the same period (wrap) and divider settings
  * but have independent duty levels. Because period settings are shared per
  * slice, changing period on one channel affects the other channel in the same
- * slice.
+ * slice. The slice also has a single enable bit shared by both channels, so
+ * hw_pwm_init() or hw_pwm_set_config() on one channel can change whether the
+ * other channel's output is enabled, and hw_pwm_deinit() on one channel
+ * leaves the slice (and thus the other channel, if still open) in whatever
+ * enabled/period state that call left behind. Opening both channels of the
+ * same slice works, but callers doing so must coordinate period and enabled
+ * state between them - picofuse does not do this on their behalf.
  */
 #pragma once
 #include "gpio.h"

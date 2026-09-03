@@ -48,6 +48,7 @@ static sys_iostream_t *_sys_stdio_rtt_open(void) {
 
 void _sys_stdio_rtt_init(void) {
   SEGGER_RTT_Init();
+  SEGGER_RTT_SetFlagsUpBuffer(0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
   sys_stdout = _sys_stdio_rtt_open();
   sys_stdin = sys_stdout;
   sys_assert(sys_stdout != NULL);
