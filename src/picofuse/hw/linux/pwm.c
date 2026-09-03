@@ -158,8 +158,8 @@ static bool _hw_pwm_apply(hw_pwm_t *pwm, uint64_t period_ns,
                           float duty_percent, bool enabled) {
   uint64_t duty_ns = _hw_pwm_duty_ns(duty_percent, period_ns);
 
-  _hw_pwm_write_enabled(pwm->device, false);
-  if (!_hw_pwm_write_u64(pwm->device, "duty_cycle", 0) ||
+  if (!_hw_pwm_write_enabled(pwm->device, false) ||
+      !_hw_pwm_write_u64(pwm->device, "duty_cycle", 0) ||
       !_hw_pwm_write_u64(pwm->device, "period", period_ns) ||
       !_hw_pwm_write_u64(pwm->device, "duty_cycle", duty_ns)) {
     return false;
