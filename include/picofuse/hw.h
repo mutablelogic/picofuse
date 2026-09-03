@@ -13,4 +13,5 @@
 #include "hw/gpio.h"
 #include "hw/i2c.h"
 #include "hw/init.h"
+#include "hw/pwm.h"
 #include "hw/spi.h"

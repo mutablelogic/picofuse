@@ -6,6 +6,7 @@ picofuse_library(
         ../stub/adc.c
         ../stub/gpio.c
         ../stub/i2c.c
+        ../stub/pwm.c
         ../stub/spi.c
 )
 

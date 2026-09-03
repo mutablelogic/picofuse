@@ -645,6 +645,23 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
+# hw_pwm_* wrap-callback timing: measured interval between wraps tracks the
+# configured period. Pico-only - no other backend supports wrap callbacks.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_009
+		hw_009/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
+
+# hw_pwm_* configuration/control lifecycle and argument validation
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_010
+		hw_010/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
+
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
 # or SPI - see the detection order/reasoning in dev_bme680/main.c.
 if(DEFINED PICO_BOARD)

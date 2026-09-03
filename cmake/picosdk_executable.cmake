@@ -124,17 +124,13 @@ function(picofuse_executable)
     endforeach()
 endfunction()
 
-# picofuse_test(<target> [TESTRUNNER_TIMEOUT <seconds>] [LIBRARIES <lib> ...] <source> ...)
+# picofuse_test(<target> [TESTRUNNER_TIMEOUT <seconds>] [LIBRARIES <lib> ...]
+#                [TESTRUNNER_STDIO RTT|UART] <source> ...)
 #
 # Builds a picofuse system test and registers it with CTest. <source> paths
 # are relative to the calling CMakeLists.txt's directory (CMAKE_CURRENT_SOURCE_DIR),
 # same as any other CMake SOURCES list. The test target can use the same
 # native/Pico linkage behavior as picofuse_executable().
-#
-# TESTRUNNER_TIMEOUT overrides testrunner's own default 10s wait (on
-# PICO_BOARD builds only - ignored on host, which runs the test binary
-# directly with no such wait) for a test whose own body genuinely needs
-# longer, rather than the default being too short because something hung.
 #
 # LIBRARIES links additional picofuse_library() targets alongside the
 # always-linked picofuse-sys - e.g. LIBRARIES picofuse-hw for a test that
@@ -144,12 +140,26 @@ endfunction()
 # explicitly - it's no longer pulled in by default. Put LIBRARIES after
 # the source file(s) in the call, since it's a multi-value keyword that
 # would otherwise swallow them.
+#
+# TESTRUNNER_TIMEOUT overrides testrunner's own default 10s wait (on
+# PICO_BOARD builds only - ignored on host, which runs the test binary
+# directly with no such wait) for a test whose own body genuinely needs
+# longer, rather than the default being too short because something hung.
+#
+# TESTRUNNER_STDIO (PICO_BOARD only) chooses which backend the test's
+# TEST_STDIO (see include/test/test.h) initializes and, correspondingly,
+# how testrunner reads its output back:
+#   RTT (default) - sys_stdio_rtt, read over the SWD/openocd RTT session.
+#   UART - sys_stdio_uart, with testrunner pointed at
+#          PICOFUSE_TEST_SERIAL_DEVICE (a cache variable - set it to the
+#          board's debug-probe serial device, e.g. /dev/cu.usbmodemXXXX)
+#          via --serial instead.
 function(picofuse_test NAME)
     if(NOT NAME)
         message(FATAL_ERROR "picofuse_test: target name is required")
     endif()
 
-    cmake_parse_arguments(_ARG "" "TESTRUNNER_TIMEOUT" "LIBRARIES" ${ARGN})
+    cmake_parse_arguments(_ARG "" "TESTRUNNER_TIMEOUT;TESTRUNNER_STDIO" "LIBRARIES" ${ARGN})
     if(NOT _ARG_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "picofuse_test: at least one source file is required")
     endif()
@@ -167,6 +177,15 @@ function(picofuse_test NAME)
         SOURCES ${_sources}
     )
     target_include_directories(${NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+    if(_ARG_TESTRUNNER_STDIO)
+        string(TOUPPER "${_ARG_TESTRUNNER_STDIO}" _stdio_upper)
+        if(_stdio_upper STREQUAL "UART")
+            target_compile_definitions(${NAME} PRIVATE TEST_STDIO=sys_stdio_uart)
+        elseif(NOT _stdio_upper STREQUAL "RTT")
+            message(FATAL_ERROR "picofuse_test(${NAME}): TESTRUNNER_STDIO must be RTT or UART, got '${_ARG_TESTRUNNER_STDIO}'")
+        endif()
+    endif()
 
     if(DEFINED PICO_BOARD)
         # A pico .elf can't run directly on the (host) machine driving
@@ -190,6 +209,15 @@ function(picofuse_test NAME)
         set(_testrunner_args --target "target/${_pico_openocd_chip}.cfg")
         if(_ARG_TESTRUNNER_TIMEOUT)
             list(APPEND _testrunner_args --timeout ${_ARG_TESTRUNNER_TIMEOUT})
+        endif()
+        if(_stdio_upper STREQUAL "UART")
+            set(PICOFUSE_TEST_SERIAL_DEVICE "" CACHE STRING
+                "Serial device for TESTRUNNER_STDIO UART picofuse_test() targets, e.g. /dev/cu.usbmodemXXXX")
+            if(PICOFUSE_TEST_SERIAL_DEVICE)
+                list(APPEND _testrunner_args --serial ${PICOFUSE_TEST_SERIAL_DEVICE})
+            else()
+                message(WARNING "picofuse_test(${NAME} TESTRUNNER_STDIO UART ...): set -D PICOFUSE_TEST_SERIAL_DEVICE=/dev/... to read its output over serial instead of RTT")
+            endif()
         endif()
 
         add_test(NAME ${NAME} COMMAND ${PICOFUSE_TESTRUNNER}
