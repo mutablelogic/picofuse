@@ -11,12 +11,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// Per-device context, embedded in each hw_deviceio_t's own scratch buffer
-// (see _hw_deviceio_context()). Each device already gets its own dedicated
-// CS pin, so - unlike I2C's shared-bus, shared-address model - there's no
-// concept of several devices sharing one hw_deviceio_t's worth of state:
-// hw_spi_init() on an index already in use just replaces whatever's there
-// (deiniting it first), one open handle per index at a time.
+// Per-device context
 typedef struct hw_spi_ctx_t {
   spi_inst_t *instance;
   hw_gpio_t *sck_pin;
@@ -29,15 +24,12 @@ typedef struct hw_spi_ctx_t {
 } hw_spi_ctx_t;
 
 static_assert(sizeof(hw_spi_ctx_t) <= HW_DEVICEIO_CONTEXT_SIZE,
-             "hw_spi_ctx_t too large for hw_deviceio_t's embedded context");
+              "hw_spi_ctx_t too large for hw_deviceio_t's embedded context");
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
-// Which handle (if any) currently owns each SPI adapter index - see
-// hw_spi_init(). Mutations and scans must hold _sys_sync_pool_lock() -
-// this is a static array shared across both cores, same as
-// src/picofuse/hw/pico/i2c.c's _hw_i2c_bus[]/_hw_i2c_ctx_pool[].
+// Which handle (if any) currently owns each SPI adapter index
 static hw_deviceio_t *_hw_spi_owner[NUM_SPIS] = {0};
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -73,7 +65,7 @@ static inline void _hw_spi_set_cs(const hw_spi_ctx_t *ctx, bool active) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
+// PRIVATE METHODS - OPS
 
 static size_t _hw_spi_ops_xfr(hw_deviceio_t *device, void *data, size_t tx,
                               size_t rx, uint32_t timeout_ms) {
@@ -156,12 +148,7 @@ static size_t _hw_spi_ops_write_reg(hw_deviceio_t *device, uint8_t reg,
 }
 
 /** @brief True if some other currently-open SPI device also references
- * `pin`. Pico's hw_gpio_t is one shared struct per physical pin (see
- * src/picofuse/hw/pico/gpio.c's `static struct hw_gpio_t pins[...]`), not
- * a fresh allocation per hw_gpio_init() call - so releasing a pin a
- * replacement device has already taken over (see hw_spi_init()) would
- * invalidate it out from under that device too. Must be called with
- * _sys_sync_pool_lock() held. */
+ * `pin`. */
 static bool _hw_spi_pin_in_use(const hw_gpio_t *pin) {
   if (pin == NULL) {
     return false;
@@ -180,13 +167,7 @@ static bool _hw_spi_pin_in_use(const hw_gpio_t *pin) {
 }
 
 /** @brief True if some other currently-open SPI device also uses
- * `instance`. `instance` is one of only NUM_SPIS fixed peripherals
- * (spi_get_instance(index) always returns the same pointer for the same
- * index), so a replacement device on the same index (see hw_spi_init())
- * has already called spi_init()/spi_set_format() on this exact instance
- * by the time the device it's replacing is torn down - spi_deinit()-ing
- * it here would undo that configuration out from under the replacement.
- * Must be called with _sys_sync_pool_lock() held. */
+ * `instance`.  */
 static bool _hw_spi_instance_in_use(const spi_inst_t *instance) {
   for (size_t i = 0; i < NUM_SPIS; i++) {
     if (_hw_spi_owner[i] == NULL) {
@@ -203,13 +184,6 @@ static bool _hw_spi_instance_in_use(const spi_inst_t *instance) {
 static void _hw_spi_ops_deinit(hw_deviceio_t *device) {
   hw_spi_ctx_t *ctx = _hw_deviceio_context(device);
 
-  // _hw_spi_owner[] is shared across both cores (see its declaration), so
-  // clearing this device's slot and taking the in-use snapshots below
-  // must all happen under one lock, atomically - otherwise a concurrent
-  // hw_spi_init() replacing this same device could register itself
-  // between two separate unlocked reads, and this teardown would see a
-  // stale "not in use" result and release a pin/instance the replacement
-  // already owns.
   _sys_sync_pool_lock();
 
   for (size_t i = 0; i < NUM_SPIS; i++) {
@@ -264,7 +238,7 @@ uint8_t hw_spi_count(void) {
 
 hw_deviceio_t *hw_spi_init_default(uint32_t baud_rate,
                                    const hw_spi_config_t *config) {
-#if defined(PICO_DEFAULT_SPI) && defined(PICO_DEFAULT_SPI_SCK_PIN) &&         \
+#if defined(PICO_DEFAULT_SPI) && defined(PICO_DEFAULT_SPI_SCK_PIN) &&          \
     defined(PICO_DEFAULT_SPI_TX_PIN) && defined(PICO_DEFAULT_SPI_RX_PIN)
   sys_debugf("hw", "spi_init_default: index=%u sck=%u tx=%u rx=%u baud=%u",
              PICO_DEFAULT_SPI, PICO_DEFAULT_SPI_SCK_PIN,
@@ -297,8 +271,8 @@ hw_deviceio_t *hw_spi_init_default(uint32_t baud_rate,
   hw_gpio_t *cs_pin = NULL;
 #endif
 
-  hw_deviceio_t *device = hw_spi_init(PICO_DEFAULT_SPI, sck_pin, tx_pin,
-                                      rx_pin, cs_pin, baud_rate, config);
+  hw_deviceio_t *device = hw_spi_init(PICO_DEFAULT_SPI, sck_pin, tx_pin, rx_pin,
+                                      cs_pin, baud_rate, config);
   if (device == NULL) {
     if (cs_pin != NULL) {
       hw_gpio_deinit(cs_pin);
@@ -321,21 +295,20 @@ hw_deviceio_t *hw_spi_init_default(uint32_t baud_rate,
 #endif
 }
 
-hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin,
-                           hw_gpio_t *tx_pin, hw_gpio_t *rx_pin,
-                           hw_gpio_t *cs_pin, uint32_t baud_rate,
-                           const hw_spi_config_t *config) {
+hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin, hw_gpio_t *tx_pin,
+                           hw_gpio_t *rx_pin, hw_gpio_t *cs_pin,
+                           uint32_t baud_rate, const hw_spi_config_t *config) {
   sys_debugf("hw", "spi_init: index=%u baud=%u", index, baud_rate);
   if (index >= hw_spi_count() || sck_pin == NULL || tx_pin == NULL ||
       rx_pin == NULL || baud_rate == 0) {
     return NULL;
   }
 
-  hw_spi_config_t settings =
-      config != NULL ? *config
-                     : (hw_spi_config_t){.cs_active_low = true,
-                                         .mode = hw_spi_mode_0,
-                                         .bits_per_word = 8};
+  hw_spi_config_t settings = config != NULL
+                                 ? *config
+                                 : (hw_spi_config_t){.cs_active_low = true,
+                                                     .mode = hw_spi_mode_0,
+                                                     .bits_per_word = 8};
   if (settings.bits_per_word == 0) {
     return NULL;
   }
@@ -357,7 +330,7 @@ hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin,
   spi_init(instance, baud_rate);
   spi_set_format(instance, settings.bits_per_word, cpol, cpha, SPI_MSB_FIRST);
 
-  hw_deviceio_t *device = _hw_deviceio_alloc_handle(&_hw_spi_ops);
+  hw_deviceio_t *device = _hw_deviceio_alloc_handle(&_hw_spi_ops, hw_deviceio_spi);
   if (device == NULL) {
     spi_deinit(instance);
     return NULL;

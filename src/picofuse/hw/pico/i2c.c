@@ -12,13 +12,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// Per-adapter (i2c0/i2c1) shared state - a bus, not a device. Multiple
-// hw_deviceio_t handles (one per device address) can share the same bus,
-// so `refcount` tracks how many are currently open: the bus (and any pins
-// hw_i2c_init_default() claimed for it) is only released once the last one
-// closes, and `lock` serializes transfers between them, since neither the
-// SDK's i2c_*_blocking() calls nor the peripheral's shared FIFO are safe
-// to interleave across concurrent callers.
+// Per-adapter (i2c0/i2c1) shared state
 typedef struct hw_i2c_bus_t {
   i2c_inst_t *instance;
   hw_gpio_t *sda_pin;
@@ -28,16 +22,14 @@ typedef struct hw_i2c_bus_t {
   bool owns_pins;
 } hw_i2c_bus_t;
 
-// Per-device context - lives in each hw_deviceio_t's own embedded scratch
-// buffer (see _hw_deviceio_context()) rather than a separate pool of our
-// own alongside it.
+// Per-device context
 typedef struct hw_i2c_ctx_t {
   hw_i2c_bus_t *bus;
   uint8_t addr;
 } hw_i2c_ctx_t;
 
 static_assert(sizeof(hw_i2c_ctx_t) <= HW_DEVICEIO_CONTEXT_SIZE,
-             "hw_i2c_ctx_t too large for hw_deviceio_t's embedded context");
+              "hw_i2c_ctx_t too large for hw_deviceio_t's embedded context");
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -68,6 +60,7 @@ static inline bool _hw_i2c_pin_matches(const hw_gpio_t *pin, uint8_t index,
   return (pin_num & 0x3u) == (uint8_t)(index * 2u + signal_offset);
 }
 
+/** @brief Wrapper around i2c_write_blocking() and i2c_write_timeout_us()  */
 static inline int _hw_i2c_write(i2c_inst_t *instance, uint8_t addr,
                                 const uint8_t *data, size_t len, bool nostop,
                                 uint32_t timeout_ms) {
@@ -78,6 +71,7 @@ static inline int _hw_i2c_write(i2c_inst_t *instance, uint8_t addr,
                               timeout_ms * 1000u);
 }
 
+/** @brief Wrapper around i2c_read_blocking() and i2c_read_timeout_us() */
 static inline int _hw_i2c_read(i2c_inst_t *instance, uint8_t addr,
                                uint8_t *data, size_t len, bool nostop,
                                uint32_t timeout_ms) {
@@ -88,8 +82,17 @@ static inline int _hw_i2c_read(i2c_inst_t *instance, uint8_t addr,
                              timeout_ms * 1000u);
 }
 
+/** @brief True if `device` was constructed by one of hw_i2c_init*() -
+ * needed by I2C-specific functions that take an hw_deviceio_t* directly
+ * (hw_i2c_detect()) rather than going through hw_deviceio_*()'s own
+ * dispatch, since those don't otherwise check which backend actually
+ * owns the handle before reinterpreting its embedded context. */
+static inline bool _hw_i2c_valid(const hw_deviceio_t *device) {
+  return device != NULL && _hw_deviceio_ops(device) == &_hw_i2c_ops;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
+// PRIVATE METHODS - OPS
 
 static size_t _hw_i2c_ops_xfr(hw_deviceio_t *device, void *data, size_t tx,
                               size_t rx, uint32_t timeout_ms) {
@@ -218,15 +221,6 @@ static const hw_deviceio_ops_t _hw_i2c_ops = {
     .deinit = _hw_i2c_ops_deinit,
 };
 
-/** @brief True if `device` was constructed by one of hw_i2c_init*() -
- * needed by I2C-specific functions that take an hw_deviceio_t* directly
- * (hw_i2c_detect()) rather than going through hw_deviceio_*()'s own
- * dispatch, since those don't otherwise check which backend actually
- * owns the handle before reinterpreting its embedded context. */
-static inline bool _hw_i2c_valid(const hw_deviceio_t *device) {
-  return device != NULL && _hw_deviceio_ops(device) == &_hw_i2c_ops;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -329,7 +323,7 @@ hw_deviceio_t *hw_i2c_init(uint8_t index, uint8_t addr, hw_gpio_t *sda_pin,
   // _hw_deviceio_alloc_handle() takes the same lock internally for its
   // own pool - must not be called while still holding it above, or the
   // (non-reentrant) critical section would deadlock against itself.
-  hw_deviceio_t *device = _hw_deviceio_alloc_handle(&_hw_i2c_ops);
+  hw_deviceio_t *device = _hw_deviceio_alloc_handle(&_hw_i2c_ops, hw_deviceio_i2c);
   if (device != NULL) {
     hw_i2c_ctx_t *ctx = _hw_deviceio_context(device);
     ctx->bus = bus;
@@ -374,7 +368,8 @@ bool hw_i2c_detect(hw_deviceio_t *device, uint8_t addr) {
   }
 
   probe = 0;
-  bool detected = _hw_i2c_write(bus->instance, addr, &probe, 1, false, 100) == 1;
+  bool detected =
+      _hw_i2c_write(bus->instance, addr, &probe, 1, false, 100) == 1;
   mutex_exit(&bus->lock);
   return detected;
 }
