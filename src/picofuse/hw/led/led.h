@@ -1,5 +1,5 @@
 #pragma once
-#include <picofuse/hw/led.h>
+#include <picofuse/hw.h>
 #include <stdbool.h>
 #include <stdint.h>
 
