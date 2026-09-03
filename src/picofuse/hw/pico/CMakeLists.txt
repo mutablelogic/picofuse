@@ -8,6 +8,7 @@ picofuse_library(
         gpio.c
         i2c.c
         init.c
+        pwm.c
         spi.c
         ../deviceio/deviceio.c
 )

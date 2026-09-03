@@ -144,8 +144,42 @@ size_t _sys_sprintf_putch(struct sys_printf_state *state, char ch) {
   return 0;     // Return 0 so main loop doesn't double-increment
 }
 
+/**
+ * @def SYS_FPRINTF_RETRY_TIMEOUT_MS
+ * @brief How long _sys_fprintf_putch() retries a stalled write before
+ * giving up on it. See sys/pico/puts.c's SYS_PUTS_RETRY_TIMEOUT_MS for why
+ * a bound is needed at all - not every stream is guaranteed to drain on
+ * its own (e.g. RTT with no debug host attached).
+ */
+#ifndef SYS_FPRINTF_RETRY_TIMEOUT_MS
+#define SYS_FPRINTF_RETRY_TIMEOUT_MS 250
+#endif
+
 size_t _sys_fprintf_putch(struct sys_printf_state *state, char ch) {
-  return sys_iostream_write(state->stream, &ch, 1);
+  // sys_iostream_write() documents a short (including zero) write as a
+  // valid outcome - e.g. src/picofuse/sys/pico/stdio_uart.c's ring buffer
+  // returns 0 once full, relying on its IRQ handler to drain it as the
+  // real UART FIFO empties. A single fire-and-forget call here silently
+  // dropped output whenever a backend's buffer filled mid-printf - retry
+  // until the byte is actually accepted instead. Interrupts stay enabled
+  // during this (printf only holds its own mutex, not a critical
+  // section), so the drain this is waiting on can still run.
+  //
+  // A NULL stream is the one case sys_iostream_write() documents as
+  // permanently returning 0 rather than "not yet" - guard it explicitly
+  // so that case still no-ops instead of spinning forever. Other backends
+  // aren't guaranteed to make progress either (see SYS_FPRINTF_RETRY_TIMEOUT_MS),
+  // so the retry is bounded by elapsed time rather than unconditional.
+  if (state->stream == NULL) {
+    return 0;
+  }
+  uint64_t deadline_ms = sys_timestamp_ms() + SYS_FPRINTF_RETRY_TIMEOUT_MS;
+  while (sys_iostream_write(state->stream, &ch, 1) == 0) {
+    if (sys_timestamp_ms() >= deadline_ms) {
+      return 0; // give up - stream isn't draining
+    }
+  }
+  return 1;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
