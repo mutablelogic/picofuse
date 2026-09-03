@@ -33,6 +33,7 @@
  */
 struct hw_deviceio_t {
   const hw_deviceio_ops_t *ops;
+  hw_deviceio_bus_t bus;
   _Alignas(max_align_t) uint8_t context[HW_DEVICEIO_CONTEXT_SIZE];
 };
 
@@ -73,7 +74,8 @@ static inline hw_deviceio_t *_hw_deviceio_alloc(void) {
   return NULL;
 }
 
-hw_deviceio_t *_hw_deviceio_alloc_handle(const hw_deviceio_ops_t *ops) {
+hw_deviceio_t *_hw_deviceio_alloc_handle(const hw_deviceio_ops_t *ops,
+                                         hw_deviceio_bus_t bus) {
   if (ops == NULL) {
     return NULL;
   }
@@ -82,6 +84,7 @@ hw_deviceio_t *_hw_deviceio_alloc_handle(const hw_deviceio_ops_t *ops) {
   hw_deviceio_t *device = _hw_deviceio_alloc();
   if (device != NULL) {
     memset(device->context, 0, sizeof(device->context));
+    device->bus = bus;
     device->ops = ops;
   }
   _HW_DEVICEIO_UNLOCK();
@@ -98,6 +101,10 @@ const hw_deviceio_ops_t *_hw_deviceio_ops(const hw_deviceio_t *device) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+hw_deviceio_bus_t hw_deviceio_bus(const hw_deviceio_t *device) {
+  return _hw_deviceio_valid(device) ? device->bus : hw_deviceio_i2c;
+}
 
 void hw_deviceio_deinit(hw_deviceio_t *device) {
   if (!_hw_deviceio_valid(device)) {

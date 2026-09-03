@@ -47,6 +47,15 @@
  */
 typedef struct hw_deviceio_t hw_deviceio_t;
 
+/**
+ * @brief Which bus backs a device I/O handle.
+ * @ingroup DeviceIO
+ */
+typedef enum {
+  hw_deviceio_i2c,
+  hw_deviceio_spi,
+} hw_deviceio_bus_t;
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -64,6 +73,23 @@ typedef struct hw_deviceio_t hw_deviceio_t;
  * Safe to call on NULL.
  */
 void hw_deviceio_deinit(hw_deviceio_t *device);
+
+/** @} */
+
+///////////////////////////////////////////////////////////////////////////////
+// PROPERTIES
+
+/** @name Properties
+ * @{ */
+
+/**
+ * @brief Get which bus backs a device I/O handle.
+ * @ingroup DeviceIO
+ * @param device Device handle.
+ * @return The bus `device` was constructed against, or `hw_deviceio_i2c` if
+ * `device` is invalid.
+ */
+hw_deviceio_bus_t hw_deviceio_bus(const hw_deviceio_t *device);
 
 /** @} */
 
