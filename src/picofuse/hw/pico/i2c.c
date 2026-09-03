@@ -82,15 +82,6 @@ static inline int _hw_i2c_read(i2c_inst_t *instance, uint8_t addr,
                              timeout_ms * 1000u);
 }
 
-/** @brief True if `device` was constructed by one of hw_i2c_init*() -
- * needed by I2C-specific functions that take an hw_deviceio_t* directly
- * (hw_i2c_detect()) rather than going through hw_deviceio_*()'s own
- * dispatch, since those don't otherwise check which backend actually
- * owns the handle before reinterpreting its embedded context. */
-static inline bool _hw_i2c_valid(const hw_deviceio_t *device) {
-  return device != NULL && _hw_deviceio_ops(device) == &_hw_i2c_ops;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - OPS
 
@@ -220,6 +211,15 @@ static const hw_deviceio_ops_t _hw_i2c_ops = {
     .write_reg = _hw_i2c_ops_write_reg,
     .deinit = _hw_i2c_ops_deinit,
 };
+
+/** @brief True if `device` was constructed by one of hw_i2c_init*() -
+ * needed by I2C-specific functions that take an hw_deviceio_t* directly
+ * (hw_i2c_detect()) rather than going through hw_deviceio_*()'s own
+ * dispatch, since those don't otherwise check which backend actually
+ * owns the handle before reinterpreting its embedded context. */
+static inline bool _hw_i2c_valid(const hw_deviceio_t *device) {
+  return device != NULL && _hw_deviceio_ops(device) == &_hw_i2c_ops;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE

@@ -124,7 +124,7 @@ function(picofuse_executable)
     endforeach()
 endfunction()
 
-# picofuse_test(<target> [TESTRUNNER_TIMEOUT <seconds>] <source> ...)
+# picofuse_test(<target> [TESTRUNNER_TIMEOUT <seconds>] [LIBRARIES <lib> ...] <source> ...)
 #
 # Builds a picofuse system test and registers it with CTest. <source> paths
 # are relative to the calling CMakeLists.txt's directory (CMAKE_CURRENT_SOURCE_DIR),
@@ -135,12 +135,21 @@ endfunction()
 # PICO_BOARD builds only - ignored on host, which runs the test binary
 # directly with no such wait) for a test whose own body genuinely needs
 # longer, rather than the default being too short because something hung.
+#
+# LIBRARIES links additional picofuse_library() targets alongside the
+# always-linked picofuse-sys - e.g. LIBRARIES picofuse-hw for a test that
+# uses hw's API directly, or LIBRARIES picofuse-hw picofuse-dev for one
+# exercising a driver module built on hw_deviceio_t. Most sys_* tests need
+# nothing here; anything touching <picofuse/hw.h> needs picofuse-hw named
+# explicitly - it's no longer pulled in by default. Put LIBRARIES after
+# the source file(s) in the call, since it's a multi-value keyword that
+# would otherwise swallow them.
 function(picofuse_test NAME)
     if(NOT NAME)
         message(FATAL_ERROR "picofuse_test: target name is required")
     endif()
 
-    cmake_parse_arguments(_ARG "" "TESTRUNNER_TIMEOUT" "" ${ARGN})
+    cmake_parse_arguments(_ARG "" "TESTRUNNER_TIMEOUT" "LIBRARIES" ${ARGN})
     if(NOT _ARG_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "picofuse_test: at least one source file is required")
     endif()
@@ -150,15 +159,14 @@ function(picofuse_test NAME)
         list(APPEND _sources "${CMAKE_CURRENT_SOURCE_DIR}/${_source}")
     endforeach()
 
+    # LIBRARIES here is additional to picofuse-sys (always linked, below) -
+    # see the LIBRARIES doc above.
     picofuse_executable(
         NAME ${NAME}
-        LIBRARIES picofuse-hw
+        LIBRARIES picofuse-sys ${_ARG_LIBRARIES}
         SOURCES ${_sources}
     )
     target_include_directories(${NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
-
-    # picofuse-hw already depends on picofuse-sys, so it supplies both the
-    # system and hardware APIs without linking picofuse-sys twice.
 
     if(DEFINED PICO_BOARD)
         # A pico .elf can't run directly on the (host) machine driving

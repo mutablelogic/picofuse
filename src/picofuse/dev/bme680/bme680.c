@@ -108,6 +108,33 @@ static uint8_t _dev_bme680_default_os(uint8_t os) {
   return os > BME680_OS_MAX ? 1u : os;
 }
 
+// Bosch's documented profile-duration formula (BME680 datasheet /
+// reference driver's bme680_get_profile_dur()): each oversampling step
+// doubles the ADC's conversion cycles, scaled by fixed per-cycle and
+// TPH/gas switching constants (all in microseconds). The gas heater
+// doesn't run concurrently with the TPH conversion, so its configured
+// duration is added on top rather than overlapped.
+static uint32_t _dev_bme680_measurement_duration_ms(
+    const dev_bme680_config_t *config) {
+  static const uint16_t os_to_meas_cycles[6] = {0, 1, 2, 4, 8, 16};
+
+  uint32_t cycles =
+      (uint32_t)os_to_meas_cycles[_dev_bme680_default_os(config->os_temp)] +
+      (uint32_t)os_to_meas_cycles[_dev_bme680_default_os(config->os_press)] +
+      (uint32_t)os_to_meas_cycles[_dev_bme680_default_os(config->os_hum)];
+
+  uint32_t tph_dur_us = cycles * 1963u;
+  tph_dur_us += 477u * 4u; // TPH switching duration
+  tph_dur_us += 477u * 5u; // gas measurement switching duration
+  tph_dur_us += 500u;      // round to the nearest millisecond
+
+  uint32_t duration_ms = (tph_dur_us / 1000u) + 1u; // +1ms wake-up
+  if (config->gas_mode == dev_bme680_gas_enabled) {
+    duration_ms += (uint32_t)config->heater_duration_ms;
+  }
+  return duration_ms;
+}
+
 static uint8_t _dev_bme680_clamp_filter(uint8_t filter) {
   return filter > BME680_FILTER_MAX ? 0u : filter;
 }
@@ -502,6 +529,15 @@ uint8_t dev_bme680_chip_id(const dev_bme680_t *bme680) {
   return bme680 != NULL ? bme680->chip_id : 0;
 }
 
+uint32_t dev_bme680_measurement_duration_ms(const dev_bme680_config_t *config) {
+  dev_bme680_config_t defaults;
+  if (config == NULL) {
+    dev_bme680_default_config(&defaults);
+    config = &defaults;
+  }
+  return _dev_bme680_measurement_duration_ms(config);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
 
@@ -523,9 +559,20 @@ bool dev_bme680_read(dev_bme680_t *bme680, dev_bme680_data_t *data) {
     return false;
   }
 
+  // Poll until the configured measurement should be done, plus a fixed
+  // margin for scheduling jitter/ADC tolerance - rather than a fixed
+  // retry budget that's either wasteful for a fast (low-oversampling, no
+  // gas heater) profile or, worse, too short for a slow one (max
+  // oversampling on all three plus a long heater duration comfortably
+  // exceeds what a fixed budget tuned for the defaults would allow).
+  uint32_t max_wait_ms =
+      _dev_bme680_measurement_duration_ms(&bme680->config) +
+      BME680_MEAS_POLL_MARGIN_MS;
+
   uint8_t field[BME680_LEN_FIELD] = {0};
   bool got_new_data = false;
-  for (uint8_t attempt = 0; attempt < BME680_MEAS_RETRY_COUNT; ++attempt) {
+  for (uint32_t waited_ms = 0; waited_ms < max_wait_ms;
+       waited_ms += BME680_MEAS_POLL_MS) {
     sys_sleep_ms(BME680_MEAS_POLL_MS);
 
     if (!_dev_bme680_read_registers(bme680, DEV_BME680_REG_FIELD0, field,

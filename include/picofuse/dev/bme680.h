@@ -299,6 +299,23 @@ void dev_bme680_deinit(dev_bme680_t *bme680);
  */
 uint8_t dev_bme680_chip_id(const dev_bme680_t *bme680);
 
+/**
+ * @brief Calculate how long a measurement takes to complete for a given
+ * configuration.
+ * @ingroup BME680
+ * @param config Configuration to calculate for. Pass NULL to use defaults.
+ * @return Expected measurement duration in milliseconds.
+ *
+ * Oversampling settings determine the temperature/pressure/humidity
+ * conversion time; when `config->gas_mode` is `dev_bme680_gas_enabled`,
+ * `config->heater_duration_ms` is added on top, since the gas heater and
+ * the TPH conversion don't run concurrently. dev_bme680_read() already
+ * accounts for this internally when polling for a result - this is for a
+ * caller that wants to know the figure itself (e.g. to pick a sensible
+ * polling interval elsewhere).
+ */
+uint32_t dev_bme680_measurement_duration_ms(const dev_bme680_config_t *config);
+
 /** @} */
 
 ///////////////////////////////////////////////////////////////////////////////
