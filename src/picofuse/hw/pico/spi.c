@@ -330,7 +330,7 @@ hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin, hw_gpio_t *tx_pin,
   spi_init(instance, baud_rate);
   spi_set_format(instance, settings.bits_per_word, cpol, cpha, SPI_MSB_FIRST);
 
-  hw_deviceio_t *device = _hw_deviceio_alloc_handle(&_hw_spi_ops);
+  hw_deviceio_t *device = _hw_deviceio_alloc_handle(&_hw_spi_ops, hw_deviceio_spi);
   if (device == NULL) {
     spi_deinit(instance);
     return NULL;

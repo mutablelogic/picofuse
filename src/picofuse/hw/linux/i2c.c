@@ -219,7 +219,7 @@ hw_deviceio_t *hw_i2c_init_device(const char *device, uint8_t addr) {
     return NULL;
   }
 
-  hw_deviceio_t *handle = _hw_deviceio_alloc_handle(&_hw_i2c_ops);
+  hw_deviceio_t *handle = _hw_deviceio_alloc_handle(&_hw_i2c_ops, hw_deviceio_i2c);
   if (handle == NULL) {
     sys_mutex_deinit(lock);
     close(fd);

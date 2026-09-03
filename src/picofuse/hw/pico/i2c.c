@@ -323,7 +323,7 @@ hw_deviceio_t *hw_i2c_init(uint8_t index, uint8_t addr, hw_gpio_t *sda_pin,
   // _hw_deviceio_alloc_handle() takes the same lock internally for its
   // own pool - must not be called while still holding it above, or the
   // (non-reentrant) critical section would deadlock against itself.
-  hw_deviceio_t *device = _hw_deviceio_alloc_handle(&_hw_i2c_ops);
+  hw_deviceio_t *device = _hw_deviceio_alloc_handle(&_hw_i2c_ops, hw_deviceio_i2c);
   if (device != NULL) {
     hw_i2c_ctx_t *ctx = _hw_deviceio_context(device);
     ctx->bus = bus;
