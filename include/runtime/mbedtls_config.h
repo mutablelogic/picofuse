@@ -1,7 +1,6 @@
 #pragma once
 #include <limits.h>
 #include <picofuse/sys.h>
-#include <runtime/mbedtls.h>
 
 #define MBEDTLS_NO_PLATFORM_ENTROPY
 #define MBEDTLS_ENTROPY_HARDWARE_ALT
@@ -9,8 +8,8 @@
 #define MBEDTLS_PLATFORM_MEMORY
 #define MBEDTLS_PLATFORM_MS_TIME_ALT
 #define MBEDTLS_PLATFORM_PRINTF_MACRO sys_printf
-#define MBEDTLS_PLATFORM_CALLOC_MACRO sys_mbedtls_calloc
-#define MBEDTLS_PLATFORM_FREE_MACRO sys_mbedtls_free
+#define MBEDTLS_PLATFORM_CALLOC_MACRO sys_calloc
+#define MBEDTLS_PLATFORM_FREE_MACRO sys_free
 #define MBEDTLS_MD5_C
 #define MBEDTLS_SHA256_C
 

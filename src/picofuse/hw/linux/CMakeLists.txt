@@ -8,6 +8,13 @@ picofuse_library(
         spi.c
         ../deviceio/deviceio.c
         ../gpio/gpio.c
+        ../led/led.c
+        ../led/led_gpio.c
+        ../led/led_pwm.c
+        ../led/led_wifi.c
+        ../led/led_default.c
+        ../led/led_neopixel.c
+        led_device.c
         ../stub/adc.c
 )
 

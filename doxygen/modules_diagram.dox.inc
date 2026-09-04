@@ -34,6 +34,7 @@ digraph modules {
   GPIO        [label="GPIO",                     URL="\ref GPIO"];
   ADC         [label="ADC",                      URL="\ref ADC"];
   PWM         [label="PWM",                      URL="\ref PWM"];
+  LED         [label="LED",                      URL="\ref LED"];
   DeviceIO    [label="Device I/O",               URL="\ref DeviceIO"];
   SPI         [label="SPI",                      URL="\ref SPI"];
   I2C         [label="I2C",                      URL="\ref I2C"];
@@ -68,6 +69,7 @@ digraph modules {
   Hardware -> GPIO;
   Hardware -> ADC;
   Hardware -> PWM;
+  Hardware -> LED;
   Hardware -> DeviceIO;
   DeviceIO -> SPI;
   DeviceIO -> I2C;
