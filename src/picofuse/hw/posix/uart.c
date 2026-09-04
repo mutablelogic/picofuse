@@ -25,8 +25,8 @@
 typedef struct {
   int fd;
   volatile bool running; // clear to ask the background thread to exit
-  sys_waitgroup_t *wg;    // signaled by the thread just before it exits
-  sys_mutex_t *lock;      // guards everything below, shared with the thread
+  sys_waitgroup_t *wg;   // signaled by the thread just before it exits
+  sys_mutex_t *lock;     // guards everything below, shared with the thread
   sys_iostream_t *stream;
   // sys_iostream_peek() reads one byte then calls seek(s, -1, false) to
   // undo it (iostream.h's own contract) - last_byte is whatever read()
@@ -147,7 +147,7 @@ static bool _hw_uart_apply_format(struct termios *tio,
 
   switch (settings->parity) {
   case hw_uart_parity_none:
-    tio->c_cflag &= (tcflag_t)~(PARENB | PARODD);
+    tio->c_cflag &= (tcflag_t) ~(PARENB | PARODD);
     break;
   case hw_uart_parity_even:
     tio->c_cflag |= PARENB;
@@ -191,7 +191,7 @@ static void _hw_uart_rx_thread(void *arg) {
         continue;
       }
       sys_debugf("hw", "uart_init_device: poll error on fd=%d, stopping",
-                ctx->fd);
+                 ctx->fd);
       break;
     }
     if (res == 0) {
@@ -200,10 +200,19 @@ static void _hw_uart_rx_thread(void *arg) {
 
     char buf[64];
     ssize_t got = read(ctx->fd, buf, sizeof(buf));
-    if (got <= 0) {
-      sys_debugf("hw", "uart_init_device: read returned %d on fd=%d, "
-                       "stopping (disconnected?)",
-                (int)got, ctx->fd);
+    if (got < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      sys_debugf("hw", "uart_init_device: read error on fd=%d, stopping",
+                 ctx->fd);
+      break;
+    }
+    if (got == 0) {
+      sys_debugf("hw",
+                 "uart_init_device: read EOF on fd=%d, stopping "
+                 "(disconnected?)",
+                 ctx->fd);
       break;
     }
 
@@ -213,12 +222,18 @@ static void _hw_uart_rx_thread(void *arg) {
       ctx->rx_write = (ctx->rx_write + 1) % HW_UART_BUFFER_SIZE;
       ctx->rx_count++;
     }
+    // Snapshot callback/userdata together under the same lock that
+    // _hw_uart_ops_set_callback() writes them under, so this thread never
+    // sees a mismatched pair - then call out to user code only after
+    // releasing the lock, since a callback that itself touches ctx->lock
+    // (via sys_iostream_read() on this same stream, say) would otherwise
+    // deadlock.
+    sys_iostream_callback_t callback = ctx->stream->backend.uart.callback;
+    void *userdata = ctx->stream->backend.uart.userdata;
     sys_mutex_unlock(ctx->lock);
 
-    sys_iostream_callback_t callback = ctx->stream->backend.uart.callback;
     if (callback != NULL) {
-      callback(ctx->stream, sys_iostream_event_read,
-               ctx->stream->backend.uart.userdata);
+      callback(ctx->stream, sys_iostream_event_read, userdata);
     }
   }
 
@@ -254,8 +269,7 @@ static size_t _hw_uart_ops_read(sys_iostream_t *s, char *buf, size_t n) {
 // since a POSIX serial write essentially never has to wait for "room"
 // (the kernel's own output buffer absorbs it) - see hw_uart_init_device()'s
 // own doc.
-static size_t _hw_uart_ops_write(sys_iostream_t *s, const char *buf,
-                                 size_t n) {
+static size_t _hw_uart_ops_write(sys_iostream_t *s, const char *buf, size_t n) {
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)s->backend.uart.instance;
   ssize_t written = write(ctx->fd, buf, n);
   return written > 0 ? (size_t)written : 0;
@@ -285,8 +299,11 @@ static ptrdiff_t _hw_uart_ops_seek(sys_iostream_t *s, ptrdiff_t offset,
 static bool _hw_uart_ops_set_callback(sys_iostream_t *s,
                                       sys_iostream_callback_t callback,
                                       void *userdata) {
-  s->backend.uart.callback = callback;
+  _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)s->backend.uart.instance;
+  sys_mutex_lock(ctx->lock);
   s->backend.uart.userdata = userdata;
+  s->backend.uart.callback = callback;
+  sys_mutex_unlock(ctx->lock);
   return true;
 }
 
@@ -317,9 +334,10 @@ static const sys_iostream_ops_t _hw_uart_ops = {
 sys_iostream_t *hw_uart_init(const hw_gpio_t *rx_pin, const hw_gpio_t *tx_pin,
                              uint32_t baud_rate,
                              const hw_uart_config_t *config) {
-  sys_debugf("hw", "uart_init: unsupported on this target (rx=%p tx=%p "
-                   "baud=%u config=%p)",
-            (void *)rx_pin, (void *)tx_pin, baud_rate, (void *)config);
+  sys_debugf("hw",
+             "uart_init: unsupported on this target (rx=%p tx=%p "
+             "baud=%u config=%p)",
+             (void *)rx_pin, (void *)tx_pin, baud_rate, (void *)config);
   (void)rx_pin;
   (void)tx_pin;
   (void)baud_rate;
@@ -355,13 +373,11 @@ sys_iostream_t *hw_uart_init_device(const char *device, uint32_t baud_rate,
     return NULL;
   }
   cfmakeraw(&tio); // no line discipline processing - just bytes
-  cfsetspeed(&tio, speed);
-  if (!_hw_uart_apply_format(&tio, &settings)) {
+  if (cfsetspeed(&tio, speed) != 0 || !_hw_uart_apply_format(&tio, &settings)) {
     close(fd);
     return NULL;
   }
-  tcflush(fd, TCIOFLUSH);
-  if (tcsetattr(fd, TCSANOW, &tio) != 0) {
+  if (tcflush(fd, TCIOFLUSH) != 0 || tcsetattr(fd, TCSANOW, &tio) != 0) {
     close(fd);
     return NULL;
   }
@@ -403,9 +419,9 @@ sys_iostream_t *hw_uart_init_device(const char *device, uint32_t baud_rate,
   sys_waitgroup_add(ctx->wg, 1);
   if (!sys_thread_create(_hw_uart_rx_thread, ctx)) {
     ctx->running = false;
-    sys_waitgroup_add(ctx->wg, -1); // undo - the thread never started
-    stream->in_use = false;         // release the pool slot directly -
-                                     // ops.close() would double-free ctx
+    sys_waitgroup_done(ctx->wg);
+    stream->in_use = false; // release the pool slot directly -
+                            // ops.close() would double-free ctx
     sys_mutex_deinit(ctx->lock);
     sys_waitgroup_deinit(ctx->wg);
     close(fd);

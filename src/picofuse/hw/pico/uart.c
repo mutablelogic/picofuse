@@ -17,7 +17,7 @@
 // TYPES
 
 // Per-instance (uart0/uart1) state, one slot each - a UART has exactly one
-// owner at a time, unlike I2C's shared-bus model.
+// owner at a time.
 typedef struct {
   uart_inst_t *instance;
   irq_handler_t irq_handler;
@@ -32,11 +32,6 @@ typedef struct {
   // pushback for the next read() to return again before touching the FIFO.
   int last_byte;
   int pushback;
-  // Software ring buffers, background-drained by a real interrupt - see
-  // hw_uart_init()'s own doc for why: the hardware's own FIFOs can't
-  // raise their fill-level interrupts reliably on this chip, so
-  // hw_uart_init() runs in character mode (1 byte of hardware buffering)
-  // and these make up the difference. Unused entirely when unbuffered.
   char tx_buf[HW_UART_BUFFER_SIZE];
   size_t tx_read, tx_write, tx_count;
   char rx_buf[HW_UART_BUFFER_SIZE];
@@ -147,7 +142,7 @@ static void _hw_uart_tx_drain(_hw_uart_ctx_t *ctx) {
 
 static inline bool _hw_uart_tx_idle(const _hw_uart_ctx_t *ctx) {
   return ctx->tx_count == 0 &&
-        (uart_get_hw(ctx->instance)->fr & UART_UARTFR_BUSY_BITS) == 0;
+         (uart_get_hw(ctx->instance)->fr & UART_UARTFR_BUSY_BITS) == 0;
 }
 
 /** @brief Recomputes which UART interrupts this instance needs and
@@ -215,8 +210,7 @@ static size_t _hw_uart_ops_read(sys_iostream_t *s, char *buf, size_t n) {
   return read;
 }
 
-static size_t _hw_uart_ops_write(sys_iostream_t *s, const char *buf,
-                                 size_t n) {
+static size_t _hw_uart_ops_write(sys_iostream_t *s, const char *buf, size_t n) {
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)s->backend.uart.instance;
 
   if (ctx->unbuffered) {
@@ -261,8 +255,12 @@ static bool _hw_uart_ops_set_callback(sys_iostream_t *s,
                                       sys_iostream_callback_t callback,
                                       void *userdata) {
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)s->backend.uart.instance;
-  s->backend.uart.callback = callback;
+
+  uint32_t irq_state = save_and_disable_interrupts();
   s->backend.uart.userdata = userdata;
+  s->backend.uart.callback = callback;
+  restore_interrupts(irq_state);
+
   _hw_uart_update_irqs(ctx);
   return true;
 }
@@ -411,9 +409,10 @@ sys_iostream_t *hw_uart_init(const hw_gpio_t *rx_pin, const hw_gpio_t *tx_pin,
  * path - see hw_uart_init(). */
 sys_iostream_t *hw_uart_init_device(const char *device, uint32_t baud_rate,
                                     const hw_uart_config_t *config) {
-  sys_debugf("hw", "uart_init_device: unsupported on this target "
-                   "(device=%s baud=%u config=%p)",
-            device != NULL ? device : "(null)", baud_rate, (void *)config);
+  sys_debugf("hw",
+             "uart_init_device: unsupported on this target "
+             "(device=%s baud=%u config=%p)",
+             device != NULL ? device : "(null)", baud_rate, (void *)config);
   (void)device;
   (void)baud_rate;
   (void)config;
@@ -457,7 +456,7 @@ static void _hw_uart_irq_handler(_hw_uart_ctx_t *ctx) {
     clear_mask |= UART_UARTICR_RXIC_BITS | UART_UARTICR_RTIC_BITS;
     if (!ctx->unbuffered) {
       while (uart_is_readable(ctx->instance) &&
-            ctx->rx_count < HW_UART_BUFFER_SIZE) {
+             ctx->rx_count < HW_UART_BUFFER_SIZE) {
         ctx->rx_buf[ctx->rx_write] = (char)uart_get_hw(ctx->instance)->dr;
         ctx->rx_write = (ctx->rx_write + 1) % HW_UART_BUFFER_SIZE;
         ctx->rx_count++;
