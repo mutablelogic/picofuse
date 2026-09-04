@@ -19,6 +19,7 @@ picofuse_library(
         init.c
         pwm.c
         spi.c
+        uart.c
         ../deviceio/deviceio.c
         ../led/led.c
         ../led/led_gpio.c
