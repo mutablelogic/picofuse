@@ -150,13 +150,16 @@ void hw_led_deinit(hw_led_t *led);
  * @{ */
 
 /**
- * @brief Return the default board LED control pin.
+ * @brief Return the default board LED's control pin.
  * @ingroup LED
  * @param out_type Optional destination for detected LED type.
  * @param out_count Optional destination for LED count. Defaults to 1 for
  * available LEDs, or 0 when no default LED is available.
- * @return The default board LED control pin, or @ref HW_LED_GPIO_NONE when no
- * default on-board LED is available.
+ * @return The default board LED's control pin, or @ref HW_LED_GPIO_NONE
+ * when no default on-board LED is available. For @ref hw_led_type_wifi,
+ * this is a CYW43 Wi-Fi-chip GPIO index (e.g. `CYW43_WL_GPIO_LED_PIN`),
+ * not an RP2040 board pin - it isn't valid to pass to hw_gpio_init() or
+ * any other GPIO API, only to hw_led_init_wifi()'s own internals.
  */
 uint8_t hw_led_gpio_default(hw_led_type_t *out_type, uint8_t *out_count);
 

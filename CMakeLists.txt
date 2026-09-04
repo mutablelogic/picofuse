@@ -49,8 +49,17 @@ if(DEFINED PICO_BOARD)
         pico_thread_local
         pico_stdio_rtt
     )
+
+    option(PICOFUSE_WIFI "Enable full Wi-Fi networking (lwIP) on CYW43-capable boards, instead of GPIO-only access" OFF)
+    option(PICOFUSE_USB "Enable picofuse's own USB support" OFF)
+    option(PICOFUSE_BLUETOOTH "Enable picofuse's own Bluetooth support" OFF)
+
     if(PICO_CYW43_SUPPORTED)
-        list(APPEND _picosdk_targets pico_cyw43_arch_lwip_poll)
+        if(PICOFUSE_WIFI)
+            list(APPEND _picosdk_targets pico_cyw43_arch_lwip_poll)
+        else()
+            list(APPEND _picosdk_targets pico_cyw43_arch_none)
+        endif()
         add_compile_definitions(PICO_CYW43_SUPPORTED=1)
     endif()
 

@@ -210,12 +210,19 @@ hw_led_t *hw_led_init_device(const char *name) {
   // Take exclusive manual control - a kernel trigger (e.g. "mmc0", the
   // common Raspberry Pi ACT LED default) would otherwise keep overriding
   // brightness writes made through this handle. Saved first so deinit can
-  // put it back.
+  // put it back - and if anything below fails, so this LED isn't left
+  // permanently switched to manual control by a call that itself failed.
   char *saved_trigger = _hw_led_device_read_trigger(dir);
-  _hw_led_device_write_str(dir, "trigger", "none");
+  if (!_hw_led_device_write_str(dir, "trigger", "none")) {
+    sys_free(saved_trigger);
+    return NULL;
+  }
 
   char *owned_dir = sys_calloc(1, n + 1);
   if (owned_dir == NULL) {
+    if (saved_trigger != NULL) {
+      _hw_led_device_write_str(dir, "trigger", saved_trigger);
+    }
     sys_free(saved_trigger);
     return NULL;
   }
@@ -223,6 +230,9 @@ hw_led_t *hw_led_init_device(const char *name) {
 
   hw_led_t *led = _hw_led_alloc(&_hw_led_device_ops);
   if (led == NULL) {
+    if (saved_trigger != NULL) {
+      _hw_led_device_write_str(dir, "trigger", saved_trigger);
+    }
     sys_free(owned_dir);
     sys_free(saved_trigger);
     return NULL;
