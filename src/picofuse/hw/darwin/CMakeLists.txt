@@ -30,9 +30,6 @@ target_link_libraries(picofuse-hw PRIVATE picofuse-sys)
 if(PICOFUSE_WIFI)
     target_link_libraries(picofuse-hw PRIVATE
         "-framework CoreWLAN" "-framework Foundation")
-
-    # wifi.m is the only Objective-C file in the project - ARC keeps its
-    # CoreWLAN/Foundation object lifetimes (CWInterface, NSString, ...)
-    # correct without manual retain/release.
     set_source_files_properties(wifi.m PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_compile_definitions(picofuse-hw PRIVATE PICOFUSE_WIFI=1)
 endif()
