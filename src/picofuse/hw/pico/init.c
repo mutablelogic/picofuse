@@ -6,6 +6,11 @@
 #include <pico/cyw43_arch.h>
 #endif
 
+#ifdef PICOFUSE_WIFI
+// Defined in wifi.c.
+extern void _hw_wifi_poll(void);
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -37,5 +42,8 @@ void hw_exit(void) {
 void hw_poll(void) {
 #if PICO_CYW43_SUPPORTED
   cyw43_arch_poll();
+#endif
+#ifdef PICOFUSE_WIFI
+  _hw_wifi_poll();
 #endif
 }

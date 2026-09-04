@@ -14,6 +14,17 @@ endif()
 
 project(picofuse C CXX ASM)
 
+# Gates each platform's real hw_wifi_* backend (see hw/wifi.h) - the stub
+# (always returns NULL/false) is used when OFF. On Pico/CYW43-capable
+# boards this also selects full lwIP networking over GPIO-only CYW43
+# access (see PICO_CYW43_SUPPORTED below).
+option(PICOFUSE_WIFI "Enable real Wi-Fi networking backends" OFF)
+
+if(APPLE AND PICOFUSE_WIFI)
+    # CoreWLAN (hw/darwin/wifi.m) is Objective-C only.
+    enable_language(OBJC)
+endif()
+
 # Logic if building for a Pico board
 if(DEFINED PICO_BOARD)
     pico_sdk_init()
@@ -50,13 +61,17 @@ if(DEFINED PICO_BOARD)
         pico_stdio_rtt
     )
 
-    option(PICOFUSE_WIFI "Enable full Wi-Fi networking (lwIP) on CYW43-capable boards, instead of GPIO-only access" OFF)
     option(PICOFUSE_USB "Enable picofuse's own USB support" OFF)
     option(PICOFUSE_BLUETOOTH "Enable picofuse's own Bluetooth support" OFF)
 
     if(PICO_CYW43_SUPPORTED)
         if(PICOFUSE_WIFI)
             list(APPEND _picosdk_targets pico_cyw43_arch_lwip_poll)
+            # hw/pico/wifi.c (compiled instead of the stub only when both
+            # PICOFUSE_WIFI and PICO_CYW43_SUPPORTED hold - see its own
+            # CMakeLists.txt) exposes _hw_wifi_poll() for init.c's
+            # hw_poll() to call; this define lets init.c see it's there.
+            add_compile_definitions(PICOFUSE_WIFI=1)
         else()
             list(APPEND _picosdk_targets pico_cyw43_arch_none)
         endif()

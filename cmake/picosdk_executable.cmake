@@ -117,6 +117,18 @@ function(picofuse_executable)
         target_link_libraries(${_ARG_NAME} PRIVATE pico_binary_info_headers)
     else()
         target_link_libraries(${_ARG_NAME} PRIVATE ${_static_libs})
+
+        # @todo On Darwin, some APIs (CoreWLAN scanning/association - see
+        # hw/darwin/wifi.m) refuse to work at all for a bare Mach-O
+        # executable: TCC's Location Services consent is keyed to a bundle
+        # identifier from an Info.plist inside a real .app bundle, which a
+        # plain binary has none of - confirmed even ad-hoc codesigning the
+        # binary doesn't help. To exercise those paths for real,
+        # picofuse_executable() would need an option to wrap ${_ARG_NAME}
+        # in a minimal .app bundle (Info.plist with the right
+        # NSLocation*UsageDescription keys, codesigned) instead of emitting
+        # a plain executable. Deferred - most executables (all Pico/Linux
+        # ones, and Darwin ones that don't touch gated APIs) don't need it.
     endif()
 
     foreach(_HDR IN LISTS _ARG_HEADERS)

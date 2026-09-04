@@ -525,7 +525,7 @@ picofuse_test(sys_098
 )
 
 # NULL-safety across the whole event queue API: a NULL queue never crashes
-# and always reports a safe sentinel, and NULL is rejected as an event.
+# and always reports a safe value, and NULL is rejected as an event.
 picofuse_test(sys_099
 	sys_099/main.c
 )

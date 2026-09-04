@@ -11,8 +11,10 @@ test_main_sys(0) {
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     test_assert(stream != NULL);
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL,
-         .type = sys_env_arg_type_bool, .value = "false"},
+        {.long_name = "verbose",
+         .short_name = NULL,
+         .type = sys_env_arg_type_bool,
+         .value = "false"},
         {0},
     };
     test_assert(!sys_env_arg_usage(NULL, stream));
@@ -27,14 +29,15 @@ test_main_sys(0) {
     char buf[64];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "name", .short_name = "n",
-         .type = sys_env_arg_type_string, .value = "bob"},
+        {.long_name = "name",
+         .short_name = "n",
+         .type = sys_env_arg_type_string,
+         .value = "bob"},
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
     test_assert(
-        sys_string_compare(buf, "  --name, -n <string> (default: bob)\n") ==
-        0);
+        sys_string_compare(buf, "  --name, -n <string> (default: bob)\n") == 0);
     sys_iostream_close(stream);
   }
 
@@ -46,13 +49,15 @@ test_main_sys(0) {
     char buf[64];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "name", .short_name = NULL,
-         .type = sys_env_arg_type_string, .value = "default"},
+        {.long_name = "name",
+         .short_name = NULL,
+         .type = sys_env_arg_type_string,
+         .value = "default"},
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
-    test_assert(sys_string_compare(
-                    buf, "  --name <string> (default: default)\n") == 0);
+    test_assert(
+        sys_string_compare(buf, "  --name <string> (default: default)\n") == 0);
     sys_iostream_close(stream);
   }
 
@@ -66,7 +71,9 @@ test_main_sys(0) {
     char buf[64];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "count", .short_name = NULL, .type = sys_env_arg_type_int,
+        {.long_name = "count",
+         .short_name = NULL,
+         .type = sys_env_arg_type_int,
          .value = NULL},
         {0},
     };
@@ -78,7 +85,9 @@ test_main_sys(0) {
     char buf[64];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "count", .short_name = "c", .type = sys_env_arg_type_int,
+        {.long_name = "count",
+         .short_name = "c",
+         .type = sys_env_arg_type_int,
          .value = NULL},
         {0},
     };
@@ -99,8 +108,10 @@ test_main_sys(0) {
     char buf[64];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = "v",
-         .type = sys_env_arg_type_bool, .value = "false"},
+        {.long_name = "verbose",
+         .short_name = "v",
+         .type = sys_env_arg_type_bool,
+         .value = "false"},
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
@@ -112,22 +123,25 @@ test_main_sys(0) {
     char buf[96];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = "v",
-         .type = sys_env_arg_type_bool, .value = "true"},
+        {.long_name = "verbose",
+         .short_name = "v",
+         .type = sys_env_arg_type_bool,
+         .value = "true"},
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
-    test_assert(sys_string_compare(buf,
-                                    "  --verbose, -v <bool> (default: "
-                                    "true, negate: --no-verbose)\n") == 0);
+    test_assert(sys_string_compare(buf, "  --verbose, -v <bool> (default: "
+                                        "true, negate: --no-verbose)\n") == 0);
     sys_iostream_close(stream);
   }
   {
     char buf[64];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = NULL,
-         .type = sys_env_arg_type_bool, .value = NULL}, // no default
+        {.long_name = "verbose",
+         .short_name = NULL,
+         .type = sys_env_arg_type_bool,
+         .value = NULL}, // no default
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
@@ -146,32 +160,41 @@ test_main_sys(0) {
     char buf[256];
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = "v",
-         .type = sys_env_arg_type_bool, .value = "true"},
-        {.long_name = "name", .short_name = NULL,
-         .type = sys_env_arg_type_string, .value = "default"},
-        {.long_name = "count", .short_name = "c", .type = sys_env_arg_type_int,
+        {.long_name = "verbose",
+         .short_name = "v",
+         .type = sys_env_arg_type_bool,
+         .value = "true"},
+        {.long_name = "name",
+         .short_name = NULL,
+         .type = sys_env_arg_type_string,
+         .value = "default"},
+        {.long_name = "count",
+         .short_name = "c",
+         .type = sys_env_arg_type_int,
          .value = "0"},
-        {.long_name = "limit", .short_name = NULL, .type = sys_env_arg_type_uint,
+        {.long_name = "limit",
+         .short_name = NULL,
+         .type = sys_env_arg_type_uint,
          .value = "10"},
-        {.long_name = "ratio", .short_name = NULL, .type = sys_env_arg_type_float,
+        {.long_name = "ratio",
+         .short_name = NULL,
+         .type = sys_env_arg_type_float,
          .value = "1.0"},
         {0},
     };
     test_assert(sys_env_arg_usage(flags, stream));
-    test_assert(
-        sys_string_compare(
-            buf, "  --verbose, -v <bool> (default: true, negate: "
-                 "--no-verbose)\n"
-                 "  --name <string> (default: default)\n"
-                 "  --count, -c <int> (default: 0)\n"
-                 "  --limit <uint> (default: 10)\n"
-                 "  --ratio <float> (default: 1.0)\n") == 0);
+    test_assert(sys_string_compare(
+                    buf, "  --verbose, -v <bool> (default: true, negate: "
+                         "--no-verbose)\n"
+                         "  --name <string> (default: default)\n"
+                         "  --count, -c <int> (default: 0)\n"
+                         "  --limit <uint> (default: 10)\n"
+                         "  --ratio <float> (default: 1.0)\n") == 0);
     sys_iostream_close(stream);
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // An empty flags array (just the sentinel) writes nothing and still
+  // An empty flags array (just the value) writes nothing and still
   // succeeds.
 
   {
@@ -191,12 +214,13 @@ test_main_sys(0) {
     char buf[8]; // far too small for a real usage line
     sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
     sys_env_arg_flag_t flags[] = {
-        {.long_name = "verbose", .short_name = "v",
-         .type = sys_env_arg_type_bool, .value = "false"},
+        {.long_name = "verbose",
+         .short_name = "v",
+         .type = sys_env_arg_type_bool,
+         .value = "false"},
         {0},
     };
     test_assert(!sys_env_arg_usage(flags, stream));
     sys_iostream_close(stream);
   }
-
 }

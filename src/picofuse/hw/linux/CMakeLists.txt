@@ -16,6 +16,11 @@ picofuse_library(
         ../led/led_neopixel.c
         led_device.c
         ../stub/adc.c
+        # @todo No real Linux hw_wifi_* backend yet (wpa_supplicant control
+        # socket - see hw_wifi_init_device()'s doc) to gate behind
+        # PICOFUSE_WIFI, unlike darwin/CMakeLists.txt's wifi.m. Always the
+        # stub for now.
+        ../stub/wifi.c
 )
 
 target_include_directories(picofuse-hw PRIVATE ${CMAKE_SOURCE_DIR}/include)

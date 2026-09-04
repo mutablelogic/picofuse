@@ -1,7 +1,7 @@
 /**
  * @file pix.h
  * @brief Pixel graphics library.
- * @defgroup Pixel Pixel
+ * @defgroup Pixel Pixels
  * @ingroup Picofuse
  *
  * The Pixel module provides shared types and drawing primitives for

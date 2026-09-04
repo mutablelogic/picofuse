@@ -244,6 +244,15 @@ hw_deviceio_t *hw_spi_init_default(uint32_t baud_rate,
              PICO_DEFAULT_SPI, PICO_DEFAULT_SPI_SCK_PIN,
              PICO_DEFAULT_SPI_TX_PIN, PICO_DEFAULT_SPI_RX_PIN, baud_rate);
 
+  // A prior device at this index must be torn down first, releasing its
+  // GPIO claims
+  _sys_sync_pool_lock();
+  hw_deviceio_t *stale_device = _hw_spi_owner[PICO_DEFAULT_SPI];
+  _sys_sync_pool_unlock();
+  if (stale_device != NULL) {
+    hw_deviceio_deinit(stale_device);
+  }
+
   hw_gpio_t *sck_pin = hw_gpio_init(0, PICO_DEFAULT_SPI_SCK_PIN, hw_gpio_spi);
   if (sck_pin == NULL) {
     return NULL;
@@ -330,7 +339,8 @@ hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin, hw_gpio_t *tx_pin,
   spi_init(instance, baud_rate);
   spi_set_format(instance, settings.bits_per_word, cpol, cpha, SPI_MSB_FIRST);
 
-  hw_deviceio_t *device = _hw_deviceio_alloc_handle(&_hw_spi_ops, hw_deviceio_spi);
+  hw_deviceio_t *device =
+      _hw_deviceio_alloc_handle(&_hw_spi_ops, hw_deviceio_spi);
   if (device == NULL) {
     spi_deinit(instance);
     return NULL;
