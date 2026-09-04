@@ -16,11 +16,21 @@
  * hw_gpio_t only ever sees this via _hw_gpio_context(). One of these exists
  * per (bank, pin) for the process's entire lifetime (see _hw_gpio_lines
  * below), so a pointer to it is safe to hand to epoll directly:
- * hw_gpio_deinit() only ever resets fd to -1, it never frees the slot. */
+ * hw_gpio_deinit() only ever resets fd to -1, it never frees the slot.
+ *
+ * claimed tracks whether a live hw_gpio_t currently wraps this (bank,
+ * pin) - separate from fd, since fd stays -1 for a handle constructed
+ * with mode hw_gpio_none (no line actually requested from the kernel
+ * yet). Without it, hw_gpio_init() had no way to reject a second call on
+ * a pin some other still-open handle already owns - the second call
+ * would just re-request the kernel line, or with mode none, construct a
+ * second wrapper around the same ctx with no line request at all - either
+ * way silently invalidating the first handle instead of being rejected. */
 typedef struct _hw_gpio_ctx_t {
   int fd;
   uint8_t bank;
   uint8_t pin;
+  bool claimed;
 } _hw_gpio_ctx_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -167,6 +177,10 @@ static void _hw_gpio_deinit(hw_gpio_t *gpio) {
     return;
   }
   _hw_gpio_release_line(ctx->bank, ctx->pin);
+
+  sys_mutex_lock(_hw_gpio_mutex);
+  ctx->claimed = false;
+  sys_mutex_unlock(_hw_gpio_mutex);
 }
 
 static const hw_gpio_ops_t _hw_gpio_ops = {
@@ -187,16 +201,44 @@ hw_gpio_t *hw_gpio_init(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode) {
     sys_debugf("hw", "gpio_init: invalid bank=%u or pin=%u", bank, pin);
     return NULL;
   }
+
+  // Fail here rather than only once a real line is requested - with mode
+  // hw_gpio_none, _hw_gpio_request() never touches the kernel at all, so
+  // without this check a chip-less environment (e.g. a container with no
+  // /dev/gpiochipN passthrough) would still hand back a "successful"
+  // handle whose get()/set() then silently do nothing.
+  if (_hw_gpio_open_chip(bank) < 0) {
+    sys_debugf("hw", "gpio_init: no gpiochip for bank=%u", bank);
+    return NULL;
+  }
   sys_debugf("hw", "gpio_init: bank=%u pin=%u mode=%u", bank, pin, mode);
 
+  _hw_gpio_ctx_t *ctx = &_hw_gpio_lines[bank][pin];
+
+  // A second hw_gpio_init() on a pin some other still-open handle already
+  // owns is rejected rather than silently stealing it - see the
+  // ctx->claimed field comment for why this can't just check fd.
+  sys_mutex_lock(_hw_gpio_mutex);
+  if (ctx->claimed) {
+    sys_mutex_unlock(_hw_gpio_mutex);
+    return NULL;
+  }
+  ctx->claimed = true;
+  sys_mutex_unlock(_hw_gpio_mutex);
+
   if (mode != hw_gpio_none && !_hw_gpio_request(bank, pin, mode)) {
+    sys_mutex_lock(_hw_gpio_mutex);
+    ctx->claimed = false;
+    sys_mutex_unlock(_hw_gpio_mutex);
     return NULL;
   }
 
-  _hw_gpio_ctx_t *ctx = &_hw_gpio_lines[bank][pin];
   hw_gpio_t *gpio = _hw_gpio_construct(&_hw_gpio_ops, ctx);
   if (gpio == NULL) {
     _hw_gpio_release_line(bank, pin);
+    sys_mutex_lock(_hw_gpio_mutex);
+    ctx->claimed = false;
+    sys_mutex_unlock(_hw_gpio_mutex);
     return NULL;
   }
   return gpio;
