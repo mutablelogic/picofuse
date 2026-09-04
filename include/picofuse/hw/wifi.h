@@ -6,8 +6,10 @@
  *
  * Wi-Fi network management interface.
  *
- * A handle operates in one of two mutually exclusive modes, fixed at
- * initialization and never switched at runtime:
+ * A handle operates in one of two mutually exclusive modes, chosen by
+ * which init function created it and fixed for that handle's lifetime -
+ * there's no way to switch an existing handle from one mode to the other,
+ * only to hw_wifi_deinit() it and init a new one in the other mode:
  * - Station mode (hw_wifi_init_client(), hw_wifi_init_device()): the device
  *   discovers and joins someone else's network. hw_wifi_scan(),
  *   hw_wifi_connect() and hw_wifi_disconnect() are asynchronous and call
@@ -214,8 +216,13 @@ hw_wifi_t *hw_wifi_init_device(const char *device, hw_wifi_callback_t callback,
  * @ingroup WiFi
  * @param wifi Wi-Fi handle.
  *
- * Safe to call on NULL. Aborts any in-progress connection, disconnection or
- * scan first.
+ * Safe to call on NULL. Requests that any in-progress connection,
+ * disconnection or scan stop first, but whether that request can actually
+ * interrupt an operation already under way is backend-dependent - some
+ * backends have no way to cancel a scan/connect once started (see
+ * hw_wifi_disconnect()'s own doc), in which case a callback for the old
+ * operation may still arrive after this call returns, referencing a
+ * handle that's already been released.
  */
 void hw_wifi_deinit(hw_wifi_t *wifi);
 
@@ -281,8 +288,13 @@ bool hw_wifi_connect(hw_wifi_t *wifi, const hw_wifi_network_t *network,
  * @retval false Handle is invalid, is an access-point handle, or not
  * currently connected, connecting or scanning.
  *
- * Initiates a disconnect from the current network, or aborts an in-progress
- * connection attempt or scan. This function returns immediately.
+ * Initiates a disconnect from the current network, or requests that an
+ * in-progress connection attempt or scan stop. This function returns
+ * immediately, but whether an in-progress operation can actually be
+ * interrupted is backend-dependent - some backends have no cancellation
+ * mechanism for a scan/connect already under way, in which case it runs
+ * to completion regardless and still delivers its own callback for
+ * whatever it was doing when this was called.
  *
  * A handle from hw_wifi_init_accesspoint() always fails here - there is no
  * "current network" for an access point to leave. Use hw_wifi_deinit() to
