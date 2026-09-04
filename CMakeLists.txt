@@ -24,6 +24,7 @@ if(DEFINED PICO_BOARD)
         hardware_dma
         hardware_gpio
         hardware_i2c
+        hardware_pio
         hardware_pwm
         hardware_spi
         hardware_uart

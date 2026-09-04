@@ -28,6 +28,18 @@
 #define HW_LED_POOL_CAPACITY 8u
 #endif
 
+/**
+ * @brief Size in bytes of the per-handle scratch context space embedded in
+ * every hw_led_t, for a backend's own private per-LED state (a GPIO or PWM
+ * handle pointer, a NeoPixel chain's length/buffer, ...).
+ * @ingroup LED
+ *
+ * Override by defining `HW_LED_CONTEXT_SIZE` at compile time.
+ */
+#ifndef HW_LED_CONTEXT_SIZE
+#define HW_LED_CONTEXT_SIZE 32
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
