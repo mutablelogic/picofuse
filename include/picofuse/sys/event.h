@@ -15,7 +15,7 @@
  * contract in each subsystem. The queue itself only stores and forwards
  * pointers.
  *
- * `NULL` is reserved as a sentinel return value for empty/timeout/shutdown
+ * `NULL` is reserved as a return value for empty/timeout/shutdown
  * conditions, so valid posted events must always be non-NULL.
  */
 

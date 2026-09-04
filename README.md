@@ -39,9 +39,9 @@ block-beta
 * `sys`: [System-level functions.](https://mutablelogic.github.io/picofuse/group__System.html)
 * `hw` : [Hardware for peripherals such as GPIO, I2C, SPI, etc.](https://mutablelogic.github.io/picofuse/group__Hardware.html)
 * `dev` : [Device implementation for specific components.](<https://mutablelogic.github.io/picofuse/group__Device.html>)
-* `net`: Network stack for TCP/IP communication.
+* `pix`: [Graphics library for drawing on displays.](https://mutablelogic.github.io/picofuse/group__Pixel.html)
 * `fs` : Filesystem abstraction for persistent storage.
-* `pix`: Graphics library for drawing on displays.
+* `net`: Network stack for TCP/IP communication.
 * `wav`: Audio library for playing and recording sound.
 * `hid`: Human Interface Device library for handling input devices, such as keyboards, button and mice, plus sensor readings.
 * `app`: Application framework for event-driven programming.

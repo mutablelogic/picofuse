@@ -14,6 +14,15 @@ endif()
 
 project(picofuse C CXX ASM)
 
+option(PICOFUSE_WIFI "Enable real Wi-Fi networking backends" OFF)
+option(PICOFUSE_USB "Enable picofuse's own USB support" OFF)
+option(PICOFUSE_BLUETOOTH "Enable picofuse's own Bluetooth support" OFF)
+
+if(APPLE AND PICOFUSE_WIFI)
+    # CoreWLAN (hw/darwin/wifi.m) is Objective-C only.
+    enable_language(OBJC)
+endif()
+
 # Logic if building for a Pico board
 if(DEFINED PICO_BOARD)
     pico_sdk_init()
@@ -50,13 +59,15 @@ if(DEFINED PICO_BOARD)
         pico_stdio_rtt
     )
 
-    option(PICOFUSE_WIFI "Enable full Wi-Fi networking (lwIP) on CYW43-capable boards, instead of GPIO-only access" OFF)
-    option(PICOFUSE_USB "Enable picofuse's own USB support" OFF)
-    option(PICOFUSE_BLUETOOTH "Enable picofuse's own Bluetooth support" OFF)
 
     if(PICO_CYW43_SUPPORTED)
         if(PICOFUSE_WIFI)
             list(APPEND _picosdk_targets pico_cyw43_arch_lwip_poll)
+            # hw/pico/wifi.c (compiled instead of the stub only when both
+            # PICOFUSE_WIFI and PICO_CYW43_SUPPORTED hold - see its own
+            # CMakeLists.txt) exposes _hw_wifi_poll() for init.c's
+            # hw_poll() to call; this define lets init.c see it's there.
+            add_compile_definitions(PICOFUSE_WIFI=1)
         else()
             list(APPEND _picosdk_targets pico_cyw43_arch_none)
         endif()
@@ -86,16 +97,18 @@ if(DEFINED PICO_BOARD)
     picofuse_add_pico_sdk_libs_target(pico_sdk_libs)
     target_include_directories(picosdk_static PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/include
-        # lwipopts.h and mbedtls_config.h are in
-        # include/runtime itself must be on the search path.
-        ${CMAKE_CURRENT_LIST_DIR}/include/runtime
+        # mbedtls_config.h and lwipopts.h are both found via a bare
+        # #include from vendored SDK headers, so include/runtime/pico
+        # (where every Pico-only runtime config header lives) must be on
+        # the search path.
+        ${CMAKE_CURRENT_LIST_DIR}/include/runtime/pico
     )
 
     if(PICO_CYW43_SUPPORTED)
         # printf support for cyw43: force-include a header that redirects
         # CYW43_PRINTF to sys_debugf()
         target_compile_options(picosdk_static PRIVATE
-            "$<$<COMPILE_LANGUAGE:C>:SHELL:-include ${CMAKE_CURRENT_LIST_DIR}/include/runtime/cyw43_debug.h>"
+            "$<$<COMPILE_LANGUAGE:C>:SHELL:-include ${CMAKE_CURRENT_LIST_DIR}/include/runtime/pico/cyw43_debug.h>"
         )
     endif()
 endif()

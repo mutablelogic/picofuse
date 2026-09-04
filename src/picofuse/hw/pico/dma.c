@@ -108,7 +108,8 @@ static hw_dma_fifo_t *_hw_dma_fifo_alloc(void *buf) {
 static void _hw_dma_fifo_irq_handler(void) {
   for (size_t i = 0; i < HW_DMA_FIFO_CAPACITY; i++) {
     hw_dma_fifo_t *dma = &_hw_dma_fifo_pool[i];
-    if (dma->buf == NULL || !dma_channel_get_irq0_status((uint)dma->data_chan)) {
+    if (dma->buf == NULL ||
+        !dma_channel_get_irq0_status((uint)dma->data_chan)) {
       continue;
     }
     dma_channel_acknowledge_irq0((uint)dma->data_chan);
@@ -139,8 +140,9 @@ static void _hw_dma_fifo_irq_handler(void) {
     // wrong locations without ever retriggering the data channel.
     dma->report_next = (filled + 1) % dma->partitions;
     size_t arm = (filled + 2) % dma->partitions;
-    dma->staging.write_addr = (uint32_t)(uintptr_t)(
-        dma->buf + arm * dma->samples * dma->sample_bytes);
+    dma->staging.write_addr =
+        (uint32_t)(uintptr_t)(dma->buf +
+                              arm * dma->samples * dma->sample_bytes);
     dma_channel_set_read_addr((uint)dma->ctrl_chan, &dma->staging, false);
     dma_channel_set_write_addr(
         (uint)dma->ctrl_chan,
@@ -153,8 +155,8 @@ static void _hw_dma_fifo_irq_handler(void) {
 // PUBLIC METHODS
 
 hw_dma_fifo_t *hw_dma_fifo_init(const volatile void *fifo_addr, uint dreq,
-                                hw_dma_fifo_size_t data_size,
-                                void *buf, size_t samples, size_t partitions,
+                                hw_dma_fifo_size_t data_size, void *buf,
+                                size_t samples, size_t partitions,
                                 hw_dma_fifo_callback_t callback,
                                 void *userdata) {
   dma_channel_transfer_size_t sdk_data_size;
@@ -287,7 +289,7 @@ void hw_dma_fifo_deinit(hw_dma_fifo_t *dma) {
   // whatever it was already mid-cycle doing) retriggers it right back,
   // and dma_channel_abort()'s busy-wait can spin forever chasing a
   // channel that keeps getting reborn. Breaking data_chan's own chain_to
-  // (self-reference is the hardware's documented "no chaining" sentinel)
+  // (self-reference is the hardware's documented "no chaining" value)
   // first removes that possibility entirely, regardless of either
   // channel's timing.
   hw_write_masked(&dma_channel_hw_addr(dma->data_chan)->al1_ctrl,
