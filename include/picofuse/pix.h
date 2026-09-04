@@ -8,4 +8,5 @@
  * software framebuffers and display-backed surfaces.
  */
 #pragma once
+#include "pix/color.h"
 #include "pix/types.h"
