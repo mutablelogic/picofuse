@@ -662,6 +662,16 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
+# hw_led_* against the board's default on-board LED (GPIO/PWM/Wi-Fi/
+# NeoPixel, whichever it resolves to) - exits cleanly if none is available,
+# see hw_011/main.c.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_011
+		hw_011/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
+
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
 # or SPI - see the detection order/reasoning in dev_bme680/main.c.
 if(DEFINED PICO_BOARD)

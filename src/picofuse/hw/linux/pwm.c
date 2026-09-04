@@ -2,8 +2,6 @@
 #include <picofuse/sys.h>
 
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -57,7 +55,7 @@ static bool _hw_pwm_path_exists(const char *path) {
 static bool _hw_pwm_write_str(const char *dir, const char *file,
                               const char *value) {
   char path[PWM_ATTR_PATH_MAX];
-  snprintf(path, sizeof(path), "%s/%s", dir, file);
+  sys_sprintf(path, sizeof(path), "%s/%s", dir, file);
 
   int fd = open(path, O_WRONLY);
   if (fd < 0) {
@@ -73,14 +71,14 @@ static bool _hw_pwm_write_str(const char *dir, const char *file,
 static bool _hw_pwm_write_u64(const char *dir, const char *file,
                               uint64_t value) {
   char buf[32];
-  snprintf(buf, sizeof(buf), "%llu", (unsigned long long)value);
+  sys_sprintf(buf, sizeof(buf), "%lu", value);
   return _hw_pwm_write_str(dir, file, buf);
 }
 
 static bool _hw_pwm_read_u64(const char *dir, const char *file,
                              uint64_t *out) {
   char path[PWM_ATTR_PATH_MAX];
-  snprintf(path, sizeof(path), "%s/%s", dir, file);
+  sys_sprintf(path, sizeof(path), "%s/%s", dir, file);
 
   int fd = open(path, O_RDONLY);
   if (fd < 0) {
@@ -94,8 +92,13 @@ static bool _hw_pwm_read_u64(const char *dir, const char *file,
     return false;
   }
 
-  *out = strtoull(buf, NULL, 10);
-  return true;
+  // sys_string_parse_uint64() requires the string to contain exactly one
+  // number and nothing else, but a sysfs read always ends in a trailing
+  // '\n' - trim it (and a stray '\r', just in case) before parsing.
+  while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) {
+    n--;
+  }
+  return sys_string_parse_uint64(buf, (size_t)n, out);
 }
 
 static inline bool _hw_pwm_write_enabled(const char *dir, bool enabled) {
@@ -191,7 +194,7 @@ hw_pwm_t *hw_pwm_init_device(const char *device, uint8_t channel,
   }
 
   char channel_path[PWM_DEVICE_PATH_MAX];
-  snprintf(channel_path, sizeof(channel_path), "%s/pwm%u", device, channel);
+  sys_sprintf(channel_path, sizeof(channel_path), "%s/pwm%u", device, channel);
 
   bool already_exported = _hw_pwm_path_exists(channel_path);
   if (!_hw_pwm_export(device, channel, channel_path)) {
@@ -215,8 +218,8 @@ hw_pwm_t *hw_pwm_init_device(const char *device, uint8_t channel,
     return NULL;
   }
 
-  snprintf(pwm->device, sizeof(pwm->device), "%s", channel_path);
-  snprintf(pwm->chip_dir, sizeof(pwm->chip_dir), "%s", device);
+  sys_sprintf(pwm->device, sizeof(pwm->device), "%s", channel_path);
+  sys_sprintf(pwm->chip_dir, sizeof(pwm->chip_dir), "%s", device);
   pwm->channel = channel;
   pwm->exported_by_us = !already_exported;
 

@@ -42,11 +42,20 @@ _Static_assert(sizeof(_hw_led_neopixel_ctx_t) <= HW_LED_CONTEXT_SIZE,
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// pix_color_t is 0xRRGGBBAA - WS2812 wants each pixel on the wire as GRB,
-// alpha unused.
+// pix_color_t is 0xRRGGBBAA - WS2812 wants each pixel on the wire as GRB.
+// Alpha doubles as this pixel's own brightness scale (see
+// hw_led_set_brightness()) rather than the usual compositing alpha, since
+// there's no "background" to blend against on a physical LED.
+static inline uint8_t _hw_led_neopixel_scale(uint8_t channel, uint8_t alpha) {
+  return (uint8_t)(((uint16_t)channel * alpha) / 255u);
+}
+
 static inline uint32_t _hw_led_neopixel_pack_color(pix_color_t color) {
-  return ((uint32_t)pix_color_g(color) << 16) |
-        ((uint32_t)pix_color_r(color) << 8) | pix_color_b(color);
+  uint8_t alpha = pix_color_a(color);
+  uint8_t r = _hw_led_neopixel_scale(pix_color_r(color), alpha);
+  uint8_t g = _hw_led_neopixel_scale(pix_color_g(color), alpha);
+  uint8_t b = _hw_led_neopixel_scale(pix_color_b(color), alpha);
+  return ((uint32_t)g << 16) | ((uint32_t)r << 8) | b;
 }
 
 // Shifts the whole chain's current pixel buffer out over PIO - every
@@ -93,6 +102,27 @@ static bool _hw_led_neopixel_set(hw_led_t *led, uint8_t index, bool enabled) {
   return _hw_led_neopixel_flush(ctx);
 }
 
+// Leaves R/G/B untouched and only replaces the alpha (brightness) byte, so
+// this composes with _set()'s color independently of whatever brightness
+// was last set for this index.
+static bool _hw_led_neopixel_set_brightness(hw_led_t *led, uint8_t index,
+                                            float percent) {
+  _hw_led_neopixel_ctx_t *ctx = _hw_led_context(led);
+  if (index >= ctx->led_count) {
+    return false;
+  }
+
+  if (percent < 0.0f) {
+    percent = 0.0f;
+  } else if (percent > 100.0f) {
+    percent = 100.0f;
+  }
+  uint8_t alpha = (uint8_t)(percent / 100.0f * 255.0f);
+
+  ctx->pixels[index] = (ctx->pixels[index] & 0xFFFFFF00u) | alpha;
+  return _hw_led_neopixel_flush(ctx);
+}
+
 // Unlike _set(), which only ever touches one index, hw_led_clear() turns
 // off every LED in the chain (see the public API doc).
 static bool _hw_led_neopixel_clear(hw_led_t *led) {
@@ -111,6 +141,7 @@ static void _hw_led_neopixel_deinit(hw_led_t *led) {
 
 static const hw_led_ops_t _hw_led_neopixel_ops = {
     .set = _hw_led_neopixel_set,
+    .set_brightness = _hw_led_neopixel_set_brightness,
     .clear = _hw_led_neopixel_clear,
     .deinit = _hw_led_neopixel_deinit,
 };

@@ -9,6 +9,7 @@ picofuse_library(
         ../led/led_wifi.c
         ../led/led_default.c
         ../led/led_neopixel.c
+        ../led/led_device.c
         ../stub/adc.c
         ../stub/gpio.c
         ../stub/i2c.c
