@@ -16,3 +16,4 @@
 #include "hw/led.h"
 #include "hw/pwm.h"
 #include "hw/spi.h"
+#include "hw/wifi.h"
