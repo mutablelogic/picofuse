@@ -69,5 +69,5 @@ target_include_directories(picofuse-sys PRIVATE
     # hash.c pulls in mbedtls headers, which locate mbedtls_config.h via a
     # bare filename #include - see the matching comment in the top-level
     # CMakeLists.txt.
-    ${CMAKE_SOURCE_DIR}/include/runtime
+    ${CMAKE_SOURCE_DIR}/include/runtime/pico
 )

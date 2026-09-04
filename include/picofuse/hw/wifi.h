@@ -15,8 +15,10 @@
  * - Access-point mode (hw_wifi_init_accesspoint()): the device broadcasts
  *   its own network for others to join. hw_wifi_scan(), hw_wifi_connect()
  *   and hw_wifi_disconnect() are unavailable in this mode - see their own
- *   documentation - and the callback instead reports stations joining and
- *   leaving. hw_wifi_deinit() stops broadcasting.
+ *   documentation. There's no callback here at all: backends have no way
+ *   to report individual stations joining or leaving (see
+ *   hw_wifi_init_accesspoint()'s own doc), so there's nothing to notify.
+ *   hw_wifi_deinit() stops broadcasting.
  *
  * When connecting (station mode only), the callback will be invoked with
  * the current status of the connection attempt, including any relevant
@@ -167,11 +169,6 @@ hw_wifi_t *hw_wifi_init_client(const char *country_code,
  * @param auth Authentication mode the access point requires. This selects
  * exactly one mode, unlike hw_wifi_network_t's own auth field, which
  * reports every mode a scanned network advertises support for.
- * @param callback Callback to notify progress/status of the access point
- * (must not be NULL). hw_wifi_event_connected/hw_wifi_event_disconnected
- * report a station joining/leaving the access point, not this device's
- * own connection state.
- * @param userdata User-defined data pointer forwarded to @p callback.
  * @return Wi-Fi handle, or NULL when unsupported, @p ssid/@p auth are
  * invalid, or another handle is already live (see hw_wifi_t).
  *
@@ -180,12 +177,18 @@ hw_wifi_t *hw_wifi_init_client(const char *country_code,
  * connecting to an existing network. Supported only where the backend's
  * radio can run in AP mode (the CYW43 chip on Pico W/2W boards); NULL
  * elsewhere.
+ *
+ * There's no callback parameter: unlike station mode, backends have no
+ * way to report individual stations joining or leaving an access point
+ * (confirmed on Pico - the CYW43 driver's own low-level per-station
+ * association event handling for AP mode isn't wired up, and attempting
+ * to read the AP's aggregate link status from the polling loop was found
+ * to reliably deadlock the driver on real hardware). The access point
+ * itself stays up silently from here until hw_wifi_deinit().
  */
 hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
                                     const char *ssid, const char *password,
-                                    hw_wifi_auth_t auth,
-                                    hw_wifi_callback_t callback,
-                                    void *userdata);
+                                    hw_wifi_auth_t auth);
 
 /**
  * @brief Initialize Wi-Fi from a WPA supplicant device.

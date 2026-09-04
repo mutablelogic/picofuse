@@ -273,9 +273,7 @@ hw_wifi_t *hw_wifi_init_client(const char *country_code,
 
 hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
                                     const char *ssid, const char *password,
-                                    hw_wifi_auth_t auth,
-                                    hw_wifi_callback_t callback,
-                                    void *userdata) {
+                                    hw_wifi_auth_t auth) {
   // CoreWLAN's only host-a-network API is IBSS (ad-hoc) mode, via
   // -startIBSSModeWithSSID:security:channel:password:error: - deprecated in
   // macOS 11 and unsupported by modern Wi-Fi hardware/drivers. There is no
@@ -285,8 +283,6 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
   (void)ssid;
   (void)password;
   (void)auth;
-  (void)callback;
-  (void)userdata;
   return NULL;
 }
 
