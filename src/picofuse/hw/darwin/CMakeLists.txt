@@ -3,6 +3,13 @@ picofuse_library(
     SOURCES
         init.c
         ../deviceio/deviceio.c
+        ../led/led.c
+        ../led/led_gpio.c
+        ../led/led_pwm.c
+        ../led/led_wifi.c
+        ../led/led_default.c
+        ../led/led_neopixel.c
+        ../led/led_device.c
         ../stub/adc.c
         ../stub/gpio.c
         ../stub/i2c.c

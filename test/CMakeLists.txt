@@ -662,6 +662,53 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
+# hw_led_* against the board's default on-board LED (GPIO/PWM/Wi-Fi/
+# NeoPixel, whichever it resolves to) - exits cleanly if none is available,
+# see hw_011/main.c.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_011
+		hw_011/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
+
+# hw_led_init_gpio() against a single GPIO pin - no LED needs to be
+# attached, see hw_012/main.c. Skips on Darwin (stub GPIO backend).
+if(NOT APPLE)
+	picofuse_test(hw_012
+		hw_012/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
+
+# hw_led_init_pwm() against a single PWM channel - no LED needs to be
+# attached, see hw_013/main.c. Skips on Darwin (no PWM backend) and on
+# Linux (hw_pwm_init() is a stub there - only hw_pwm_init_device() is
+# real).
+if(NOT APPLE)
+	picofuse_test(hw_013
+		hw_013/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
+
+# hw_led_init_neopixel() against a small in-memory chain - no physical
+# NeoPixels need to be attached, see hw_014/main.c. PIO is Pico-only.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_014
+		hw_014/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
+
+# hw_led_init_device("PWR") against a real Linux LED-class entry, if one
+# exists on this system - exits cleanly otherwise (also the normal outcome
+# on Pico/Darwin, which have no LED-class concept), see hw_015/main.c.
+picofuse_test(hw_015
+	hw_015/main.c
+	LIBRARIES picofuse-hw
+)
+
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
 # or SPI - see the detection order/reasoning in dev_bme680/main.c.
 if(DEFINED PICO_BOARD)
