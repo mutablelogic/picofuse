@@ -42,6 +42,7 @@ digraph modules {
   I2C         [label="I2C",                      URL="\ref I2C"];
   Device      [label="Device",                   URL="\ref Device"];
   BME680      [label="BME680",                   URL="\ref BME680"];
+  Pixels      [label="Pixels",                    URL="\ref Pixel"];
 
   System -> Memory;
   System -> Sync;
