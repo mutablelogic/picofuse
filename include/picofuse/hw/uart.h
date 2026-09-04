@@ -82,6 +82,9 @@ typedef struct {
   hw_uart_stop_bits_t stop_bits; ///< Number of stop bits per frame.
   hw_uart_parity_t parity; ///< Parity mode for transmitted and received frames.
   hw_uart_flow_control_t flow_control; ///< Flow-control mode to enable.
+  bool unbuffered; ///< Set true to skip the backend's software ring buffer and
+                   ///< transfer directly against the hardware's single-byte
+                   ///< holding register.
 } hw_uart_config_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -105,20 +108,51 @@ typedef struct {
  * Readiness notification (data available to read, space available to
  * write) is available through sys_iostream_set_callback() on the returned
  * stream, using sys_iostream_event_read/sys_iostream_event_write, the same
- * as any other stream - not a UART-specific event/callback type. On the
- * Pico backend, this costs real throughput: the hardware's hold-up-to-32-
- * bytes FIFOs don't reliably raise their own fill-level interrupts
- * (confirmed independently of this driver, and matched by the Pico SDK's
- * own uart_advanced example, which disables FIFOs for the same reason),
- * so hw_uart_init() runs the UART in character mode instead - 1 byte of
- * hardware buffering rather than 32 - to make readiness callbacks fire
- * reliably. A consequence: under load, a single sys_iostream_write() call
- * only ever accepts 1 byte rather than filling a deep FIFO in one shot -
- * write the rest in a loop rather than assuming a burst is atomic.
+ * as any other stream - not a UART-specific event/callback type.
+ *
+ * On the Pico backend, the hardware's hold-up-to-32-bytes FIFOs don't
+ * reliably raise their own fill-level interrupts (confirmed independently
+ * of this driver, and matched by the Pico SDK's own uart_advanced example,
+ * which disables FIFOs for the same reason), so the UART itself runs in
+ * character mode - 1 byte of hardware buffering - to make readiness
+ * callbacks fire reliably. To make up for that, hw_uart_init() backs the
+ * stream with its own software ring buffer (background-drained by a real
+ * interrupt, independent of whether a readiness callback is registered),
+ * restoring burst sys_iostream_read()/write() throughput - pass
+ * hw_uart_config_t.unbuffered to skip it and transfer directly against
+ * the 1-byte hardware register instead.
  */
 sys_iostream_t *hw_uart_init(const hw_gpio_t *rx_pin, const hw_gpio_t *tx_pin,
                              uint32_t baud_rate,
                              const hw_uart_config_t *config);
+
+/**
+ * @brief Initialize a UART by device path.
+ * @ingroup UART
+ * @param device Device path, e.g. "/dev/ttyUSB0" or "/dev/cu.usbserial-1420".
+ * @param baud_rate The UART baud rate in bits per second. Only standard
+ * POSIX rates are supported (50 through 230400) - anything else fails.
+ * @param config Optional pointer to extended UART configuration. Pass NULL
+ * to use default line format and no flow control. hw_uart_config_t's
+ * cts_pin/rts_pin/unbuffered fields are Pico-specific and ignored here;
+ * hw_uart_flow_control_cts/hw_uart_flow_control_rts alone (as opposed to
+ * hw_uart_flow_control_cts_rts or hw_uart_flow_control_none) are rejected,
+ * since termios only exposes combined RTS/CTS flow control.
+ * @return An open stream ready for sys_iostream_read()/write(), or NULL if
+ * initialization fails. Release it with sys_iostream_close().
+ *
+ * Host platforms (Darwin, Linux) have no GPIO pins for a serial port - it's
+ * addressed by device path instead, mirroring hw_i2c_init_device()/
+ * hw_spi_init_device(). hw_uart_init() is Pico-only; this is the reverse.
+ *
+ * A background thread continuously drains the OS's own input buffer into
+ * this stream's, so sys_iostream_event_read fires and bytes aren't lost
+ * between sys_iostream_read() calls. sys_iostream_write() is a direct,
+ * blocking write(2) - sys_iostream_event_write never fires, since a POSIX
+ * serial write essentially never has to wait for "room."
+ */
+sys_iostream_t *hw_uart_init_device(const char *device, uint32_t baud_rate,
+                                    const hw_uart_config_t *config);
 
 /** @} */
 
@@ -139,9 +173,14 @@ sys_iostream_t *hw_uart_init(const hw_gpio_t *rx_pin, const hw_gpio_t *tx_pin,
  * or @p uart is invalid or not a UART stream.
  *
  * Waits until all data already accepted by sys_iostream_write() has left
- * the UART's own transmit FIFO/shift register - something no generic
+ * both the software ring buffer (see hw_uart_init()'s own doc) and the
+ * UART's own transmit shift register - something no generic
  * sys_iostream_t operation can express, since it's about the underlying
- * hardware's state rather than the stream's buffer.
+ * hardware's state rather than the stream's buffer. On a
+ * hw_uart_init_device() stream, this is tcdrain(2) - which has no
+ * portable non-blocking or bounded-wait form, so timeout_ms is accepted
+ * for interface consistency but not actually enforced there; it returns
+ * as soon as the OS reports the line genuinely idle.
  */
 bool hw_uart_flush(sys_iostream_t *uart, uint32_t timeout_ms);
 

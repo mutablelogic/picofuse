@@ -1,3 +1,5 @@
+#include <hardware/regs/uart.h>
+#include <hardware/uart.h>
 #include <picofuse/hw.h>
 #include <picofuse/sys.h>
 #include <test/test.h>
@@ -13,10 +15,10 @@
 //
 // hw_uart_init() runs the UART in character mode (hardware FIFOs
 // disabled) so readiness callbacks fire reliably - see hw/uart.h's own
-// doc. One consequence exercised below: a burst sys_iostream_write()
-// only ever accepts 1 byte at a time under load (the single holding
-// register), not up to 32 the way a FIFO would - callers write in a
-// loop rather than assuming a full burst is accepted atomically.
+// doc - and backs it with a software ring buffer by default to restore
+// burst read()/write() throughput. hw_uart_config_t.unbuffered opts out
+// of that buffer, falling back to the raw 1-byte-per-call behavior -
+// exercised separately below.
 #define HW_UART_TEST_TX_PIN 4
 #define HW_UART_TEST_RX_PIN 5
 #define HW_UART_TEST_BAUD 115200
@@ -28,13 +30,6 @@ static void on_ready(sys_iostream_t *stream, sys_iostream_event_t events,
   (void)stream;
   (void)userdata;
   hw_uart_test_events |= events;
-}
-
-static void write_all(sys_iostream_t *uart, const char *buf, size_t n) {
-  size_t sent = 0;
-  while (sent < n) {
-    sent += sys_iostream_write(uart, buf + sent, n - sent);
-  }
 }
 
 test_main_hw(0) {
@@ -69,10 +64,11 @@ test_main_hw(0) {
   test_assert(hw_uart_flush(string_stream, 0) == false);
   sys_iostream_close(string_stream);
 
-  // A burst write goes out fine as long as the caller loops (see the
-  // file comment on character mode), and flush() reports it fully
-  // drained well within the timeout at this baud rate.
-  write_all(uart, "hello", 5);
+  // The default software ring buffer absorbs a short burst atomically,
+  // even though the hardware itself only holds 1 byte at a time, and
+  // flush() reports it fully drained (buffer and hardware) well within
+  // the timeout at this baud rate.
+  test_assert(sys_iostream_write(uart, "hello", 5) == 5);
   test_assert(hw_uart_flush(uart, 1000) == true);
 
   // Nothing is wired to RX, so these only check for a crash-free, in-range
@@ -83,11 +79,11 @@ test_main_hw(0) {
   int peeked = sys_iostream_peek(uart);
   test_assert(peeked == SYS_IOSTREAM_EOF || (peeked >= 0 && peeked <= 255));
 
-  // Write-readiness now fires reliably (character mode - see the file
-  // comment): register a callback, write a single byte, and expect the
-  // real UART IRQ to report room for more once it drains.
+  // Write-readiness fires reliably (character mode - see the file
+  // comment): register a callback, write a burst, and expect the real
+  // UART IRQ to report room for more once it's drained.
   test_assert(sys_iostream_set_callback(uart, on_ready, NULL) == true);
-  test_assert(sys_iostream_write(uart, "!", 1) == 1);
+  test_assert(sys_iostream_write(uart, "more!", 5) == 5);
   for (int i = 0; i < 50 && (hw_uart_test_events & sys_iostream_event_write) == 0;
        i++) {
     sys_sleep_ms(10);
@@ -98,10 +94,51 @@ test_main_hw(0) {
 
   sys_iostream_close(uart);
 
+  // hw_uart_config_t.unbuffered opts out of the ring buffer entirely -
+  // a burst write is then only ever accepted 1 byte at a time, since
+  // the hardware itself has nowhere else to put it under load.
+  hw_uart_config_t unbuffered_config = {
+      .data_bits = hw_uart_data_bits_8,
+      .stop_bits = hw_uart_stop_bits_1,
+      .parity = hw_uart_parity_none,
+      .flow_control = hw_uart_flow_control_none,
+      .unbuffered = true,
+  };
+  sys_iostream_t *raw_uart =
+      hw_uart_init(rx_pin, tx_pin, HW_UART_TEST_BAUD, &unbuffered_config);
+  test_assert(raw_uart != NULL);
+  size_t raw_written = sys_iostream_write(raw_uart, "hello", 5);
+  test_assert(raw_written >= 1 && raw_written < 5);
+  test_assert(hw_uart_flush(raw_uart, 1000) == true);
+  sys_iostream_close(raw_uart);
+
   // The slot is free again once closed - a fresh init must succeed.
   sys_iostream_t *uart2 =
       hw_uart_init(rx_pin, tx_pin, HW_UART_TEST_BAUD, NULL);
   test_assert(uart2 != NULL);
+
+  // Loopback: PL011 hardware loopback (CR.LBE) internally connects TX to
+  // RX without any external wiring, letting this section deterministically
+  // verify actual byte-for-byte data integrity - something no test above
+  // can check, since nothing is physically wired between pins 4/5. Pokes
+  // the raw SDK register directly (test-only - not worth a hw_uart_config_t
+  // knob that exists purely to make testing easier).
+  uart_get_hw(uart1)->cr |= UART_UARTCR_LBE_BITS;
+  test_assert(sys_iostream_write(uart2, "ping", 4) == 4);
+  test_assert(hw_uart_flush(uart2, 1000) == true);
+
+  char loopback_buf[8] = {0};
+  size_t loopback_got = 0;
+  for (int i = 0; i < 50 && loopback_got < 4; i++) {
+    loopback_got += sys_iostream_read(uart2, loopback_buf + loopback_got,
+                                      sizeof(loopback_buf) - loopback_got);
+    if (loopback_got < 4) {
+      sys_sleep_ms(10);
+    }
+  }
+  test_assert(loopback_got == 4);
+  test_assert(memcmp(loopback_buf, "ping", 4) == 0);
+
   sys_iostream_close(uart2);
 
   hw_gpio_deinit(rx_pin);

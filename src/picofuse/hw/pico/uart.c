@@ -2,11 +2,16 @@
 #include "../../sys/pico/sync.h"
 #include <hardware/irq.h>
 #include <hardware/regs/uart.h>
+#include <hardware/sync.h>
 #include <hardware/uart.h>
 #include <pico/time.h>
 #include <picofuse/hw.h>
 #include <picofuse/sys.h>
 #include <string.h>
+
+#ifndef HW_UART_BUFFER_SIZE
+#define HW_UART_BUFFER_SIZE 256
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -18,6 +23,8 @@ typedef struct {
   irq_handler_t irq_handler;
   sys_iostream_t *stream; // backpointer, for the IRQ handler to reach it
   bool active;
+  bool unbuffered;    // hw_uart_config_t.unbuffered, snapshotted at init
+  bool irq_installed; // this instance's exclusive vector is currently ours
   // sys_iostream_peek() reads one byte then calls seek(s, -1, false) to
   // undo it (iostream.h's own contract) - a live UART FIFO has no real
   // position to seek back to, so these two fields fake it: last_byte is
@@ -25,6 +32,15 @@ typedef struct {
   // pushback for the next read() to return again before touching the FIFO.
   int last_byte;
   int pushback;
+  // Software ring buffers, background-drained by a real interrupt - see
+  // hw_uart_init()'s own doc for why: the hardware's own FIFOs can't
+  // raise their fill-level interrupts reliably on this chip, so
+  // hw_uart_init() runs in character mode (1 byte of hardware buffering)
+  // and these make up the difference. Unused entirely when unbuffered.
+  char tx_buf[HW_UART_BUFFER_SIZE];
+  size_t tx_read, tx_write, tx_count;
+  char rx_buf[HW_UART_BUFFER_SIZE];
+  size_t rx_read, rx_write, rx_count;
 } _hw_uart_ctx_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -100,6 +116,7 @@ static hw_uart_config_t _hw_uart_default_config(void) {
       .stop_bits = hw_uart_stop_bits_1,
       .parity = hw_uart_parity_none,
       .flow_control = hw_uart_flow_control_none,
+      .unbuffered = false,
   };
 }
 
@@ -116,37 +133,114 @@ static uart_parity_t _hw_uart_sdk_parity(hw_uart_parity_t parity) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS - RING BUFFER / IRQ STATE
+
+/** @brief Pushes as much of the TX ring buffer into hardware as fits right
+ * now. Called with interrupts already disabled, or from IRQ context. */
+static void _hw_uart_tx_drain(_hw_uart_ctx_t *ctx) {
+  while (ctx->tx_count > 0 && uart_is_writable(ctx->instance)) {
+    uart_get_hw(ctx->instance)->dr = (uint8_t)ctx->tx_buf[ctx->tx_read];
+    ctx->tx_read = (ctx->tx_read + 1) % HW_UART_BUFFER_SIZE;
+    ctx->tx_count--;
+  }
+}
+
+static inline bool _hw_uart_tx_idle(const _hw_uart_ctx_t *ctx) {
+  return ctx->tx_count == 0 &&
+        (uart_get_hw(ctx->instance)->fr & UART_UARTFR_BUSY_BITS) == 0;
+}
+
+/** @brief Recomputes which UART interrupts this instance needs and
+ * (de)installs/enables its exclusive vector to match, then applies it.
+ * Two independent things can each want the interrupt on: background
+ * ring-buffer draining (whenever buffered, regardless of whether the
+ * caller has registered a readiness callback) and the caller's own
+ * callback (which, once registered, always watches both directions -
+ * see _hw_uart_irq_handler()). Safe to call from foreground or from
+ * inside the IRQ handler itself. */
+static void _hw_uart_update_irqs(_hw_uart_ctx_t *ctx) {
+  uint32_t irq_state = save_and_disable_interrupts();
+
+  bool have_callback = ctx->stream->backend.uart.callback != NULL;
+  bool rx_enabled = !ctx->unbuffered || have_callback;
+  bool tx_enabled = (!ctx->unbuffered && ctx->tx_count > 0) || have_callback;
+
+  if ((rx_enabled || tx_enabled) && !ctx->irq_installed) {
+    uint32_t irq_num = UART_IRQ_NUM(ctx->instance);
+    irq_set_exclusive_handler(irq_num, ctx->irq_handler);
+    irq_set_enabled(irq_num, true);
+    ctx->irq_installed = true;
+  }
+  uart_set_irqs_enabled(ctx->instance, rx_enabled, tx_enabled);
+
+  restore_interrupts(irq_state);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - OPS
 
 static size_t _hw_uart_ops_read(sys_iostream_t *s, char *buf, size_t n) {
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)s->backend.uart.instance;
-  size_t read = 0;
 
+  if (ctx->unbuffered) {
+    size_t read = 0;
+    if (ctx->pushback >= 0 && read < n) {
+      buf[read++] = (char)(uint8_t)ctx->pushback;
+      ctx->last_byte = ctx->pushback;
+      ctx->pushback = -1;
+    }
+    while (read < n && uart_is_readable(ctx->instance)) {
+      uint8_t byte = (uint8_t)uart_get_hw(ctx->instance)->dr;
+      buf[read++] = (char)byte;
+      ctx->last_byte = byte;
+    }
+    return read;
+  }
+
+  uint32_t irq_state = save_and_disable_interrupts();
+  size_t read = 0;
   if (ctx->pushback >= 0 && read < n) {
     buf[read++] = (char)(uint8_t)ctx->pushback;
     ctx->last_byte = ctx->pushback;
     ctx->pushback = -1;
   }
-
-  while (read < n && uart_is_readable(ctx->instance)) {
-    uint8_t byte = (uint8_t)uart_get_hw(ctx->instance)->dr;
+  while (read < n && ctx->rx_count > 0) {
+    uint8_t byte = (uint8_t)ctx->rx_buf[ctx->rx_read];
+    ctx->rx_read = (ctx->rx_read + 1) % HW_UART_BUFFER_SIZE;
+    ctx->rx_count--;
     buf[read++] = (char)byte;
     ctx->last_byte = byte;
   }
-
+  restore_interrupts(irq_state);
   return read;
 }
 
 static size_t _hw_uart_ops_write(sys_iostream_t *s, const char *buf,
                                  size_t n) {
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)s->backend.uart.instance;
-  size_t written = 0;
 
-  while (written < n && uart_is_writable(ctx->instance)) {
-    uart_get_hw(ctx->instance)->dr = (uint8_t)buf[written++];
+  if (ctx->unbuffered) {
+    size_t written = 0;
+    while (written < n && uart_is_writable(ctx->instance)) {
+      uart_get_hw(ctx->instance)->dr = (uint8_t)buf[written++];
+    }
+    return written;
   }
 
-  return written;
+  uint32_t irq_state = save_and_disable_interrupts();
+  size_t put = 0;
+  while (put < n && ctx->tx_count < HW_UART_BUFFER_SIZE) {
+    ctx->tx_buf[ctx->tx_write] = buf[put++];
+    ctx->tx_write = (ctx->tx_write + 1) % HW_UART_BUFFER_SIZE;
+    ctx->tx_count++;
+  }
+  _hw_uart_tx_drain(ctx);
+  restore_interrupts(irq_state);
+
+  // Arms the TX interrupt if bytes are still queued after that inline
+  // drain, so the rest goes out in the background as room frees up.
+  _hw_uart_update_irqs(ctx);
+  return put;
 }
 
 // The only seek this stream supports is sys_iostream_peek()'s own "undo
@@ -167,43 +261,21 @@ static bool _hw_uart_ops_set_callback(sys_iostream_t *s,
                                       sys_iostream_callback_t callback,
                                       void *userdata) {
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)s->backend.uart.instance;
-  uint32_t irq_num = UART_IRQ_NUM(ctx->instance);
-
-  // Tear down any previously-enabled interrupt before (re)configuring.
-  if (s->backend.uart.callback != NULL) {
-    uart_set_irqs_enabled(ctx->instance, false, false);
-    irq_set_enabled(irq_num, false);
-    irq_remove_handler(irq_num, ctx->irq_handler);
-    uart_get_hw(ctx->instance)->icr = UART_UARTICR_RXIC_BITS |
-                                      UART_UARTICR_RTIC_BITS |
-                                      UART_UARTICR_TXIC_BITS;
-  }
-
   s->backend.uart.callback = callback;
   s->backend.uart.userdata = userdata;
-
-  if (callback == NULL) {
-    return true;
-  }
-
-  // sys_iostream_callback_t carries no "which events do you want" input of
-  // its own - the caller distinguishes read vs write readiness from the
-  // events bitmask passed to it when the callback actually fires - so both
-  // interrupts are always watched together once any callback is set.
-  // Relies on hw_uart_init() having disabled hardware FIFOs (character
-  // mode) - see its own comment - since TXMIS/RXMIS don't reliably
-  // assert with FIFOs enabled on this chip.
-  uart_get_hw(ctx->instance)->icr =
-      UART_UARTICR_RXIC_BITS | UART_UARTICR_RTIC_BITS | UART_UARTICR_TXIC_BITS;
-  irq_set_exclusive_handler(irq_num, ctx->irq_handler);
-  uart_set_irqs_enabled(ctx->instance, true, true);
-  irq_set_enabled(irq_num, true);
+  _hw_uart_update_irqs(ctx);
   return true;
 }
 
 static void _hw_uart_ops_close(sys_iostream_t *s) {
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)s->backend.uart.instance;
-  _hw_uart_ops_set_callback(s, NULL, NULL);
+
+  if (ctx->irq_installed) {
+    uint32_t irq_num = UART_IRQ_NUM(ctx->instance);
+    uart_set_irqs_enabled(ctx->instance, false, false);
+    irq_set_enabled(irq_num, false);
+    irq_remove_handler(irq_num, ctx->irq_handler);
+  }
   uart_deinit(ctx->instance);
 
   _sys_sync_pool_lock();
@@ -288,6 +360,7 @@ sys_iostream_t *hw_uart_init(const hw_gpio_t *rx_pin, const hw_gpio_t *tx_pin,
 
   ctx->instance = instance;
   ctx->stream = stream;
+  ctx->unbuffered = settings.unbuffered;
   ctx->last_byte = -1;
   ctx->pushback = -1;
 
@@ -319,16 +392,32 @@ sys_iostream_t *hw_uart_init(const hw_gpio_t *rx_pin, const hw_gpio_t *tx_pin,
   // via live register inspection, and matched by the Pico SDK's own
   // uart_advanced example, which disables FIFOs specifically to get
   // interrupts working ("we want to do this character by character").
-  // Character mode costs buffering depth (1 byte instead of up to 32)
-  // under callback-driven use; sys_iostream_read()/write() are otherwise
-  // unaffected, since they always just drain/fill whatever's ready.
+  // Character mode drops hardware buffering to 1 byte; the software ring
+  // buffers above make up for it unless settings.unbuffered opted out.
   uart_set_fifo_enabled(instance, false);
 
   stream->backend.uart.instance = ctx;
   stream->backend.uart.callback = NULL;
   stream->backend.uart.userdata = NULL;
 
+  // Arms the background RX-draining interrupt if buffered - independent
+  // of whether the caller ever registers a readiness callback.
+  _hw_uart_update_irqs(ctx);
+
   return stream;
+}
+
+/** Stub implementation: Pico selects a UART by GPIO pins, not a device
+ * path - see hw_uart_init(). */
+sys_iostream_t *hw_uart_init_device(const char *device, uint32_t baud_rate,
+                                    const hw_uart_config_t *config) {
+  sys_debugf("hw", "uart_init_device: unsupported on this target "
+                   "(device=%s baud=%u config=%p)",
+            device != NULL ? device : "(null)", baud_rate, (void *)config);
+  (void)device;
+  (void)baud_rate;
+  (void)config;
+  return NULL;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -340,7 +429,7 @@ bool hw_uart_flush(sys_iostream_t *uart, uint32_t timeout_ms) {
   }
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)uart->backend.uart.instance;
 
-  if ((uart_get_hw(ctx->instance)->fr & UART_UARTFR_BUSY_BITS) == 0) {
+  if (_hw_uart_tx_idle(ctx)) {
     return true;
   }
   if (timeout_ms == 0) {
@@ -348,7 +437,7 @@ bool hw_uart_flush(sys_iostream_t *uart, uint32_t timeout_ms) {
   }
 
   absolute_time_t deadline = make_timeout_time_ms(timeout_ms);
-  while (uart_get_hw(ctx->instance)->fr & UART_UARTFR_BUSY_BITS) {
+  while (!_hw_uart_tx_idle(ctx)) {
     if (absolute_time_diff_us(get_absolute_time(), deadline) <= 0) {
       return false;
     }
@@ -360,29 +449,42 @@ bool hw_uart_flush(sys_iostream_t *uart, uint32_t timeout_ms) {
 // INTERRUPTS
 
 static void _hw_uart_irq_handler(_hw_uart_ctx_t *ctx) {
-  if (ctx->stream == NULL || ctx->stream->backend.uart.callback == NULL) {
-    return;
-  }
-
   uint32_t status = uart_get_hw(ctx->instance)->mis;
   uint32_t clear_mask = 0;
   sys_iostream_event_t events = sys_iostream_event_none;
 
   if ((status & (UART_UARTMIS_RXMIS_BITS | UART_UARTMIS_RTMIS_BITS)) != 0) {
-    events |= sys_iostream_event_read;
     clear_mask |= UART_UARTICR_RXIC_BITS | UART_UARTICR_RTIC_BITS;
+    if (!ctx->unbuffered) {
+      while (uart_is_readable(ctx->instance) &&
+            ctx->rx_count < HW_UART_BUFFER_SIZE) {
+        ctx->rx_buf[ctx->rx_write] = (char)uart_get_hw(ctx->instance)->dr;
+        ctx->rx_write = (ctx->rx_write + 1) % HW_UART_BUFFER_SIZE;
+        ctx->rx_count++;
+      }
+    }
+    events |= sys_iostream_event_read;
   }
   if ((status & UART_UARTMIS_TXMIS_BITS) != 0) {
-    events |= sys_iostream_event_write;
     clear_mask |= UART_UARTICR_TXIC_BITS;
+    if (!ctx->unbuffered) {
+      _hw_uart_tx_drain(ctx);
+    }
+    events |= sys_iostream_event_write;
   }
 
   if (clear_mask != 0) {
     uart_get_hw(ctx->instance)->icr = clear_mask;
   }
-  if (events != sys_iostream_event_none) {
-    ctx->stream->backend.uart.callback(ctx->stream, events,
-                                       ctx->stream->backend.uart.userdata);
+
+  // Re-evaluate now that tx_count/rx state may have changed - e.g. turns
+  // the TX interrupt back off once the ring buffer's fully drained,
+  // rather than spinning on an interrupt with nothing left to send.
+  _hw_uart_update_irqs(ctx);
+
+  sys_iostream_callback_t callback = ctx->stream->backend.uart.callback;
+  if (callback != NULL && events != sys_iostream_event_none) {
+    callback(ctx->stream, events, ctx->stream->backend.uart.userdata);
   }
 }
 

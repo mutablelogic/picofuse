@@ -753,6 +753,22 @@ if(DEFINED PICO_BOARD)
 		hw_019/main.c
 		LIBRARIES picofuse-hw
 	)
+	target_link_libraries(hw_019 PRIVATE hardware_uart_headers)
+endif()
+
+# hw_uart_init_device() lifecycle plus a real write/flush/callback smoke
+# test against a real serial device - skips if HW_UART_TEST_DEVICE isn't
+# set, see hw_020/main.c. Darwin/Linux only - Pico has no device-path UART.
+if(NOT DEFINED PICO_BOARD)
+	picofuse_test(hw_020
+		hw_020/main.c
+		LIBRARIES picofuse-hw
+	)
+
+	set(HW_UART_TEST_DEVICE "$ENV{HW_UART_TEST_DEVICE}")
+	target_compile_definitions(hw_020 PRIVATE
+		HW_UART_TEST_DEVICE="${HW_UART_TEST_DEVICE}"
+	)
 endif()
 
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
