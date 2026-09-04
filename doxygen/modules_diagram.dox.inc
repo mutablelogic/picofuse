@@ -36,11 +36,13 @@ digraph modules {
   PWM         [label="PWM",                      URL="\ref PWM"];
   LED         [label="LED",                      URL="\ref LED"];
   WiFi        [label="WiFi",                     URL="\ref WiFi"];
+  UART        [label="UART",                     URL="\ref UART"];
   DeviceIO    [label="Device I/O",               URL="\ref DeviceIO"];
   SPI         [label="SPI",                      URL="\ref SPI"];
   I2C         [label="I2C",                      URL="\ref I2C"];
   Device      [label="Device",                   URL="\ref Device"];
   BME680      [label="BME680",                   URL="\ref BME680"];
+  Pixels      [label="Pixels",                    URL="\ref Pixel"];
 
   System -> Memory;
   System -> Sync;
@@ -72,6 +74,7 @@ digraph modules {
   Hardware -> PWM;
   Hardware -> LED;
   Hardware -> WiFi;
+  Hardware -> UART;
   Hardware -> DeviceIO;
   DeviceIO -> SPI;
   DeviceIO -> I2C;
