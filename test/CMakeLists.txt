@@ -701,13 +701,50 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
-# hw_led_init_device("PWR") against a real Linux LED-class entry, if one
-# exists on this system - exits cleanly otherwise (also the normal outcome
-# on Pico/Darwin, which have no LED-class concept), see hw_015/main.c.
+# hw_led_init_device("PWR") against a real Linux LED-class entry
 picofuse_test(hw_015
 	hw_015/main.c
 	LIBRARIES picofuse-hw
 )
+
+# hw_wifi_init_client()/hw_wifi_deinit() lifecycle plus a real
+# hw_wifi_scan()
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_016
+		hw_016/main.c
+		LIBRARIES picofuse-hw
+		TESTRUNNER_TIMEOUT 30
+	)
+endif()
+
+# hw_wifi_connect()/hw_wifi_disconnect() against a real network - skips if
+# WIFI_SSID isn't set, see hw_017/main.c.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_017
+		hw_017/main.c
+		LIBRARIES picofuse-hw
+		TESTRUNNER_TIMEOUT 60
+	)
+
+	# Wi-Fi credentials from environment (export WIFI_SSID and WIFI_PASSWORD)
+	set(WIFI_SSID "$ENV{WIFI_SSID}")
+	set(WIFI_PASSWORD "$ENV{WIFI_PASSWORD}")
+
+	# Add Wi-Fi credentials as compile definitions
+	target_compile_definitions(hw_017 PRIVATE
+		WIFI_SSID="${WIFI_SSID}"
+		WIFI_PASSWORD="${WIFI_PASSWORD}"
+	)
+endif()
+
+# hw_wifi_init_accesspoint()/hw_wifi_deinit() lifecycle, plus confirming
+# scan/connect/disconnect are rejected on an AP handle, see hw_018/main.c.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_018
+		hw_018/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
 
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
 # or SPI - see the detection order/reasoning in dev_bme680/main.c.

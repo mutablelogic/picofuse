@@ -43,6 +43,6 @@ if(PICO_CYW43_SUPPORTED)
     # needs lwipopts.h findable on the include path - matches the same
     # requirement picosdk_static already has for its own cyw43 usage.
     target_include_directories(picofuse-hw PRIVATE
-        ${CMAKE_SOURCE_DIR}/include/runtime
+        ${CMAKE_SOURCE_DIR}/include/runtime/pico
     )
 endif()

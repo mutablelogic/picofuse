@@ -33,7 +33,8 @@ struct hw_wifi_t {
   hw_wifi_network_t network;
   uint64_t ts;
   bool active;      ///< true between a successful init and hw_wifi_deinit().
-  bool accesspoint; ///< true if this handle came from hw_wifi_init_accesspoint().
+  bool accesspoint; ///< true if this handle came from
+                    ///< hw_wifi_init_accesspoint().
 };
 
 /**
@@ -108,7 +109,8 @@ static int _hw_wifi_scan_callback(void *env,
 
 hw_wifi_t *hw_wifi_init_client(const char *country_code,
                                hw_wifi_callback_t callback, void *userdata) {
-  sys_debugf("wifi", "wifi_init_client: country_code=%s callback=%p userdata=%p",
+  sys_debugf("wifi",
+             "wifi_init_client: country_code=%s callback=%p userdata=%p",
              country_code != NULL ? country_code : "(null)", (void *)callback,
              userdata);
   if (callback == NULL || _hw_wifi_adaptor.active) {
@@ -137,14 +139,12 @@ hw_wifi_t *hw_wifi_init_client(const char *country_code,
   return &_hw_wifi_adaptor;
 }
 
-hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
-                                    const char *ssid, const char *password,
-                                    hw_wifi_auth_t auth,
-                                    hw_wifi_callback_t callback,
-                                    void *userdata) {
+hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code, const char *ssid,
+                                    const char *password,
+                                    hw_wifi_auth_t auth) {
   sys_debugf("wifi", "wifi_init_accesspoint: ssid=%s auth=%u",
              ssid != NULL ? ssid : "(null)", (unsigned)auth);
-  if (callback == NULL || _hw_wifi_adaptor.active || ssid == NULL) {
+  if (_hw_wifi_adaptor.active || ssid == NULL) {
     return NULL;
   }
 
@@ -175,8 +175,9 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
 
   memcpy(_hw_wifi_adaptor.country_code, country_code, 2);
   _hw_wifi_adaptor.country_code[2] = '\0';
-  _hw_wifi_adaptor.callback = callback;
-  _hw_wifi_adaptor.userdata = userdata;
+  _hw_wifi_adaptor.callback = NULL; // no per-station events to report - see
+                                    // hw_wifi_init_accesspoint()'s own doc
+  _hw_wifi_adaptor.userdata = NULL;
   _hw_wifi_adaptor.accesspoint = true;
   _hw_wifi_adaptor.state = _HW_WIFI_STATE_UNKNOWN;
   sys_atomic_init(&_hw_wifi_adaptor.flags, 0);
@@ -200,7 +201,8 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
   return &_hw_wifi_adaptor;
 }
 
-/** @brief Stub function - wpa_supplicant control sockets are a Linux concept. */
+/** @brief Stub function - wpa_supplicant control sockets are a Linux concept.
+ */
 hw_wifi_t *hw_wifi_init_device(const char *device, hw_wifi_callback_t callback,
                                void *userdata) {
   sys_debugf("wifi", "wifi_init_device: device=%s callback=%p userdata=%p",
@@ -300,8 +302,17 @@ bool hw_wifi_connect(hw_wifi_t *wifi, const hw_wifi_network_t *network,
   const char *key = password != NULL ? password : "";
   size_t key_len = strlen(key);
 
-  uint32_t auth = CYW43_AUTH_OPEN;
-  if ((network->auth & hw_wifi_auth_wpa3_sae) != 0) {
+  // Default to WPA2-PSK, not open, when network->auth doesn't recognize
+  // any bit - most real networks are secured, and joining as WPA2 against
+  // an actually-open network fails fast (CYW43_LINK_BADAUTH/_FAIL) rather
+  // than the reverse: joining as open against a secured network can
+  // silently half-succeed (associates, then fails the 4-way handshake -
+  // see _hw_wifi_scan_callback()'s own note on why network->auth might be
+  // 0 for a real, secured network in the first place).
+  uint32_t auth = key_len > 0 ? CYW43_AUTH_WPA2_AES_PSK : CYW43_AUTH_OPEN;
+  if ((network->auth & hw_wifi_auth_open) != 0) {
+    auth = CYW43_AUTH_OPEN;
+  } else if ((network->auth & hw_wifi_auth_wpa3_sae) != 0) {
 #if defined(CYW43_AUTH_WPA3_SAE_AES_PSK)
     auth = CYW43_AUTH_WPA3_SAE_AES_PSK;
 #else
@@ -487,25 +498,25 @@ static int _hw_wifi_scan_callback(void *ctx,
   network.channel = result->channel;
   network.rssi = (int16_t)result->rssi;
 
+  // cyw43_ev_scan_result_t.auth_mode's doc points at the same CYW43_AUTH_
+  // enumeration cyw43_wifi_join()'s auth_type parameter uses, but it isn't
+  // - confirmed against three different real, unrelated access points
+  // (all presumably WPA2-PSK, the overwhelmingly common default), every
+  // one reported auth_mode=0x05, which matches none of CYW43_AUTH_*'s low
+  // bytes (0x00/0x02/0x04/0x06). This field's real encoding isn't
+  // documented anywhere in the vendored SDK; only open (0x00, assumed by
+  // convention) and WPA2-PSK (0x05, empirically confirmed) are handled
+  // below. Getting this wrong matters: hw_wifi_connect() falls back to
+  // CYW43_AUTH_OPEN for any auth it doesn't recognize, which silently
+  // half-succeeds against a secured network (associates, then fails the
+  // handshake) rather than failing fast.
   network.auth = 0;
   uint8_t am = result->auth_mode;
-  if (am == (uint8_t)CYW43_AUTH_OPEN) {
+  if (am == 0x00) {
     network.auth = hw_wifi_auth_open;
-  } else if (am == (uint8_t)CYW43_AUTH_WPA_TKIP_PSK) {
-    network.auth = hw_wifi_auth_wpa_tkip;
-  } else if (am == (uint8_t)CYW43_AUTH_WPA2_AES_PSK ||
-             am == (uint8_t)CYW43_AUTH_WPA2_MIXED_PSK) {
+  } else if (am == 0x05) {
     network.auth = hw_wifi_auth_wpa2_aes;
   }
-#if defined(CYW43_AUTH_WPA3_SAE_AES_PSK)
-  else if (am == (uint8_t)CYW43_AUTH_WPA3_SAE_AES_PSK) {
-    network.auth = hw_wifi_auth_wpa3_sae;
-  }
-#elif defined(CYW43_AUTH_WPA3_SAE_PSK)
-  else if (am == (uint8_t)CYW43_AUTH_WPA3_SAE_PSK) {
-    network.auth = hw_wifi_auth_wpa3_sae;
-  }
-#endif
 
   wifi->callback(wifi, hw_wifi_event_scan, &network, wifi->userdata);
 
@@ -523,19 +534,7 @@ void _hw_wifi_poll(void) {
     return;
   }
 
-  // Per-station join/leave on an access point isn't exposed here. A live
-  // AP-side signal does exist in principle - the driver's CYW43_EV_LINK
-  // handler (cyw43_ctrl.c) calls netif_set_link_up()/_down() for
-  // CYW43_ITF_AP, which cyw43_tcpip_link_status() would report back as
-  // CYW43_LINK_UP/_DOWN - but reading it here via the documented
-  // cyw43_arch_lwip_begin()/_end() pattern was confirmed on real hardware
-  // to deadlock the *next* cyw43_arch_poll() call, every time, even with
-  // no station ever attempting to join. Root cause not identified (likely
-  // an async_context/lock interaction inside the vendored SDK, not
-  // something wrong with the lock usage itself - every other call in this
-  // file uses the identical pattern without issue). Left as a stub pending
-  // further investigation - do not re-add this without confirming the
-  // hang is understood and fixed.
+  // Per-station join/leave on an access point isn't exposed here.
   if (wifi->accesspoint) {
     return;
   }

@@ -97,16 +97,18 @@ if(DEFINED PICO_BOARD)
     picofuse_add_pico_sdk_libs_target(pico_sdk_libs)
     target_include_directories(picosdk_static PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/include
-        # lwipopts.h and mbedtls_config.h are in
-        # include/runtime itself must be on the search path.
-        ${CMAKE_CURRENT_LIST_DIR}/include/runtime
+        # mbedtls_config.h and lwipopts.h are both found via a bare
+        # #include from vendored SDK headers, so include/runtime/pico
+        # (where every Pico-only runtime config header lives) must be on
+        # the search path.
+        ${CMAKE_CURRENT_LIST_DIR}/include/runtime/pico
     )
 
     if(PICO_CYW43_SUPPORTED)
         # printf support for cyw43: force-include a header that redirects
         # CYW43_PRINTF to sys_debugf()
         target_compile_options(picosdk_static PRIVATE
-            "$<$<COMPILE_LANGUAGE:C>:SHELL:-include ${CMAKE_CURRENT_LIST_DIR}/include/runtime/cyw43_debug.h>"
+            "$<$<COMPILE_LANGUAGE:C>:SHELL:-include ${CMAKE_CURRENT_LIST_DIR}/include/runtime/pico/cyw43_debug.h>"
         )
     endif()
 endif()
