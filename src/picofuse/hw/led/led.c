@@ -1,6 +1,16 @@
 #include "led.h"
 #include <picofuse/sys.h>
 #include <stddef.h>
+#include <string.h>
+
+#ifdef SYSTEM_NAME_PICO
+#include "../../sys/pico/sync.h"
+#define _HW_LED_LOCK() _sys_sync_pool_lock()
+#define _HW_LED_UNLOCK() _sys_sync_pool_unlock()
+#else
+#define _HW_LED_LOCK()
+#define _HW_LED_UNLOCK()
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -9,99 +19,78 @@
  * @brief LED handle (shared across all backends).
  *
  * Deliberately private to this file - a backend never sees this layout,
- * only the `ops`/`context` pair it handed to `_hw_led_construct()` (see
- * `_hw_led_context()`).
+ * only the `ops` it handed to `_hw_led_alloc()` and the embedded `context`
+ * scratch buffer it gets back via `_hw_led_context()`.
  */
 struct hw_led_t {
   const hw_led_ops_t *ops;
-  void *context;
+  _Alignas(max_align_t) uint8_t context[HW_LED_CONTEXT_SIZE];
 };
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+static hw_led_t _hw_led_pool[HW_LED_POOL_CAPACITY] = {0};
 
 ///////////////////////////////////////////////////////////////////////////////
 // FORWARD DECLARATIONS
 
-/** @brief A handle only counts as usable once init has actually bound it to
- * a backend - ops/context are set together, by whichever hw_led_init_*()
- * built it, never independently. */
 static inline bool _hw_led_valid(const hw_led_t *led) {
-  return led != NULL && led->ops != NULL && led->context != NULL;
+  return led != NULL && led->ops != NULL;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS (see ../led.h)
+// PRIVATE METHODS (see led.h)
 
-hw_led_t *_hw_led_construct(const hw_led_ops_t *ops, void *context) {
+/** @brief Claims a free slot from the static instance pool, or NULL if
+ * every slot is already in use. */
+static inline hw_led_t *_hw_led_pool_claim(void) {
+  for (size_t i = 0; i < HW_LED_POOL_CAPACITY; i++) {
+    if (_hw_led_pool[i].ops == NULL) {
+      return &_hw_led_pool[i];
+    }
+  }
+  return NULL;
+}
+
+hw_led_t *_hw_led_alloc(const hw_led_ops_t *ops) {
   if (ops == NULL) {
     return NULL;
   }
 
-  hw_led_t *led = sys_malloc(sizeof(hw_led_t));
-  if (led == NULL) {
-    return NULL;
+  _HW_LED_LOCK();
+  hw_led_t *led = _hw_led_pool_claim();
+  if (led != NULL) {
+    memset(led->context, 0, sizeof(led->context));
+    led->ops = ops;
   }
-
-  led->ops = ops;
-  led->context = context;
+  _HW_LED_UNLOCK();
   return led;
 }
 
 void *_hw_led_context(const hw_led_t *led) {
-  return led != NULL ? led->context : NULL;
+  return _hw_led_valid(led) ? (void *)led->context : NULL;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
-//
-// No LED backend (GPIO, NeoPixel, Wi-Fi, PWM) is wired up yet, so every
-// hw_led_init_*() below is a stub that returns NULL. hw_led_deinit() is
-// already generic - it dispatches through whichever ops table a future
-// backend constructs its handle with.
-
-/** Stub implementation: no LED backend wired up yet. */
-hw_led_t *hw_led_init_gpio(hw_gpio_t *gpio) {
-  (void)gpio;
-  return NULL;
-}
-
-/** Stub implementation: no LED backend wired up yet. */
-hw_led_t *hw_led_init_neopixel(hw_gpio_t *gpio, uint8_t led_count) {
-  (void)gpio;
-  (void)led_count;
-  return NULL;
-}
-
-/** Stub implementation: no LED backend wired up yet. */
-hw_led_t *hw_led_init_wifi(void) { return NULL; }
-
-/** Stub implementation: no LED backend wired up yet. */
-hw_led_t *hw_led_init_pwm(hw_pwm_t *pwm) {
-  (void)pwm;
-  return NULL;
-}
-
-/** Stub implementation: no LED backend wired up yet. */
-hw_led_t *hw_led_init_default(void) { return NULL; }
 
 void hw_led_deinit(hw_led_t *led) {
-  if (!_hw_led_valid(led) || led->ops->deinit == NULL) {
+  if (!_hw_led_valid(led)) {
     return;
   }
-  led->ops->deinit(led);
-  sys_free(led);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PROPERTIES
-
-/** Stub implementation: no default on-board LED is available yet. */
-uint8_t hw_led_gpio_default(hw_led_type_t *out_type, uint8_t *out_count) {
-  if (out_type != NULL) {
-    *out_type = hw_led_type_none;
+  // Leave the LED off rather than however it happened to be left, before
+  // a backend releases whatever hardware was driving it.
+  if (led->ops->clear != NULL) {
+    led->ops->clear(led);
   }
-  if (out_count != NULL) {
-    *out_count = 0;
+  if (led->ops->deinit != NULL) {
+    led->ops->deinit(led);
   }
-  return HW_LED_GPIO_NONE;
+  // Release the pool slot back
+  _HW_LED_LOCK();
+  led->ops = NULL;
+  _HW_LED_UNLOCK();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
