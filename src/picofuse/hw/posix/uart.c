@@ -24,9 +24,14 @@
 // fixed-size pool to embed this in.
 typedef struct {
   int fd;
-  volatile bool running; // clear to ask the background thread to exit
-  sys_waitgroup_t *wg;   // signaled by the thread just before it exits
-  sys_mutex_t *lock;     // guards everything below, shared with the thread
+  // Clear to ask the background thread to exit. A plain bool (even
+  // volatile) shared between threads with no synchronization is a data
+  // race in C - volatile only affects compiler reordering/caching, not
+  // cross-thread visibility or atomicity - so this is a real sys_atomic_t
+  // instead, 0/1 standing in for false/true.
+  sys_atomic_t running;
+  sys_waitgroup_t *wg; // signaled by the thread just before it exits
+  sys_mutex_t *lock;   // guards everything below, shared with the thread
   sys_iostream_t *stream;
   // sys_iostream_peek() reads one byte then calls seek(s, -1, false) to
   // undo it (iostream.h's own contract) - last_byte is whatever read()
@@ -184,7 +189,7 @@ static void _hw_uart_rx_thread(void *arg) {
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)arg;
   struct pollfd pfd = {.fd = ctx->fd, .events = POLLIN, .revents = 0};
 
-  while (ctx->running) {
+  while (sys_atomic_get(&ctx->running) != 0) {
     int res = poll(&pfd, 1, HW_UART_POLL_TIMEOUT_MS);
     if (res < 0) {
       if (errno == EINTR) {
@@ -237,7 +242,7 @@ static void _hw_uart_rx_thread(void *arg) {
     }
   }
 
-  ctx->running = false;
+  sys_atomic_set(&ctx->running, 0);
   sys_waitgroup_done(ctx->wg);
 }
 
@@ -310,7 +315,7 @@ static bool _hw_uart_ops_set_callback(sys_iostream_t *s,
 static void _hw_uart_ops_close(sys_iostream_t *s) {
   _hw_uart_ctx_t *ctx = (_hw_uart_ctx_t *)s->backend.uart.instance;
 
-  ctx->running = false;
+  sys_atomic_set(&ctx->running, 0);
   sys_waitgroup_wait(ctx->wg);
   sys_waitgroup_deinit(ctx->wg);
   sys_mutex_deinit(ctx->lock);
@@ -415,11 +420,19 @@ sys_iostream_t *hw_uart_init_device(const char *device, uint32_t baud_rate,
   stream->backend.uart.callback = NULL;
   stream->backend.uart.userdata = NULL;
 
-  ctx->running = true;
-  sys_waitgroup_add(ctx->wg, 1);
+  sys_atomic_init(&ctx->running, 1);
+  if (!sys_waitgroup_add(ctx->wg, 1)) {
+    stream->in_use = false; // release the pool slot directly -
+                            // ops.close() would double-free ctx
+    sys_mutex_deinit(ctx->lock);
+    sys_waitgroup_deinit(ctx->wg);
+    close(fd);
+    sys_free(ctx);
+    return NULL;
+  }
   if (!sys_thread_create(_hw_uart_rx_thread, ctx)) {
-    ctx->running = false;
-    sys_waitgroup_done(ctx->wg);
+    sys_waitgroup_done(ctx->wg); // undo the add(1) above - the thread
+                                 // never started to do it itself
     stream->in_use = false; // release the pool slot directly -
                             // ops.close() would double-free ctx
     sys_mutex_deinit(ctx->lock);
