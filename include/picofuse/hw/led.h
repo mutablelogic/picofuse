@@ -222,6 +222,9 @@ bool hw_led_clear(hw_led_t *led);
  * @retval true Blink started.
  * @retval false Handle is invalid, blink is already active on this handle, or
  * timer setup failed.
+ *
+ * @todo Not implemented yet - always returns false. Planned for a separate
+ * PR once the rest of the LED module has landed.
  */
 bool hw_led_blink(hw_led_t *led, uint8_t index, uint32_t period_ms,
                   bool repeating);
