@@ -717,3 +717,21 @@ if(DEFINED PICO_BOARD)
 		LIBRARIES picofuse-hw picofuse-dev
 	)
 endif()
+
+# dev_ft6236_* against a real touch controller, detected over I2C at
+# DEV_FT6236_I2C_ADDR_DEFAULT - see dev_ft6236/main.c.
+if(DEFINED PICO_BOARD)
+	picofuse_test(dev_ft6236
+		dev_ft6236/main.c
+		LIBRARIES picofuse-hw picofuse-dev
+	)
+endif()
+
+# dev_ili9341_* against a real display over SPI - see the pin wiring notes
+# in dev_ili9341/main.c.
+if(DEFINED PICO_BOARD)
+	picofuse_test(dev_ili9341
+		dev_ili9341/main.c
+		LIBRARIES picofuse-hw picofuse-dev
+	)
+endif()
