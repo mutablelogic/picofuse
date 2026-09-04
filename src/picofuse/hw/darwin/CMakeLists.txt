@@ -19,6 +19,7 @@ picofuse_library(
         ../stub/adc.c
         ../stub/gpio.c
         ../stub/i2c.c
+        ../stub/infrared.c
         ../stub/pwm.c
         ../stub/spi.c
         ../posix/uart.c

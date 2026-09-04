@@ -20,6 +20,10 @@ picofuse_library(
         pwm.c
         spi.c
         uart.c
+        # @todo No real Pico hw_infrared_* backend yet (ir_tx.pio is
+        # written but not wired into a driver, and RX has no PIO backend
+        # here) - always the stub for now.
+        ../stub/infrared.c
         ../deviceio/deviceio.c
         ../led/led.c
         ../led/led_gpio.c
