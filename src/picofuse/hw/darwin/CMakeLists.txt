@@ -21,6 +21,7 @@ picofuse_library(
         ../stub/i2c.c
         ../stub/pwm.c
         ../stub/spi.c
+        ../stub/uart.c
         ${_wifi_src}
 )
 

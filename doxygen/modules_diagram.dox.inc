@@ -36,6 +36,7 @@ digraph modules {
   PWM         [label="PWM",                      URL="\ref PWM"];
   LED         [label="LED",                      URL="\ref LED"];
   WiFi        [label="WiFi",                     URL="\ref WiFi"];
+  UART        [label="UART",                     URL="\ref UART"];
   DeviceIO    [label="Device I/O",               URL="\ref DeviceIO"];
   SPI         [label="SPI",                      URL="\ref SPI"];
   I2C         [label="I2C",                      URL="\ref I2C"];
@@ -72,6 +73,7 @@ digraph modules {
   Hardware -> PWM;
   Hardware -> LED;
   Hardware -> WiFi;
+  Hardware -> UART;
   Hardware -> DeviceIO;
   DeviceIO -> SPI;
   DeviceIO -> I2C;
