@@ -49,7 +49,7 @@ extern "C" {
 /**
  * @def SYS_IOSTREAM_EOF
  * @ingroup SystemDataStream
- * @brief Sentinel returned by sys_iostream_peek() at the end of a stream.
+ * @brief Value returned by sys_iostream_peek() at the end of a stream.
  */
 #define SYS_IOSTREAM_EOF (-1)
 

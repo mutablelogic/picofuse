@@ -198,7 +198,7 @@ extern bool sys_string_parse_escape(const char *str, size_t len, rune_t *rune);
  * @ingroup SystemDataString
  * @param str String to parse, or NULL.
  * @param out Pointer to store the result. Left unchanged on a parse
- * error - there's no error sentinel for bool the way RUNE_ERROR is for
+ * error - there's no error for bool the way RUNE_ERROR is for
  * rune_t.
  * @return true if str is exactly "true" or "false" (case-sensitive,
  * nothing else in str), false otherwise - any other value, including
@@ -247,7 +247,7 @@ extern ptrdiff_t sys_string_parse_quoted(const char *str, size_t len, char *out,
  * one number and nothing else - trailing content is a parse error, not
  * ignored. With len set, str need not be NUL-terminated at all.
  * @param value Pointer to store the result. Left unchanged on a parse
- * error - there's no error sentinel for int32_t the way RUNE_ERROR is
+ * error - there's no error for int32_t the way RUNE_ERROR is
  * for rune_t.
  * @return true if str is a well-formed integer that fits in an
  * int32_t, false otherwise. Recognizes decimal ("123"), hex ("0x1A"),
@@ -293,7 +293,8 @@ extern bool sys_string_parse_int64(const char *str, size_t len, int64_t *value);
  * octal, binary) and same float/malformed/trailing-content rejection as
  * sys_string_parse_int32().
  */
-extern bool sys_string_parse_uint32(const char *str, size_t len, uint32_t *value);
+extern bool sys_string_parse_uint32(const char *str, size_t len,
+                                    uint32_t *value);
 
 /**
  * @brief Parse an unsigned 64-bit integer.
@@ -310,7 +311,8 @@ extern bool sys_string_parse_uint32(const char *str, size_t len, uint32_t *value
  * in a uint64_t, false otherwise - same recognized forms as
  * sys_string_parse_uint32().
  */
-extern bool sys_string_parse_uint64(const char *str, size_t len, uint64_t *value);
+extern bool sys_string_parse_uint64(const char *str, size_t len,
+                                    uint64_t *value);
 
 /**
  * @brief Parse a 32-bit floating-point number.
@@ -354,7 +356,8 @@ extern bool sys_string_parse_float32(const char *str, size_t len, float *value);
  * for many-digit inputs (no more than a double itself can represent
  * exactly, around 17 significant decimal digits).
  */
-extern bool sys_string_parse_float64(const char *str, size_t len, double *value);
+extern bool sys_string_parse_float64(const char *str, size_t len,
+                                     double *value);
 
 ///////////////////////////////////////////////////////////////////////////////
 

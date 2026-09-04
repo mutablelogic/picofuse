@@ -28,7 +28,7 @@ extern "C" {
 typedef int32_t rune_t;
 
 /**
- * @brief Sentinel value for a malformed UTF-8 sequence.
+ * @brief Value for a malformed UTF-8 sequence.
  * @ingroup SystemDataRune
  *
  * This is the Unicode replacement character (U+FFFD), returned in `rune`
@@ -302,12 +302,12 @@ static inline bool sys_rune_is_control(rune_t r) {
  */
 typedef enum {
   sys_rune_other = 0, ///< unclassified - also covers RUNE_ERROR
-  sys_rune_space,      ///< see sys_rune_is_space()
-  sys_rune_digit,      ///< see sys_rune_is_digit()
-  sys_rune_alpha,      ///< see sys_rune_is_alpha()
-  sys_rune_punct,      ///< see sys_rune_is_punct()
-  sys_rune_symbol,     ///< see sys_rune_is_symbol()
-  sys_rune_control,    ///< see sys_rune_is_control()
+  sys_rune_space,     ///< see sys_rune_is_space()
+  sys_rune_digit,     ///< see sys_rune_is_digit()
+  sys_rune_alpha,     ///< see sys_rune_is_alpha()
+  sys_rune_punct,     ///< see sys_rune_is_punct()
+  sys_rune_symbol,    ///< see sys_rune_is_symbol()
+  sys_rune_control,   ///< see sys_rune_is_control()
 } sys_rune_class_t;
 
 /**
@@ -335,10 +335,10 @@ extern sys_rune_class_t sys_rune_isa(rune_t r);
  */
 typedef struct sys_rune_tokenize_t {
   sys_iostream_t *stream; ///< source (private)
-  ptrdiff_t start;        ///< absolute stream position where the current token begins
-  size_t bytes;           ///< length of the current token, in bytes
-  size_t runes;           ///< number of runes in the current token
-  sys_rune_class_t isa;   ///< classification shared by the whole token
+  ptrdiff_t start; ///< absolute stream position where the current token begins
+  size_t bytes;    ///< length of the current token, in bytes
+  size_t runes;    ///< number of runes in the current token
+  sys_rune_class_t isa; ///< classification shared by the whole token
 } sys_rune_tokenize_t;
 
 /**

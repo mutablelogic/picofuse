@@ -13,7 +13,7 @@
 // CONSTANTS
 
 /**
- * @brief Sentinel returned when no default board LED GPIO is available.
+ * @brief Value returned when no default board LED GPIO is available.
  * @ingroup LED
  */
 #define HW_LED_GPIO_NONE 0xFFu
