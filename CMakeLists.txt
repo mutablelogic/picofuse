@@ -14,11 +14,9 @@ endif()
 
 project(picofuse C CXX ASM)
 
-# Gates each platform's real hw_wifi_* backend (see hw/wifi.h) - the stub
-# (always returns NULL/false) is used when OFF. On Pico/CYW43-capable
-# boards this also selects full lwIP networking over GPIO-only CYW43
-# access (see PICO_CYW43_SUPPORTED below).
 option(PICOFUSE_WIFI "Enable real Wi-Fi networking backends" OFF)
+option(PICOFUSE_USB "Enable picofuse's own USB support" OFF)
+option(PICOFUSE_BLUETOOTH "Enable picofuse's own Bluetooth support" OFF)
 
 if(APPLE AND PICOFUSE_WIFI)
     # CoreWLAN (hw/darwin/wifi.m) is Objective-C only.
@@ -61,8 +59,6 @@ if(DEFINED PICO_BOARD)
         pico_stdio_rtt
     )
 
-    option(PICOFUSE_USB "Enable picofuse's own USB support" OFF)
-    option(PICOFUSE_BLUETOOTH "Enable picofuse's own Bluetooth support" OFF)
 
     if(PICO_CYW43_SUPPORTED)
         if(PICOFUSE_WIFI)

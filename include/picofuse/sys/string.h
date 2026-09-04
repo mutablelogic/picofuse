@@ -198,8 +198,8 @@ extern bool sys_string_parse_escape(const char *str, size_t len, rune_t *rune);
  * @ingroup SystemDataString
  * @param str String to parse, or NULL.
  * @param out Pointer to store the result. Left unchanged on a parse
- * error - there's no error for bool the way RUNE_ERROR is for
- * rune_t.
+ * error - there's no reserved error value for bool the way RUNE_ERROR is
+ * for rune_t.
  * @return true if str is exactly "true" or "false" (case-sensitive,
  * nothing else in str), false otherwise - any other value, including
  * "True"/"FALSE" or trailing content, is a parse error.
@@ -247,8 +247,8 @@ extern ptrdiff_t sys_string_parse_quoted(const char *str, size_t len, char *out,
  * one number and nothing else - trailing content is a parse error, not
  * ignored. With len set, str need not be NUL-terminated at all.
  * @param value Pointer to store the result. Left unchanged on a parse
- * error - there's no error for int32_t the way RUNE_ERROR is
- * for rune_t.
+ * error - there's no reserved error value for int32_t the way RUNE_ERROR
+ * is for rune_t.
  * @return true if str is a well-formed integer that fits in an
  * int32_t, false otherwise. Recognizes decimal ("123"), hex ("0x1A"),
  * octal ("0o17" or bare-leading-zero "0755"), and binary ("0b0101") -

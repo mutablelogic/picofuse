@@ -355,7 +355,9 @@ bool hw_wifi_disconnect(hw_wifi_t *wifi) {
     return false;
   }
 
-  // If scanning or joining is in progress, abort and report not connected.
+  // If scanning or joining is in progress, abort it - this is itself the
+  // "disconnect" per hw/wifi.h's own doc ("aborts an in-progress
+  // connection attempt or scan"), so report it as initiated.
   if (_hw_wifi_get_busy(wifi, _hw_wifi_busy_scanning | _hw_wifi_busy_joining)) {
     cyw43_arch_lwip_begin();
     cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
@@ -365,7 +367,7 @@ bool hw_wifi_disconnect(hw_wifi_t *wifi) {
     wifi->state = _HW_WIFI_STATE_UNKNOWN;
     wifi->ts = 0;
     memset(&wifi->network, 0, sizeof(wifi->network));
-    return false;
+    return true;
   }
 
   int state = _hw_wifi_link_status();
