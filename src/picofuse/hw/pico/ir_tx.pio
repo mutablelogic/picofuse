@@ -1,0 +1,66 @@
+; Consumer-IR transmitter: gates a fixed carrier on ("mark") and off
+; ("space") for durations fed one at a time over the TX FIFO, starting
+; with a mark and strictly alternating - the natural representation for
+; every common IR protocol (NEC, RC5, SIRC, ...) and for LIRC's own raw
+; timing format, just in units of whole carrier periods here rather than
+; microseconds (ir_tx_program_init()'s caller converts, since it also
+; knows the carrier frequency).
+;
+; A two-state-machine split (a generic "burst" generator triggered by a
+; separate "control" sequencer, as in the official pico-examples
+; nec_transmit_library) only pays for itself when the burst has a fixed
+; length per trigger. Supporting arbitrary durations means the trigger
+; would have to fire once per carrier cycle regardless, at which point
+; control is already doing all the real work and a second, independently
+; clocked state machine (plus the IRQ handshake and clock-divider
+; coordination between them) buys nothing - so this does it all in one.
+;
+; Each FIFO word is a period count: how many full carrier periods to
+; hold that state for. A mark toggles the pin at ~33% duty cycle (T_HIGH
+; high, T_LOW low per period - the usual recommendation for driving an
+; IR LED, trading a little detection range for a lot less average
+; current than 50%); a space just holds the pin low for the same
+; per-period duration, so the same period count means the same
+; wall-clock time either way.
+.program ir_tx
+.side_set 1 opt
+
+.define public T_HIGH 1
+.define public T_LOW 2
+
+.wrap_target
+mark:
+    pull block
+    mov x, osr
+mark_loop:
+    nop               side 1 [T_HIGH - 1]
+    jmp x-- mark_loop side 0 [T_LOW - 1]
+
+space:
+    pull block
+    mov x, osr
+space_loop:
+    jmp x-- space_loop side 0 [T_HIGH + T_LOW - 1]
+.wrap
+
+% c-sdk {
+static inline void ir_tx_program_init(PIO pio,
+                                      uint sm,
+                                      uint offset,
+                                      uint pin,
+                                      float carrier_freq) {
+    pio_sm_config c = ir_tx_program_get_default_config(offset);
+
+    sm_config_set_sideset_pins(&c, pin);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+
+    const float cycles_per_period = (float)(ir_tx_T_HIGH + ir_tx_T_LOW);
+    float div = (float)clock_get_hz(clk_sys) / (carrier_freq * cycles_per_period);
+    sm_config_set_clkdiv(&c, div);
+
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
