@@ -117,7 +117,7 @@ bool hw_led_clear(hw_led_t *led) {
   return led->ops->clear(led);
 }
 
-/** Stub implementation: blinking is not implemented yet. */
+/** @todo Stub implementation: blinking is not implemented yet. */
 bool hw_led_blink(hw_led_t *led, uint8_t index, uint32_t period_ms,
                   bool repeating) {
   (void)led;
