@@ -1,3 +1,4 @@
+#include "../../sys/pico/sync.h"
 #include <hardware/adc.h>
 #include <hardware/gpio.h>
 #include <hardware/uart.h>
@@ -43,6 +44,20 @@ hw_gpio_t *hw_gpio_init(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode) {
     return NULL;
   }
 
+  // pins[] has no kernel/hardware-level exclusivity of its own (unlike,
+  // say, Linux's gpiochip line requests) - without this check, a second
+  // hw_gpio_init() on a pin some other still-open handle already owns
+  // would silently reconfigure out from under it rather than being
+  // rejected, the same class of bug _hw_deviceio_alloc()/_hw_led_alloc()
+  // guard against for their own pools. Held for the whole call, not just
+  // the mask check, so a concurrent claim on the other core can't
+  // interleave with this one's own hardware setup below.
+  _sys_sync_pool_lock();
+  if (pins[pin].mask != 0) {
+    _sys_sync_pool_unlock();
+    return NULL;
+  }
+
   // Initialize the GPIO pin using the Pico SDK
   gpio_init(pin);
 
@@ -56,6 +71,7 @@ hw_gpio_t *hw_gpio_init(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode) {
   if (mode > 0) {
     hw_gpio_set_mode(gpio, mode);
   }
+  _sys_sync_pool_unlock();
 
   // Return the initialized GPIO
   return gpio;

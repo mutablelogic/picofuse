@@ -26,18 +26,14 @@
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// dir and trigger are both heap-allocated (see hw_led_init_device()) and
-// only their pointers stored here - HW_LED_DEVICE_DIR_MAX/
-// HW_LED_DEVICE_TRIGGER_LIST_MAX bytes would be by far the single largest
-// backend's context otherwise, forcing every other LED backend's
-// fixed-size slot to pay for space it never uses.
+// dir and trigger are both heap-allocated
 typedef struct {
   char *dir;     // "/sys/class/leds/<name>"
   char *trigger; // original trigger, restored on deinit; NULL if unknown
 } _hw_led_device_ctx_t;
 
 _Static_assert(sizeof(_hw_led_device_ctx_t) <= HW_LED_CONTEXT_SIZE,
-              "_hw_led_device_ctx_t exceeds HW_LED_CONTEXT_SIZE");
+               "_hw_led_device_ctx_t exceeds HW_LED_CONTEXT_SIZE");
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - SYSFS I/O
@@ -91,11 +87,7 @@ static bool _hw_led_device_read_u64(const char *dir, const char *file,
   return sys_string_parse_uint64(buf, (size_t)n, out);
 }
 
-// Reads "trigger" and pulls out the currently active entry - the one
-// wrapped in [brackets] among the space-separated list of every trigger
-// the driver supports (e.g. "none ... [mmc0] rfkill-any ..."). Returns a
-// heap-allocated copy of just the name, or NULL if the file couldn't be
-// read or didn't contain a bracketed entry.
+// Reads "trigger" and pulls out the currently active entry
 static char *_hw_led_device_read_trigger(const char *dir) {
   char path[HW_LED_DEVICE_ATTR_MAX];
   sys_sprintf(path, sizeof(path), "%s/trigger", dir);
@@ -131,9 +123,6 @@ static char *_hw_led_device_read_trigger(const char *dir) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// "On" writes max_brightness rather than a hardcoded 1 - some LEDs on this
-// path are PWM-dimmable with a much higher scale (max_brightness=255 is
-// common), and writing a bare 1 into that range would barely light it.
 static bool _hw_led_device_set(hw_led_t *led, uint8_t index, bool enabled) {
   (void)index; // a single sysfs LED has no addressable sub-index
   _hw_led_device_ctx_t *ctx = _hw_led_context(led);
@@ -170,8 +159,7 @@ static bool _hw_led_device_clear(hw_led_t *led) {
 }
 
 // Restores "trigger" to whatever it was before hw_led_init_device()
-// overwrote it with "none" (skipped if that couldn't be determined at
-// init time) and frees both heap-allocated strings.
+// overwrote it with "none"
 static void _hw_led_device_deinit(hw_led_t *led) {
   _hw_led_device_ctx_t *ctx = _hw_led_context(led);
   if (ctx->trigger != NULL) {
@@ -207,11 +195,7 @@ hw_led_t *hw_led_init_device(const char *name) {
     return NULL;
   }
 
-  // Take exclusive manual control - a kernel trigger (e.g. "mmc0", the
-  // common Raspberry Pi ACT LED default) would otherwise keep overriding
-  // brightness writes made through this handle. Saved first so deinit can
-  // put it back - and if anything below fails, so this LED isn't left
-  // permanently switched to manual control by a call that itself failed.
+  // Take exclusive manual control
   char *saved_trigger = _hw_led_device_read_trigger(dir);
   if (!_hw_led_device_write_str(dir, "trigger", "none")) {
     sys_free(saved_trigger);
