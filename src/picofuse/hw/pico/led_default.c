@@ -1,6 +1,13 @@
 #include "../led/led.h"
 #include <picofuse/sys.h>
 
+// Needed for the board-config macros (PICO_DEFAULT_LED_PIN,
+// CYW43_WL_GPIO_LED_PIN, PICO_DEFAULT_WS2812_PIN, ...) checked below -
+// picofuse/hw.h is platform-agnostic and pulls in none of the Pico SDK's
+// own headers, so without this every #if defined() here silently sees an
+// undefined macro regardless of what the board actually provides.
+#include <pico.h>
+
 // Precedence matches the Pico SDK's own board-config convention: a board
 // that defines PICO_DEFAULT_LED_PIN takes priority over the CYW43/WS2812
 // fallbacks (most non-W boards only ever define one of these anyway), and
@@ -87,6 +94,12 @@ static bool _hw_led_default_set(hw_led_t *led, uint8_t index, bool enabled) {
   return hw_led_set(ctx->inner, index, enabled);
 }
 
+static bool _hw_led_default_set_brightness(hw_led_t *led, uint8_t index,
+                                           float percent) {
+  _hw_led_default_ctx_t *ctx = _hw_led_context(led);
+  return hw_led_set_brightness(ctx->inner, index, percent);
+}
+
 static bool _hw_led_default_clear(hw_led_t *led) {
   _hw_led_default_ctx_t *ctx = _hw_led_context(led);
   return hw_led_clear(ctx->inner);
@@ -105,6 +118,7 @@ static void _hw_led_default_deinit(hw_led_t *led) {
 
 static const hw_led_ops_t _hw_led_default_ops = {
     .set = _hw_led_default_set,
+    .set_brightness = _hw_led_default_set_brightness,
     .clear = _hw_led_default_clear,
     .deinit = _hw_led_default_deinit,
 };

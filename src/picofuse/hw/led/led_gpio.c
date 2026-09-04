@@ -25,8 +25,16 @@ static bool _hw_led_gpio_clear(hw_led_t *led) {
   return _hw_led_gpio_set(led, 0, false);
 }
 
+// A plain GPIO has no intermediate level - any nonzero brightness is just
+// "on".
+static bool _hw_led_gpio_set_brightness(hw_led_t *led, uint8_t index,
+                                        float percent) {
+  return _hw_led_gpio_set(led, index, percent > 0.0f);
+}
+
 static const hw_led_ops_t _hw_led_gpio_ops = {
     .set = _hw_led_gpio_set,
+    .set_brightness = _hw_led_gpio_set_brightness,
     .clear = _hw_led_gpio_clear,
     .deinit = NULL,
 };

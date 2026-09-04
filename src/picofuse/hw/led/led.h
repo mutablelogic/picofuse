@@ -8,6 +8,7 @@
  */
 typedef struct hw_led_ops_t {
   bool (*set)(hw_led_t *led, uint8_t index, bool enabled);
+  bool (*set_brightness)(hw_led_t *led, uint8_t index, float percent);
   bool (*clear)(hw_led_t *led);
   void (*deinit)(hw_led_t *led);
 } hw_led_ops_t;

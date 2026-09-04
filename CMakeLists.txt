@@ -51,6 +51,7 @@ if(DEFINED PICO_BOARD)
     )
     if(PICO_CYW43_SUPPORTED)
         list(APPEND _picosdk_targets pico_cyw43_arch_lwip_poll)
+        add_compile_definitions(PICO_CYW43_SUPPORTED=1)
     endif()
 
     # Generate the combined Pico SDK bundle

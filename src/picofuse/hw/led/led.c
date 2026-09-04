@@ -103,6 +103,13 @@ bool hw_led_set(hw_led_t *led, uint8_t index, bool enabled) {
   return led->ops->set(led, index, enabled);
 }
 
+bool hw_led_set_brightness(hw_led_t *led, uint8_t index, float percent) {
+  if (!_hw_led_valid(led) || led->ops->set_brightness == NULL) {
+    return false;
+  }
+  return led->ops->set_brightness(led, index, percent);
+}
+
 bool hw_led_clear(hw_led_t *led) {
   if (!_hw_led_valid(led) || led->ops->clear == NULL) {
     return false;

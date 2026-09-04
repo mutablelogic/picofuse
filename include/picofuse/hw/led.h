@@ -30,8 +30,13 @@
 
 /**
  * @brief Size in bytes of the per-handle scratch context space embedded in
- * every hw_led_t, for a backend's own private per-LED state (a GPIO or PWM
- * handle pointer, a NeoPixel chain's length/buffer, ...).
+ * every hw_led_t, for a backend's own private per-LED state - a GPIO or
+ * PWM handle pointer, a NeoPixel chain's length/buffer pointer, a sysfs
+ * LED path pointer, and similar. Variable-length state (a sysfs path, a
+ * NeoPixel color buffer) is heap-allocated by the backend and only its
+ * pointer stored here, so this only needs to be big enough for a handful
+ * of pointer/scalar fields, not whatever the largest backend's data
+ * happens to be.
  * @ingroup LED
  *
  * Override by defining `HW_LED_CONTEXT_SIZE` at compile time.
@@ -103,6 +108,21 @@ hw_led_t *hw_led_init_wifi(void);
 hw_led_t *hw_led_init_pwm(hw_pwm_t *pwm);
 
 /**
+ * @brief Initialize an LED from a platform-specific device path or name.
+ * @ingroup LED
+ * @param name LED identifier, e.g. `"led0"` for `/sys/class/leds/led0` on
+ * Linux.
+ * @return LED handle, or `NULL` when unsupported or invalid.
+ *
+ * This entry point is intended for platforms where LEDs are bound to a
+ * kernel driver and exposed by name rather than reachable as a raw GPIO -
+ * on Linux/Raspberry Pi, the on-board activity LED is owned by the LED
+ * class subsystem (`/sys/class/leds/`), not a GPIO userspace can toggle
+ * directly. Unsupported elsewhere.
+ */
+hw_led_t *hw_led_init_device(const char *name);
+
+/**
  * @brief Initialize the default on-board LED.
  * @ingroup LED
  *
@@ -158,6 +178,22 @@ uint8_t hw_led_gpio_default(hw_led_type_t *out_type, uint8_t *out_count);
  * @retval false Handle is invalid or LED type is unsupported.
  */
 bool hw_led_set(hw_led_t *led, uint8_t index, bool enabled);
+
+/**
+ * @brief Set LED brightness.
+ * @ingroup LED
+ * @param led LED handle.
+ * @param index NeoPixel index to update. Ignored for non-NeoPixel LED
+ * types. For NeoPixel, brightness is per-index - each pixel keeps its own
+ * color untouched and independently scaled.
+ * @param percent Brightness percentage in [0.0, 100.0]. Values outside
+ * this range are clamped. GPIO and Wi-Fi LED types have no intermediate
+ * level - any nonzero value is just "on".
+ * @retval true Brightness was applied.
+ * @retval false Handle is invalid, or brightness control is unsupported
+ * by this LED type.
+ */
+bool hw_led_set_brightness(hw_led_t *led, uint8_t index, float percent);
 
 /**
  * @brief Turn off all LED state, cancelling any active blink.

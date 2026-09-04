@@ -26,8 +26,21 @@ static bool _hw_led_pwm_clear(hw_led_t *led) {
   return _hw_led_pwm_set(led, 0, false);
 }
 
+// hw_pwm_set_duty_percent() already clamps out-of-range values, so percent
+// needs no clamping here. Enabled tracks whether there's any nonzero
+// level, same as _set() does for its bool.
+static bool _hw_led_pwm_set_brightness(hw_led_t *led, uint8_t index,
+                                       float percent) {
+  (void)index; // a single PWM channel has no addressable sub-index
+  _hw_led_pwm_ctx_t *ctx = _hw_led_context(led);
+  hw_pwm_set_duty_percent(ctx->pwm, percent);
+  hw_pwm_set_enabled(ctx->pwm, percent > 0.0f);
+  return true;
+}
+
 static const hw_led_ops_t _hw_led_pwm_ops = {
     .set = _hw_led_pwm_set,
+    .set_brightness = _hw_led_pwm_set_brightness,
     .clear = _hw_led_pwm_clear,
     .deinit = NULL,
 };
