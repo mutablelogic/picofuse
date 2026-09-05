@@ -140,8 +140,7 @@ hw_wifi_t *hw_wifi_init_client(const char *country_code,
 }
 
 hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code, const char *ssid,
-                                    const char *password,
-                                    hw_wifi_auth_t auth) {
+                                    const char *password, hw_wifi_auth_t auth) {
   sys_debugf("wifi", "wifi_init_accesspoint: ssid=%s auth=%u",
              ssid != NULL ? ssid : "(null)", (unsigned)auth);
   if (_hw_wifi_adaptor.active || ssid == NULL) {
@@ -211,6 +210,18 @@ hw_wifi_t *hw_wifi_init_device(const char *device, hw_wifi_callback_t callback,
   (void)callback;
   (void)userdata;
   return NULL;
+}
+
+/**
+ * @brief Attach or replace the callback notified of Wi-Fi status updates.
+ */
+void hw_wifi_set_callback(hw_wifi_t *wifi, hw_wifi_callback_t callback,
+                          void *userdata) {
+  if (wifi == NULL || wifi != &_hw_wifi_adaptor || !wifi->active) {
+    return;
+  }
+  __atomic_store_n(&wifi->userdata, userdata, __ATOMIC_RELEASE);
+  __atomic_store_n(&wifi->callback, callback, __ATOMIC_RELEASE);
 }
 
 void hw_wifi_deinit(hw_wifi_t *wifi) {
