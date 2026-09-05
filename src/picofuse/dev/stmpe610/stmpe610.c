@@ -72,9 +72,13 @@ static bool _dev_stmpe610_configure(dev_stmpe610_t *stmpe610) {
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_TSC_I_DRIVE,
                                 STMPE610_TSC_I_DRIVE_50MA);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_INT_STA, 0xFF);
+  // INT_POLARITY left clear (active low/falling edge): the datasheet's own
+  // pin table documents INT as open-drain, and this board's schematic has
+  // no external pull-up on it - only an internal pull-up (see
+  // dev_stmpe610_init()) can give it a defined idle level, which only
+  // works with active-low (the chip can pull low, never drive high).
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_INT_CTRL,
-                                STMPE610_INT_CTRL_POL_HIGH |
-                                    STMPE610_INT_CTRL_ENABLE);
+                                STMPE610_INT_CTRL_ENABLE);
   return ok;
 }
 
@@ -86,7 +90,11 @@ void dev_stmpe610_default_config(dev_stmpe610_config_t *config) {
     return;
   }
   memset(config, 0, sizeof(*config));
-  config->irq_active_low = false; // STMPE610's INT is configured active-high.
+  // STMPE610's INT pin is open-drain (datasheet pin table) - it can only
+  // pull low, never drive high, so active-low is the only polarity that
+  // works with a pull-up (internal or external) giving it a defined idle
+  // level. _dev_stmpe610_configure() configures INT_CTRL to match.
+  config->irq_active_low = true;
 }
 
 dev_stmpe610_t *dev_stmpe610_init(hw_deviceio_t *device, hw_gpio_t *int_pin,
@@ -111,7 +119,10 @@ dev_stmpe610_t *dev_stmpe610_init(hw_deviceio_t *device, hw_gpio_t *int_pin,
   stmpe610->irq_active_low = resolved.irq_active_low;
 
   if (stmpe610->int_pin != NULL) {
-    hw_gpio_set_mode(stmpe610->int_pin, hw_gpio_pulldown);
+    // Pull-up, not pulldown: INT is open-drain with no external pull-up on
+    // this board (see the config comment above), so the pin would float
+    // when idle without one.
+    hw_gpio_set_mode(stmpe610->int_pin, hw_gpio_pullup);
   }
 
   if (!_dev_stmpe610_configure(stmpe610)) {
