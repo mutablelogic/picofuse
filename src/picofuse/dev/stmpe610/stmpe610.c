@@ -80,22 +80,6 @@ static bool _dev_stmpe610_configure(dev_stmpe610_t *stmpe610) {
   // works with active-low (the chip can pull low, never drive high).
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_INT_CTRL,
                                 STMPE610_INT_CTRL_ENABLE);
-
-  // @todo diagnostic: read back what actually landed in the chip, rather
-  // than trusting that a successful SPI transfer means the register write
-  // itself took effect - the read path needed an undocumented dummy-byte
-  // fix earlier, so the write path deserves the same scrutiny before
-  // trusting anything about the touch/interrupt logic built on top of it.
-  uint8_t sys_ctrl2 = 0xFF, tsc_ctrl = 0xFF, int_en = 0xFF, int_ctrl = 0xFF;
-  _dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_SYS_CTRL2, &sys_ctrl2);
-  _dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_TSC_CTRL, &tsc_ctrl);
-  _dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_INT_EN, &int_en);
-  _dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_INT_CTRL, &int_ctrl);
-  sys_printf("stmpe610: wrote ok=%d, read back SYS_CTRL2=0x%02x (want 0x00) "
-             "TSC_CTRL=0x%02x (want 0x01) INT_EN=0x%02x (want 0x01) "
-             "INT_CTRL=0x%02x (want 0x01)\n",
-             ok, sys_ctrl2, tsc_ctrl, int_en, int_ctrl);
-
   return ok;
 }
 
