@@ -42,6 +42,7 @@ digraph modules {
   I2C         [label="I2C",                      URL="\ref I2C"];
   Device      [label="Device",                   URL="\ref Device"];
   BME680      [label="BME680",                   URL="\ref BME680"];
+  FT6236      [label="FT6236",                   URL="\ref FT6236"];
   Pixels      [label="Pixels",                    URL="\ref Pixel"];
 
   System -> Memory;
@@ -79,5 +80,6 @@ digraph modules {
   DeviceIO -> SPI;
   DeviceIO -> I2C;
   Device -> BME680;
+  Device -> FT6236;
 }
 \enddot

@@ -12,3 +12,4 @@
  */
 #pragma once
 #include "dev/bme680.h"
+#include "dev/ft6236.h"
