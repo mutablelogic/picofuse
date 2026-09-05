@@ -46,6 +46,10 @@ digraph modules {
   STMPE610    [label="STMPE610",                 URL="\ref STMPE610"];
   ILI9341     [label="ILI9341",                  URL="\ref ILI9341"];
   Pixels      [label="Pixels",                    URL="\ref Pixel"];
+  Application [label="Application",              URL="\ref Application"];
+  HID         [label="HID",                      URL="\ref HID"];
+  HIDEvents   [label="Events",                   URL="\ref HIDEvents"];
+  HIDKeycodes [label="Keycodes",                 URL="\ref HIDKeycodes"];
 
   System -> Memory;
   System -> Sync;
@@ -85,5 +89,8 @@ digraph modules {
   Device -> FT6236;
   Device -> STMPE610;
   Device -> ILI9341;
+  Application -> HID;
+  HID -> HIDEvents;
+  HID -> HIDKeycodes;
 }
 \enddot
