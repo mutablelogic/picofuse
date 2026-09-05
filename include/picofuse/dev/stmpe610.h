@@ -47,12 +47,23 @@ typedef enum {
  * unlike a capacitive controller, STMPE610 is resistive and only ever
  * reports one point at a time.
  * @ingroup STMPE610
+ *
+ * `x`/`y`/`z` are the controller's raw, uncalibrated 12-bit ADC readings
+ * (roughly 0-4095) - not screen pixel coordinates. Each is a voltage-ratio
+ * measurement across the resistive panel along one axis (and, for `z`, a
+ * similar pressure/contact-resistance reading), so the exact range and
+ * scale is specific to the physical panel and its wiring. Turning these
+ * into pixel coordinates needs an application-level calibration step -
+ * typically touching each screen corner once to record the raw min/max x
+ * and y seen there, then linearly mapping subsequent raw readings into
+ * the display's actual pixel range. This driver does not do that mapping
+ * itself.
  */
 typedef struct {
   dev_stmpe610_touch_event_t event; ///< Contact state for this sample.
-  uint16_t x;                       ///< X coordinate, in raw ADC counts.
-  uint16_t y;                       ///< Y coordinate, in raw ADC counts.
-  uint8_t z;                        ///< Relative touch pressure/contact area.
+  uint16_t x;                       ///< Raw X ADC reading - see struct doc.
+  uint16_t y;                       ///< Raw Y ADC reading - see struct doc.
+  uint8_t z;                        ///< Raw pressure ADC reading - see struct doc.
 } dev_stmpe610_touch_t;
 
 /**
