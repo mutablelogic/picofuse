@@ -116,7 +116,17 @@ static bool _ili9341_set_window(dev_ili9341_t *ili9341, uint16_t x,
 // to the wire's big-endian order through a bounded stack buffer - the
 // bitmap can be arbitrarily large (a full-screen update), so this can't
 // just byte-swap the whole thing into one heap/stack buffer up front.
-#define ILI9341_CHUNK_PIXELS 128u
+//
+// 1024 pixels (2048 bytes) stays under half the Linux spidev driver's own
+// default per-transfer buffer size (module parameter `bufsiz`, 4096 on an
+// unmodified install), leaving headroom rather than sitting right at the
+// limit, while keeping the on-stack chunk buffer small enough to still be
+// reasonable on a constrained target - this driver's other dependencies
+// (hw_gpio, hw_deviceio_xfr) are platform-generic even though
+// hw_spi_init_device() itself is Linux-only today. Each chunk is one
+// ioctl() syscall, so this is still an 8x reduction in syscalls per
+// screen versus the 128-pixel chunking this replaced.
+#define ILI9341_CHUNK_PIXELS 1024u
 
 static bool _ili9341_write_pixels(dev_ili9341_t *ili9341,
                                   const pix_bitmap_t *bitmap) {

@@ -10,9 +10,12 @@
 // (see dev/ili9341.h's module note), so dev_ili9341_init() is passed NULL
 // for rst_pin and falls back to the panel's own software-reset command.
 #define PITFT_SPI_DEVICE "/dev/spidev0.0"
-// 32MHz - the datasheet's stated max for RAM write throughput, and what
-// Adafruit's own production device-tree overlay uses for this panel.
-#define PITFT_SPI_BAUD 32000000
+// 80MHz - Adafruit's own Arduino driver (Adafruit_ILI9341.cpp) defaults
+// to this exact value for "RASPI" specifically, well above the 32MHz the
+// device-tree overlay used (that overlay drives the panel through the
+// Linux fbtft framebuffer driver, not hand-tuned for throughput the way
+// a direct SPI client can be).
+#define PITFT_SPI_BAUD 80000000
 #define PITFT_DC_GPIO_BANK 0
 #define PITFT_DC_GPIO_PIN 25
 
