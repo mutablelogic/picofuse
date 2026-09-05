@@ -2,8 +2,9 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-// hw_wifi_init_client()/hw_wifi_deinit() lifecycle plus a real
-// hw_wifi_scan(), gated to Pico for now - Darwin's CoreWLAN backend can't
+// hw_wifi_init_client()/hw_wifi_set_callback()/hw_wifi_deinit() lifecycle
+// plus a real hw_wifi_scan(), gated to Pico for now - Darwin's CoreWLAN
+// backend can't
 // be exercised from a plain test binary (see hw/darwin/wifi.m's own doc:
 // scanning needs Location Services, which requires a signed .app bundle),
 // and Linux has no real hw_wifi_* backend yet.
@@ -36,18 +37,20 @@ test_main_hw(0) {
   test_assert(hw_wifi_disconnect(NULL) == false);
   hw_wifi_deinit(NULL); // must not crash
 
-  hw_wifi_t *wifi = hw_wifi_init_client(NULL, on_event, NULL);
+  hw_wifi_t *wifi = hw_wifi_init_client(NULL);
   if (wifi == NULL) {
     sys_printf("[hw_016] no Wi-Fi client backend on this board\n");
     return;
   }
 
-  // hw_wifi_init_client() requires a non-NULL callback.
-  test_assert(hw_wifi_init_client(NULL, NULL, NULL) == NULL);
+  // A freshly initialized handle has no callback attached - detaching
+  // (NULL) and attaching are both safe to call at any time.
+  hw_wifi_set_callback(wifi, NULL, NULL);
+  hw_wifi_set_callback(wifi, on_event, NULL);
 
   // The handle is a singleton - a second init while this one is still
   // active must fail, whichever entry point is used.
-  test_assert(hw_wifi_init_client(NULL, on_event, NULL) == NULL);
+  test_assert(hw_wifi_init_client(NULL) == NULL);
   test_assert(hw_wifi_init_accesspoint(NULL, "hw_016-test", "irrelevant",
                                        hw_wifi_auth_wpa2_aes) == NULL);
 
@@ -71,7 +74,7 @@ test_main_hw(0) {
   hw_wifi_deinit(wifi);
 
   // The singleton is free again once deinited - a fresh init must succeed.
-  hw_wifi_t *wifi2 = hw_wifi_init_client(NULL, on_event, NULL);
+  hw_wifi_t *wifi2 = hw_wifi_init_client(NULL);
   test_assert(wifi2 != NULL);
   hw_wifi_deinit(wifi2);
 }

@@ -58,11 +58,12 @@ test_main_hw(0) {
     return;
   }
 
-  hw_wifi_t *wifi = hw_wifi_init_client(NULL, on_event, NULL);
+  hw_wifi_t *wifi = hw_wifi_init_client(NULL);
   if (wifi == NULL) {
     sys_printf("[hw_017] no Wi-Fi client backend on this board\n");
     return;
   }
+  hw_wifi_set_callback(wifi, on_event, NULL);
 
   sys_printf("[hw_017] scanning for \"%s\"...\n", WIFI_SSID);
   test_assert(hw_wifi_scan(wifi));
