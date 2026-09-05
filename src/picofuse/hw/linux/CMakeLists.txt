@@ -16,6 +16,7 @@ picofuse_library(
         ../led/led_neopixel.c
         led_device.c
         ../stub/adc.c
+        ../stub/infrared.c
         ../posix/uart.c
         # @todo No real Linux hw_wifi_* backend yet (wpa_supplicant control
         # socket - see hw_wifi_init_device()'s doc) to gate behind

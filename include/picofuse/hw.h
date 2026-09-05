@@ -12,6 +12,7 @@
 #include "hw/deviceio.h"
 #include "hw/gpio.h"
 #include "hw/i2c.h"
+#include "hw/infrared.h"
 #include "hw/init.h"
 #include "hw/led.h"
 #include "hw/pwm.h"
