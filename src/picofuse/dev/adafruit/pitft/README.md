@@ -29,7 +29,7 @@ GPIO25. GPIO18 is used for the display backlight control.
 |            | 15|16 |            |
 |GPIO24 (INT)| 17|18 |            |
 |        MOSI| 19|20 |            |
-|        MISO| 21|22 |GPIO25 (RST)|
+|        MISO| 21|22 |GPIO25 (DC) |
 |      SPICLK| 23|24 |CE0 (TFT_CS)|
 |         GND| 25|26 |CE1 (TP_CS) |
 
