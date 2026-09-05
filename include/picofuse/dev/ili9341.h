@@ -11,18 +11,8 @@
  * boards that don't generate reset on their own.
  *
  * @note The device handle passed to dev_ili9341_init() must already be
- * open at the controller's required SPI mode - clock idles high, data
- * changes on the falling edge and is sampled on the rising edge (SPI mode
- * 3, hw_spi_mode_3) - via hw_spi_init() / hw_spi_init_default() /
- * hw_spi_init_device(). This driver only issues transfers on it; it does
- * not open or configure the bus itself.
- *
- * @note Some ILI9341-driven boards (including the Adafruit PiTFT this
- * driver was developed against) generate `/RESET` on-board from their own
- * power-on reset supervisor, tied to the same net as the touch
- * controller's reset - see dev/ft6236.h. On such boards, pass `NULL` for
- * `rst_pin`; dev_ili9341_init() falls back to the panel's software reset
- * command instead of driving a GPIO.
+ * open at the controller's required SPI mode. This driver only issues
+ * transfers on it; it does not open or configure the bus itself.
  */
 #pragma once
 
