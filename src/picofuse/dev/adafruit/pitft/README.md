@@ -15,7 +15,7 @@ chip-select.
 ## Pinout
 
 Uses the hardware SPI pins (SCK, MOSI, MISO, CE0, CE1) plus GPIO24 and
-GPIO25. All other GPIO are unused.
+GPIO25. GPIO18 is used for the display backlight control.
 
 |Signal      |Pin|Pin|Signal      |
 |------------|---|---|------------|

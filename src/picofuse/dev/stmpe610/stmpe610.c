@@ -6,10 +6,20 @@
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-static bool _dev_stmpe610_read_reg(dev_stmpe610_t *stmpe610, uint8_t reg,
-                                   void *data, size_t len) {
-  return hw_deviceio_read_reg(stmpe610->device, reg | STMPE610_READ_BIT, data,
-                              len, 0u) == len;
+// A register read is 3 bytes under one chip-select assertion: the address
+// (read bit set), a dummy turnaround byte, then the real data byte -
+// matching Adafruit_STMPE610's own readRegister8() exactly (this chip's
+// registers, unlike the FIFO data register, are not auto-incrementing, so
+// a multi-byte read has to repeat this per byte, not burst them in one
+// transfer - see stmpe610.h's register comment on how this was verified).
+static bool _dev_stmpe610_read_reg8(dev_stmpe610_t *stmpe610, uint8_t reg,
+                                    uint8_t *out) {
+  uint8_t buf[3] = {(uint8_t)(reg | STMPE610_READ_BIT), 0x00, 0x00};
+  if (hw_deviceio_xfr(stmpe610->device, buf, 2, 1, 0u) != 3) {
+    return false;
+  }
+  *out = buf[2];
+  return true;
 }
 
 static bool _dev_stmpe610_write_reg(dev_stmpe610_t *stmpe610, uint8_t reg,
@@ -18,11 +28,12 @@ static bool _dev_stmpe610_write_reg(dev_stmpe610_t *stmpe610, uint8_t reg,
 }
 
 static bool _dev_stmpe610_probe(dev_stmpe610_t *stmpe610) {
-  uint8_t id[2] = {0};
-  if (!_dev_stmpe610_read_reg(stmpe610, STMPE610_REG_CHIP_ID, id, sizeof(id))) {
+  uint8_t hi = 0, lo = 0;
+  if (!_dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_CHIP_ID, &hi) ||
+      !_dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_CHIP_ID + 1, &lo)) {
     return false;
   }
-  uint16_t chip_id = ((uint16_t)id[0] << 8) | id[1];
+  uint16_t chip_id = ((uint16_t)hi << 8) | lo;
   return chip_id == STMPE610_CHIP_ID_VALUE;
 }
 
@@ -145,15 +156,20 @@ bool dev_stmpe610_poll(dev_stmpe610_t *stmpe610, dev_stmpe610_touch_t *touch) {
   }
 
   uint8_t fifo_sta = 0;
-  if (!_dev_stmpe610_read_reg(stmpe610, STMPE610_REG_FIFO_STA, &fifo_sta, 1)) {
+  if (!_dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_FIFO_STA, &fifo_sta)) {
     return false;
   }
 
   if (!(fifo_sta & STMPE610_FIFO_STA_EMPTY)) {
+    // The FIFO data register is the one register on this chip that *is*
+    // safe to pop repeatedly by address alone - each read of the same
+    // address returns the next queued byte (see stmpe610.h).
     uint8_t data[STMPE610_TSC_DATA_LEN];
-    if (!_dev_stmpe610_read_reg(stmpe610, STMPE610_REG_TSC_DATA_NONINC, data,
-                                sizeof(data))) {
-      return false;
+    for (size_t i = 0; i < sizeof(data); i++) {
+      if (!_dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_TSC_DATA_NONINC,
+                                   &data[i])) {
+        return false;
+      }
     }
     touch->x = ((uint16_t)data[0] << 4) | (data[1] >> 4);
     touch->y = (((uint16_t)data[1] & 0x0Fu) << 8) | data[2];
@@ -168,7 +184,7 @@ bool dev_stmpe610_poll(dev_stmpe610_t *stmpe610, dev_stmpe610_touch_t *touch) {
   }
 
   uint8_t tsc_ctrl = 0;
-  if (!_dev_stmpe610_read_reg(stmpe610, STMPE610_REG_TSC_CTRL, &tsc_ctrl, 1)) {
+  if (!_dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_TSC_CTRL, &tsc_ctrl)) {
     return false;
   }
 
