@@ -30,7 +30,11 @@ int main(int argc, char *argv[]) {
   hw_gpio_t *int_pin =
       hw_gpio_init(PITFT_INT_GPIO_BANK, PITFT_INT_GPIO_PIN, hw_gpio_none);
 
-  dev_stmpe610_t *stmpe610 = dev_stmpe610_init(device, int_pin, NULL);
+  // @todo diagnostic: NULL forces pure polling, bypassing the IRQ-pin
+  // idle-skip in dev_stmpe610_poll() entirely - if touches now show up,
+  // the IRQ polarity/bias guess in dev_stmpe610_init() is wrong and the
+  // skip-gate is the culprit, not touch detection itself.
+  dev_stmpe610_t *stmpe610 = dev_stmpe610_init(device, NULL, NULL);
   if (stmpe610 == NULL) {
     sys_puts("Failed to initialize STMPE610 touch controller\n");
     hw_gpio_deinit(int_pin);
