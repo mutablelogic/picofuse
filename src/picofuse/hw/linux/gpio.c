@@ -244,6 +244,9 @@ hw_gpio_t *hw_gpio_init(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode) {
   return gpio;
 }
 
+/** @brief No board-default user-button concept on generic Linux GPIO. */
+hw_gpio_t *hw_gpio_init_userbutton(void) { return NULL; }
+
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
 

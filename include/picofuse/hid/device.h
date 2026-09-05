@@ -4,6 +4,7 @@
  * @ingroup HID
  */
 #pragma once
+#include <picofuse/hw/wifi.h>
 #include <picofuse/sys.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -16,6 +17,17 @@
  */
 #ifndef HID_DEVICE_CAPACITY
 #define HID_DEVICE_CAPACITY 32u
+#endif
+
+/**
+ * @brief Size in bytes of the per-device scratch context space embedded in
+ * every hid_device_t.
+ * @ingroup HID
+ *
+ * Override at compile time, for example: `-DHID_DEVICE_CONTEXT_SIZE=64`.
+ */
+#ifndef HID_DEVICE_CONTEXT_SIZE
+#define HID_DEVICE_CONTEXT_SIZE 32u
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -48,6 +60,7 @@ typedef enum {
   hid_type_bluetooth = 7,
   hid_type_infrared = 8,
   hid_type_other = 9,
+  hid_type_iostream = 10,
 } hid_type_t;
 
 /**
@@ -57,9 +70,14 @@ typedef enum {
  * Each callback returns true on success and false on failure.
  */
 typedef struct {
-  bool (*init)(hid_device_t *device, void *userdata);
-  bool (*read)(hid_device_t *device, void *userdata);
-  bool (*deinit)(hid_device_t *device, void *userdata);
+  bool (*init)(hid_device_t *device, void *userdata); ///< Called once, from
+                                                       ///< hid_register().
+  bool (*read)(hid_device_t *device, void *userdata); ///< Called from
+                                                       ///< hid_poll(), per
+                                                       ///< polling_interval_ms.
+  bool (*deinit)(hid_device_t *device, void *userdata); ///< Called once,
+                                                        ///< from
+                                                        ///< hid_deregister().
 } hid_device_callbacks_t;
 
 /**
@@ -146,10 +164,14 @@ hid_device_t *hid_register(hid_t *instance, const char *name, uint32_t id,
  * @param bank GPIO bank index.
  * @param pin GPIO pin index.
  * @param keycode HID keycode reported for this input.
+ * @param userdata Opaque user data retrievable via hid_device_userdata() on
+ * the returned device. To reach the backing hw_gpio_t* handle instead
+ * (e.g. to call hw_gpio_set_mode() directly), use hid_device_handle().
  * @return Registered HID device descriptor, or NULL on failure.
  */
 hid_device_t *hid_register_gpio_input(hid_t *instance, uint8_t bank,
-                                      uint8_t pin, uint16_t keycode);
+                                      uint8_t pin, uint16_t keycode,
+                                      void *userdata);
 
 /**
  * @brief Register a GPIO pin as HID input with pull-up.
@@ -158,10 +180,13 @@ hid_device_t *hid_register_gpio_input(hid_t *instance, uint8_t bank,
  * @param bank GPIO bank index.
  * @param pin GPIO pin index.
  * @param keycode HID keycode reported for this input.
+ * @param userdata Opaque user data retrievable via hid_device_userdata() -
+ * see hid_register_gpio_input()'s own doc.
  * @return Registered HID device descriptor, or NULL on failure.
  */
 hid_device_t *hid_register_gpio_pullup(hid_t *instance, uint8_t bank,
-                                       uint8_t pin, uint16_t keycode);
+                                       uint8_t pin, uint16_t keycode,
+                                       void *userdata);
 
 /**
  * @brief Register a GPIO pin as HID input with pull-down.
@@ -170,10 +195,13 @@ hid_device_t *hid_register_gpio_pullup(hid_t *instance, uint8_t bank,
  * @param bank GPIO bank index.
  * @param pin GPIO pin index.
  * @param keycode HID keycode reported for this input.
+ * @param userdata Opaque user data retrievable via hid_device_userdata() -
+ * see hid_register_gpio_input()'s own doc.
  * @return Registered HID device descriptor, or NULL on failure.
  */
 hid_device_t *hid_register_gpio_pulldown(hid_t *instance, uint8_t bank,
-                                         uint8_t pin, uint16_t keycode);
+                                         uint8_t pin, uint16_t keycode,
+                                         void *userdata);
 
 /**
  * @brief Register an ADC channel as a polling HID metric source.
@@ -190,6 +218,9 @@ hid_device_t *hid_register_gpio_pulldown(hid_t *instance, uint8_t bank,
  * `hw_adc_read_16()`). 0 or 1 takes a single, immediate reading.
  * @param polling_interval_ms Polling interval in milliseconds.
  * @details Passing 0 uses a default interval of 5000 ms.
+ * @param userdata Opaque user data retrievable via hid_device_userdata() on
+ * the returned device. To reach the backing hw_adc_t* handle instead, use
+ * hid_device_handle().
  * @return Registered HID device descriptor, or NULL on failure (for
  * example, if the channel has no GPIO pin).
  *
@@ -203,7 +234,7 @@ hid_device_t *hid_register_gpio_pulldown(hid_t *instance, uint8_t bank,
  */
 hid_device_t *hid_register_adc(hid_t *instance, uint8_t channel,
                                const char *metric_name, uint16_t num_samples,
-                               uint32_t polling_interval_ms);
+                               uint32_t polling_interval_ms, void *userdata);
 
 /**
  * @brief Register the internal temperature-sensor channel as a polling HID
@@ -212,6 +243,8 @@ hid_device_t *hid_register_adc(hid_t *instance, uint8_t channel,
  * @param instance HID instance that owns the registration.
  * @param polling_interval_ms Polling interval in milliseconds.
  * @details Passing 0 uses a default interval of 5000 ms.
+ * @param userdata Opaque user data retrievable via hid_device_userdata() -
+ * see hid_register_adc()'s own doc.
  * @return Registered HID device descriptor, or NULL on failure (for
  * example, if the platform has no internal temperature sensor).
  *
@@ -223,16 +256,20 @@ hid_device_t *hid_register_adc(hid_t *instance, uint8_t channel,
  * GPIO-pin ADC source with a caller-controlled sample count.
  */
 hid_device_t *hid_register_temperature(hid_t *instance,
-                                       uint32_t polling_interval_ms);
+                                       uint32_t polling_interval_ms,
+                                       void *userdata);
 
 /**
  * @brief Register a user button as a HID input source.
  * @ingroup HID
  * @param instance HID instance that owns the user-button registration.
  * @param keycode HID keycode reported for this input.
+ * @param userdata Opaque user data retrievable via hid_device_userdata() -
+ * see hid_register_gpio_input()'s own doc.
  * @return Registered HID device descriptor, or NULL on failure.
  */
-hid_device_t *hid_register_user_button(hid_t *instance, uint16_t keycode);
+hid_device_t *hid_register_user_button(hid_t *instance, uint16_t keycode,
+                                       void *userdata);
 
 /**
  * @brief Register a timer-backed HID source.
@@ -241,8 +278,16 @@ hid_device_t *hid_register_user_button(hid_t *instance, uint16_t keycode);
  * @param id Device identifier.
  * @param interval_ms Timer period in milliseconds.
  * @param repeating True for periodic timers, false for one-shot timers.
- * @param userdata Opaque user data stored with the timer.
+ * @param userdata Opaque user data retrievable via hid_device_userdata()
+ * and forwarded as hid_timer_t.userdata on every event this timer fires.
+ * To reach the backing sys_timer_t* handle instead, use
+ * hid_device_handle().
  * @return Registered HID device descriptor, or NULL on failure.
+ *
+ * For @p repeating == false, do not call hid_deregister() once the timer
+ * fires - the device is automatically deregistered when its
+ * `hid_event_type_timer` event is released with hid_event_free(); see
+ * that function's own doc.
  */
 hid_device_t *hid_register_timer(hid_t *instance, uint32_t id,
                                  uint32_t interval_ms, bool repeating,
@@ -252,12 +297,14 @@ hid_device_t *hid_register_timer(hid_t *instance, uint32_t id,
  * @brief Register an environment-signal HID source.
  * @ingroup HID
  * @param instance HID instance that owns the signal registration.
+ * @param userdata Opaque user data retrievable via hid_device_userdata() on
+ * the returned device.
  * @return Registered HID device descriptor, or NULL on failure.
  *
  * The signal source captures environment signals and emits
  * `hid_event_type_signal` events when those signals are observed.
  */
-hid_device_t *hid_register_signal(hid_t *instance);
+hid_device_t *hid_register_signal(hid_t *instance, void *userdata);
 
 /**
  * @brief Register a USB host hotplug observer.
@@ -273,6 +320,11 @@ hid_device_t *hid_register_signal(hid_t *instance);
  *
  * Attach/detach activity is currently only logged via `sys_debugf()`; it
  * is not yet delivered as HID events.
+ *
+ * @todo Not implemented yet - always returns NULL. There is no
+ * `hw_usb_init()`/`hw_usb_t` backend anywhere in this codebase yet (see
+ * `src/picofuse/hid/usb.c`); this needs a real USB host module under
+ * `picofuse/hw` before this can do anything.
  */
 hid_device_t *hid_register_usb(hid_t *instance);
 
@@ -280,25 +332,71 @@ hid_device_t *hid_register_usb(hid_t *instance);
  * @brief Register a Wi-Fi connection-state observer.
  * @ingroup HID
  * @param instance HID instance that owns the Wi-Fi registration.
- * @param country_code Country code for the Wi-Fi region (e.g., "US", "EU").
- * If NULL, defaults to "XX" (worldwide). See `hw_wifi_init_client()`.
+ * @param wifi Already-initialized Wi-Fi handle, from hw_wifi_init_client(),
+ * hw_wifi_init_accesspoint(), or hw_wifi_init_device(). HID does not
+ * create, own, or deinitialize this handle - only observes it - so
+ * whichever part of the program brought the radio up is responsible for
+ * eventually calling hw_wifi_deinit() on it.
+ * @param userdata Opaque user data retrievable via hid_device_userdata() on
+ * the returned device. To reach @p wifi itself instead, use
+ * hid_device_handle().
  * @return Registered HID device descriptor, or NULL on failure (for
- * example, if the platform has no Wi-Fi hardware support built in).
+ * example, if @p wifi is NULL).
  *
- * Initializes the Wi-Fi client subsystem (see `hw_wifi_init_client()`) and
- * emits `hid_event_type_wifi` events for every status change it reports
- * (joining, connected, disconnected, scan results, errors — see
- * hw_wifi_event_t). Only one Wi-Fi registration is permitted at a time,
- * since `hw_wifi_init_client()` is itself a process-wide singleton.
+ * Attaches a callback to @p wifi via hw_wifi_set_callback() and emits a
+ * hid_event_type_wifi event for every status change it reports (joining,
+ * connected, disconnected, scan results, errors — see hw_wifi_event_t).
+ * hw_wifi_set_callback() replaces whatever callback @p wifi already had
+ * attached, if any - this and any other code that also wants to observe
+ * @p wifi directly will conflict with each other over that single slot.
  *
  * This registers an observer only; it does not expose scan/connect/
- * disconnect actions. To drive the connection, retrieve the underlying
- * `hw_wifi_t*` handle via `hid_device_userdata()` on the returned device
- * and call `hw_wifi_scan()`/`hw_wifi_connect()`/`hw_wifi_disconnect()`
- * directly (mirroring how `hid_type_gpio` devices expose their backing
+ * disconnect actions. To drive the connection, retrieve @p wifi via
+ * `hid_device_handle()` on the returned device and call
+ * `hw_wifi_scan()`/`hw_wifi_connect()`/`hw_wifi_disconnect()` directly
+ * (mirroring how `hid_type_gpio` devices expose their backing
  * `hw_gpio_t*` the same way).
+ *
+ * hid_deregister() detaches the callback (equivalent to
+ * `hw_wifi_set_callback(wifi, NULL, NULL)`) but leaves @p wifi itself
+ * initialized.
  */
-hid_device_t *hid_register_wifi(hid_t *instance, const char *country_code);
+hid_device_t *hid_register_wifi(hid_t *instance, hw_wifi_t *wifi,
+                                void *userdata);
+
+/**
+ * @brief Register a stream-readiness observer.
+ * @ingroup HID
+ * @param instance HID instance that owns the registration.
+ * @param stream Already-open stream, from sys_string_read()/_open(),
+ * sys_stdin/sys_stdout, or a hardware-backed stream such as
+ * hw_uart_init()'s. HID does not create, own, or close this stream - only
+ * observes it - so whichever part of the program opened it is responsible
+ * for eventually calling sys_iostream_close() on it.
+ * @param userdata Opaque user data retrievable via hid_device_userdata() on
+ * the returned device. To reach @p stream itself instead, use
+ * hid_device_handle().
+ * @return Registered HID device descriptor, or NULL on failure (for
+ * example, if @p stream is NULL or its backend doesn't support readiness
+ * notifications - see sys_iostream_set_callback()).
+ *
+ * Attaches a callback to @p stream via sys_iostream_set_callback() and
+ * emits a hid_event_type_iostream event whenever it becomes ready for
+ * reading and/or writing (see sys_iostream_event_t) - most usefully, when
+ * there is data available to read without blocking. Like
+ * hid_register_wifi(), sys_iostream_set_callback() replaces whatever
+ * callback @p stream already had attached, if any.
+ *
+ * This registers an observer only; it does not read or write @p stream
+ * itself. Retrieve it via `hid_device_handle()` on the returned device and
+ * call `sys_iostream_read()`/`_write()`/`_peek()` directly.
+ *
+ * hid_deregister() detaches the callback (equivalent to
+ * `sys_iostream_set_callback(stream, NULL, NULL)`) but leaves @p stream
+ * itself open.
+ */
+hid_device_t *hid_register_iostream(hid_t *instance, sys_iostream_t *stream,
+                                    void *userdata);
 
 /**
  * @brief Deregister and remove a HID device.
@@ -347,8 +445,33 @@ bool hid_device_info(const hid_device_t *device, const char **out_name,
  * @brief Get the userdata pointer associated with a registered HID device.
  * @ingroup HID
  * @param device HID device handle.
- * @return Device userdata pointer, or NULL when the handle is invalid.
+ * @return Whatever @p userdata the device was registered with (see
+ * hid_register() and the various hid_register_*() convenience functions),
+ * or NULL when the handle is invalid or no userdata was supplied.
+ *
+ * This is always the caller's own opaque pointer, uniformly across every
+ * registration function - it never aliases a backend's own hardware/system
+ * handle (see hid_device_handle() for that).
  */
 void *hid_device_userdata(const hid_device_t *device);
+
+/**
+ * @brief Get a device's backend-owned handle, if it has one.
+ * @ingroup HID
+ * @param device HID device handle.
+ * @return The device's own backend handle - a `hw_gpio_t*` for
+ * hid_type_gpio (including hid_register_user_button()), a `hw_wifi_t*`
+ * for hid_type_wifi, a `sys_timer_t*` for hid_type_timer, a
+ * `sys_iostream_t*` for hid_type_iostream, or a `hw_adc_t*` for an
+ * ADC/temperature device (hid_type_other, hid_class_sensor) - or NULL if
+ * the handle is invalid or this device type has no single such handle
+ * (e.g. hid_type_signal, or a generic hid_register() device).
+ *
+ * Distinct from hid_device_userdata(), which always returns the caller's
+ * own opaque pointer instead - see its own doc. Intended for driving the
+ * backend directly (e.g. hw_gpio_set_mode(), hw_wifi_scan()) alongside the
+ * events HID already produces for it.
+ */
+void *hid_device_handle(const hid_device_t *device);
 
 /** @} */

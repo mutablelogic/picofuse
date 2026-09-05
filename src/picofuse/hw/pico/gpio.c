@@ -2,9 +2,65 @@
 #include <hardware/adc.h>
 #include <hardware/gpio.h>
 #include <hardware/uart.h>
+#include <pico.h>
 #include <picofuse/hw.h>
 #include <picofuse/sys.h>
 #include <string.h>
+
+// A picofuse-owned board header (see include/boards/) always wins if it
+// already defined PICO_USER_SW_PIN itself. Otherwise, recognize known
+// upstream pico-sdk board button-pin macros too - PICO_BOARD_HEADER_DIRS
+// always falls back to pico-sdk's own src/boards/include/boards/ (see
+// generic_board.cmake), so PICO_BOARD can legitimately resolve to one of
+// these directly, without picofuse shipping a header for it at all.
+//
+// Two are deliberately excluded:
+// - PI500_RP2040_POWER_BUTTON_PIN is wired to power control, and that
+//   board's own header warns against even reading it ("DO NOT SCAN OR YOU
+//   WON'T BE ABLE TO TURN THE PI500 ON!").
+// - metrotech_xerxes_rp2040.h's USR_SW_PIN/USR_BTN_PIN are two competing,
+//   uncommented macros on the same board with no "USER" qualifier -
+//   unlike every other name here, there's nothing confirming either one
+//   is a genuine momentary pushbutton rather than e.g. a toggle switch.
+#ifndef PICO_USER_SW_PIN
+#if defined(BADGER2040_USER_SW_PIN)
+#define PICO_USER_SW_PIN BADGER2040_USER_SW_PIN
+#elif defined(INTERSTATE75_USER_SW_PIN)
+#define PICO_USER_SW_PIN INTERSTATE75_USER_SW_PIN
+#elif defined(KEYBOW2040_USER_SW_PIN)
+#define PICO_USER_SW_PIN KEYBOW2040_USER_SW_PIN
+#elif defined(MOTOR2040_USER_SW_PIN)
+#define PICO_USER_SW_PIN MOTOR2040_USER_SW_PIN
+#elif defined(PICOLIPO_USER_SW_PIN)
+#define PICO_USER_SW_PIN PICOLIPO_USER_SW_PIN
+#elif defined(PIMORONI_PICO_PLUS2_USER_SW_PIN)
+#define PICO_USER_SW_PIN PIMORONI_PICO_PLUS2_USER_SW_PIN
+#elif defined(PIMORONI_PICO_PLUS2_W_USER_SW_PIN)
+#define PICO_USER_SW_PIN PIMORONI_PICO_PLUS2_W_USER_SW_PIN
+#elif defined(PLASMA2040_USER_SW_PIN)
+#define PICO_USER_SW_PIN PLASMA2040_USER_SW_PIN
+#elif defined(PLASMA2350_USER_SW_PIN)
+#define PICO_USER_SW_PIN PLASMA2350_USER_SW_PIN
+#elif defined(SERVO2040_USER_SW_PIN)
+#define PICO_USER_SW_PIN SERVO2040_USER_SW_PIN
+#elif defined(SPARKFUN_IOTREDBOARD_RP2350_USER_SW_PIN)
+#define PICO_USER_SW_PIN SPARKFUN_IOTREDBOARD_RP2350_USER_SW_PIN
+#elif defined(TINY2040_USER_SW_PIN)
+#define PICO_USER_SW_PIN TINY2040_USER_SW_PIN
+#elif defined(TINY2350_USER_SW_PIN)
+#define PICO_USER_SW_PIN TINY2350_USER_SW_PIN
+#elif defined(WEACT_STUDIO_RP2350B_USER_SW_PIN)
+#define PICO_USER_SW_PIN WEACT_STUDIO_RP2350B_USER_SW_PIN
+#elif defined(WEACT_STUDIO_USER_SW_PIN)
+#define PICO_USER_SW_PIN WEACT_STUDIO_USER_SW_PIN
+#elif defined(ADAFRUIT_FRUIT_JAM_BOOT_BUTTON_PIN)
+#define PICO_USER_SW_PIN ADAFRUIT_FRUIT_JAM_BOOT_BUTTON_PIN
+#elif defined(ADAFRUIT_MACROPAD_BUTTON_PIN)
+#define PICO_USER_SW_PIN ADAFRUIT_MACROPAD_BUTTON_PIN
+#elif defined(VCC_GND_YD_RP2040_BUTTON_PIN)
+#define PICO_USER_SW_PIN VCC_GND_YD_RP2040_BUTTON_PIN
+#endif
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -75,6 +131,17 @@ hw_gpio_t *hw_gpio_init(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode) {
 
   // Return the initialized GPIO
   return gpio;
+}
+
+/**
+ * @brief Initialize the board's default user-button GPIO pin, if known.
+ */
+hw_gpio_t *hw_gpio_init_userbutton(void) {
+#if defined(PICO_USER_SW_PIN)
+  return hw_gpio_init(0, PICO_USER_SW_PIN, hw_gpio_pullup);
+#else
+  return NULL;
+#endif
 }
 
 /**

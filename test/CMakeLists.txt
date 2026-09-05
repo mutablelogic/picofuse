@@ -779,3 +779,85 @@ if(DEFINED PICO_BOARD)
 		LIBRARIES picofuse-hw picofuse-dev
 	)
 endif()
+
+# hid_init/_deinit singleton lifecycle (including rejecting a second
+# hid_init()) and the generic hid_register/_deregister path against a
+# fake device with caller-supplied callbacks - no real backends
+# (gpio/timer/signal/wifi/...) are wired up yet.
+picofuse_test(hid_001
+	hid_001/main.c
+	LIBRARIES picofuse-hw picofuse-hid
+)
+
+# hid_keycode_to_string/hid_state_to_string formatting
+picofuse_test(hid_002
+	hid_002/main.c
+	LIBRARIES picofuse-hw picofuse-hid
+)
+
+# hid_register_timer: repeating/one-shot firing, hid_device_userdata()
+# unwrapping, and deferred device-pool release on one-shot completion.
+picofuse_test(hid_003
+	hid_003/main.c
+	LIBRARIES picofuse-hw picofuse-hid
+)
+
+# hid_register_signal: a real raised SIGTERM producing a hid_event_type_signal
+# event, single-registration enforcement, and NULL on platforms with no
+# signal support at all.
+picofuse_test(hid_004
+	hid_004/main.c
+	LIBRARIES picofuse-hw picofuse-hid
+)
+
+# hid_register_gpio_input(): NULL when there's no GPIO hardware at all, and
+# a register/userdata-unwrap/deregister round trip when there is. Skips on
+# Darwin (stub GPIO backend), same as hw_001/hw_012.
+if(NOT APPLE)
+	picofuse_test(hid_005
+		hid_005/main.c
+		LIBRARIES picofuse-hw picofuse-hid
+	)
+endif()
+
+# hid_register_user_button(): a register/userdata-unwrap/deregister round
+# trip against the board's known user-button pin. Pico-only - the pin
+# macros it depends on only ever come from a pico-sdk board header.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hid_006
+		hid_006/main.c
+		LIBRARIES picofuse-hw picofuse-hid
+	)
+endif()
+
+# hid_register_adc()/hid_register_temperature(): registration, metadata,
+# and change-detected metric events. Pico-only, same gating as hw_003.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hid_007
+		hid_007/main.c
+		LIBRARIES picofuse-hw picofuse-hid
+	)
+endif()
+
+# hid_register_wifi(): attaches to an already hw_wifi_init_client()'d
+# handle and forwards a real scan as hid_event_type_wifi events. Pico-only,
+# same gating/timeout as hw_016.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hid_008
+		hid_008/main.c
+		LIBRARIES picofuse-hw picofuse-hid
+		TESTRUNNER_TIMEOUT 30
+	)
+endif()
+
+# hid_register_iostream(): attaches to an already-open sys_iostream_t* and
+# forwards readiness as hid_event_type_iostream events, verified with a
+# real PL011 hardware loopback (see hid_009/main.c and hw_019). Pico-only,
+# same gating as hw_019.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hid_009
+		hid_009/main.c
+		LIBRARIES picofuse-hw picofuse-hid
+	)
+	target_link_libraries(hid_009 PRIVATE hardware_uart_headers)
+endif()

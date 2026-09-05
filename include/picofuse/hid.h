@@ -1,8 +1,15 @@
 /**
+ * @defgroup Application Application
+ * @ingroup Picofuse
+ * @brief Higher-level, application-facing modules built on top of System
+ * and Hardware.
+ */
+
+/**
  * @file hid.h
  * @brief Aggregates HID component interfaces.
  * @defgroup HID Human Interface Device (HID)
- * @ingroup Picofuse
+ * @ingroup Application
  * @details
  * The HID module provides a unified event-oriented interface for input and
  * sensor-like producers, including GPIO-backed keys, timer sources, touch

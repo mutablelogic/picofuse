@@ -43,12 +43,12 @@ block-beta
 * `fs` : Filesystem abstraction for persistent storage.
 * `net`: Network stack for TCP/IP communication.
 * `wav`: Audio library for playing and recording sound.
-* `hid`: Human Interface Device library for handling input devices, such as keyboards, button and mice, plus sensor readings.
+* `hid`: [Human Interface Device library for handling input devices, such as keyboards, button and mice, plus sensor readings.](https://mutablelogic.github.io/picofuse/group__HID.html)
 * `app`: Application framework for event-driven programming.
 
 A standalone, per-board "picofuse"
 installation is built, together with its headers and `pkg-config` metadata,
-installed under a plain directory prefix (e.g. `/opt/picofuse/<board>`).
+installed under a plain directory prefix (e.g. `/opt/picofuse`).
 
 ## Use
 
@@ -65,7 +65,7 @@ alongside the prefix (see [`examples/helloworld`](examples/helloworld)):
 cmake_minimum_required(VERSION 3.20)
 project(helloworld C)
 
-include(/opt/picofuse/<board>/cmake/picofuse_executable.cmake)
+include(/opt/picofuse/cmake/picofuse_executable.cmake)
 
 picofuse_executable(
     NAME helloworld
@@ -77,7 +77,7 @@ picofuse_executable(
 The following shell commands set up the environment for building the example:
 
 ```sh
-export PKG_CONFIG_PATH=/opt/picofuse/<board>/lib/pkgconfig
+export PKG_CONFIG_PATH=/opt/picofuse/lib/pkgconfig
 # Use -DPICO_BOARD=<board> to specify the target board
 cmake -S . -B build
 

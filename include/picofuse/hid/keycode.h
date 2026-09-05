@@ -1,6 +1,7 @@
 /**
  * @file keycode.h
  * @brief HID keycode and input-state definitions
+ * @ingroup HIDEvents
  */
 #pragma once
 #include <stddef.h>
@@ -11,6 +12,7 @@
 
 /**
  * @brief Input state flags used by the input manager and key handling.
+ * @ingroup HIDEvents
  *
  * This set of bitflags describes instantaneous and latent input states for
  * buttons and keys. Flags are combined with bitwise-or to represent
@@ -67,6 +69,13 @@ typedef enum {
 
 ///////////////////////////////////////////////////////////////////////////////
 // KEYCODES
+
+/**
+ * @defgroup HIDKeycodes Keycodes
+ * @ingroup HID
+ * @brief Numeric HID keycode constants.
+ * @{
+ */
 
 #define KEYCODE_NONE 0x0000
 #define KEYCODE_ESC 0x0001
@@ -291,11 +300,14 @@ typedef enum {
 #define KEYCODE_KEYPAD_10PLUS 0x0243
 #define KEYCODE_BUTTON_USER 0x0244
 
+/** @} */
+
 ///////////////////////////////////////////////////////////////////////////////
 // FUNCTION DECLARATIONS
 
 /**
  * @brief Convert a keycode to a display string.
+ * @ingroup HIDKeycodes
  *
  * In debug builds this returns a symbolic name such as "KEYCODE_ENTER" when
  * known; otherwise it returns a hexadecimal fallback formatted as "0x%04X".
@@ -309,6 +321,7 @@ const char *hid_keycode_to_string(uint16_t keycode);
 /**
  * @brief Format a HID state bitmask as a "|"-separated list of active flag
  * names (for example "on|left_shift").
+ * @ingroup HIDEvents
  *
  * Only atomic flags are tested (for example hid_state_left_shift), not the
  * either-left-or-right convenience masks (hid_state_shift and similar),
@@ -324,7 +337,8 @@ const char *hid_keycode_to_string(uint16_t keycode);
 size_t hid_state_to_string(hid_state_t state, char *buf, size_t buf_size);
 
 /**
- * Convert a keycode to modifier/input state flags.
+ * @brief Convert a keycode to modifier/input state flags.
+ * @ingroup HIDKeycodes
  */
 static inline hid_state_t hid_keycode_to_state(uint16_t keycode) {
   switch (keycode) {
@@ -356,7 +370,8 @@ static inline hid_state_t hid_keycode_to_state(uint16_t keycode) {
 }
 
 /**
- * Convert a keycode to its one-byte character representation.
+ * @brief Convert a keycode to its one-byte character representation.
+ * @ingroup HIDKeycodes
  */
 static inline char hid_keycode_to_char(uint16_t keycode) {
   switch (keycode) {

@@ -238,14 +238,16 @@ typedef struct {
  * Oversampling/filter fields use strongly typed enums.
  */
 typedef struct {
-  dev_bme680_oversampling_t os_temp;
-  dev_bme680_oversampling_t os_press;
-  dev_bme680_oversampling_t os_hum;
-  dev_bme680_iir_filter_t iir_filter;
-  dev_bme680_heater_temp_t heater_temp_c;
-  dev_bme680_heater_duration_t heater_duration_ms;
-  dev_bme680_ambient_temp_t ambient_temp_c;
-  dev_bme680_gas_mode_t gas_mode;
+  dev_bme680_oversampling_t os_temp;   ///< Temperature oversampling.
+  dev_bme680_oversampling_t os_press;  ///< Pressure oversampling.
+  dev_bme680_oversampling_t os_hum;    ///< Humidity oversampling.
+  dev_bme680_iir_filter_t iir_filter;  ///< IIR filter coefficient.
+  dev_bme680_heater_temp_t heater_temp_c;      ///< Gas heater target temperature.
+  dev_bme680_heater_duration_t heater_duration_ms; ///< Gas heater duration.
+  dev_bme680_ambient_temp_t ambient_temp_c; ///< Ambient temperature, used by
+                                            ///< the heater resistance
+                                            ///< calculation.
+  dev_bme680_gas_mode_t gas_mode; ///< Whether the gas heater is enabled.
 } dev_bme680_config_t;
 
 ///////////////////////////////////////////////////////////////////////////////
