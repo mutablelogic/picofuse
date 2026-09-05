@@ -89,8 +89,16 @@ int main(int argc, char *argv[]) {
         pixels[i * 2] = hi;
         pixels[i * 2 + 1] = lo;
       }
-      if (!dev_ili9341_write(ili9341, origin, &bitmap)) {
+      uint64_t start_ms = sys_timestamp_ms();
+      bool ok = dev_ili9341_write(ili9341, origin, &bitmap);
+      uint64_t elapsed_ms = sys_timestamp_ms() - start_ms;
+
+      if (!ok) {
         sys_puts("Failed to write to display.\n");
+      } else {
+        double fps = elapsed_ms > 0 ? 1000.0 / (double)elapsed_ms : 0.0;
+        sys_printf("full-screen write: %llu ms (%.1f fps)\n",
+                   (unsigned long long)elapsed_ms, fps);
       }
       sys_sleep_ms(1000);
     }
