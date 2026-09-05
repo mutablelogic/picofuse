@@ -22,6 +22,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/**
+ * @def HW_INFRARED_CAPACITY
+ * @ingroup Infrared
+ * @brief Maximum number of simultaneously open Infrared instances. One
+  instance can be either a receiver, a transmitter, or both.
+ */
+#ifndef HW_INFRARED_CAPACITY
+#define HW_INFRARED_CAPACITY 1
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -107,7 +117,8 @@ typedef struct {
  * protocol codec can own the callback without hw_infrared_init() itself
  * needing to know codecs exist.
  */
-hw_infrared_t *hw_infrared_init(const hw_gpio_t *rx_pin, const hw_gpio_t *tx_pin,
+hw_infrared_t *hw_infrared_init(const hw_gpio_t *rx_pin,
+                                const hw_gpio_t *tx_pin,
                                 const hw_infrared_config_t *config);
 
 /**
@@ -155,8 +166,8 @@ void hw_infrared_deinit(hw_infrared_t *ir);
  * @return true if the callback was registered, false if @p ir is NULL or
  * has no receiver configured.
  */
-bool hw_infrared_set_callback(hw_infrared_t *ir, hw_infrared_callback_t callback,
-                              void *userdata);
+bool hw_infrared_set_callback(hw_infrared_t *ir,
+                              hw_infrared_callback_t callback, void *userdata);
 
 /**
  * @brief Transmit a sequence of IR mark/space durations.

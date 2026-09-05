@@ -20,10 +20,10 @@ picofuse_library(
         pwm.c
         spi.c
         uart.c
-        # @todo No real Pico hw_infrared_* backend yet (ir_tx.pio is
-        # written but not wired into a driver, and RX has no PIO backend
-        # here) - always the stub for now.
-        ../stub/infrared.c
+        # infrared.c only wires up TX (infrared_tx.pio) so far - RX
+        # (hw_infrared_init()'s rx_pin) is rejected until infrared_rx.pio
+        # and its IRQ-driven decode loop exist - see its own comment.
+        infrared.c
         ../deviceio/deviceio.c
         ../led/led.c
         ../led/led_gpio.c
@@ -36,6 +36,7 @@ picofuse_library(
 )
 
 pico_generate_pio_header(picofuse-hw ${CMAKE_CURRENT_LIST_DIR}/led_neopixel.pio)
+pico_generate_pio_header(picofuse-hw ${CMAKE_CURRENT_LIST_DIR}/infrared_tx.pio)
 
 target_link_libraries(picofuse-hw PRIVATE picofuse-sys)
 
