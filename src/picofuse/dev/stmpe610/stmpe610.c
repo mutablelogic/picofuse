@@ -37,8 +37,10 @@ static bool _dev_stmpe610_probe(dev_stmpe610_t *stmpe610) {
   return chip_id == STMPE610_CHIP_ID_VALUE;
 }
 
-// Init sequence taken from Adafruit_STMPE610's own begin() (this project
-// has no vendored STMPE610 datasheet - see stmpe610.h's register comment).
+// Init sequence cross-checked against the real STMPE610 datasheet and
+// Adafruit's own production device-tree overlay (pitft28-resistive-
+// overlay.dts) - see stmpe610.h's per-register comments for the specific
+// values that came from there.
 static bool _dev_stmpe610_configure(dev_stmpe610_t *stmpe610) {
   if (!_dev_stmpe610_write_reg(stmpe610, STMPE610_REG_SYS_CTRL1,
                                STMPE610_SYS_CTRL1_RESET)) {
@@ -57,20 +59,20 @@ static bool _dev_stmpe610_configure(dev_stmpe610_t *stmpe610) {
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_INT_EN,
                                 STMPE610_INT_EN_TOUCHDET);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_ADC_CTRL1,
-                                STMPE610_ADC_CTRL1_10BIT | (0x6u << 4));
+                                STMPE610_ADC_CTRL1_VALUE);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_ADC_CTRL2,
                                 STMPE610_ADC_CTRL2_6_5MHZ);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_TSC_CFG,
-                                STMPE610_TSC_CFG_4SAMPLE |
+                                STMPE610_TSC_CFG_8SAMPLE |
                                     STMPE610_TSC_CFG_DELAY_1MS |
-                                    STMPE610_TSC_CFG_SETTLE_5MS);
-  ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_TSC_FRACTION_Z, 0x06);
+                                    STMPE610_TSC_CFG_SETTLE_500US);
+  ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_TSC_FRACTION_Z, 0x07);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_FIFO_TH, 0x01);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_FIFO_STA,
                                 STMPE610_FIFO_STA_RESET);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_FIFO_STA, 0x00);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_TSC_I_DRIVE,
-                                STMPE610_TSC_I_DRIVE_50MA);
+                                STMPE610_TSC_I_DRIVE_20MA);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_INT_STA, 0xFF);
   // INT_POLARITY left clear (active low/falling edge): the datasheet's own
   // pin table documents INT as open-drain, and this board's schematic has

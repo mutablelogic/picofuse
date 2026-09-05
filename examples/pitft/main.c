@@ -9,17 +9,21 @@
 // controller's interrupt line is on GPIO24 (GPIO25 is the display's own
 // reset line, unused here).
 #define PITFT_SPI_DEVICE "/dev/spidev0.1"
-#define PITFT_SPI_BAUD 1000000
+// 500kHz, not the datasheet's 1MHz theoretical max - matches Adafruit's
+// own production device-tree overlay (pitft28-resistive-overlay.dts).
+#define PITFT_SPI_BAUD 500000
 #define PITFT_INT_GPIO_BANK 0
 #define PITFT_INT_GPIO_PIN 24
 
-// @todo diagnostic: SW1-4, wired GPIO22/27/17/23 -> GND on button press
-// (with a pull-up cap on the PiTFT board itself). No hw_gpio_set_callback()
-// path in this project has an automated test yet, so before trusting
-// anything about GPIO24/the STMPE610, this proves edge detection + the
-// callback dispatch pipeline work at all on this board, using real physical
-// buttons instead of a jumper wire.
-static const uint8_t _pitft_sw_pins[] = {22, 27, 17, 23};
+// @todo diagnostic: candidate switch pins -> GND on button press. The
+// vendored schematic (rev D) says GPIO22/27/17/23, but this board appears
+// to be an earlier revision with different wiring (believed 23/22/21-or-27/
+// 18) - watching the union of both sets rather than guessing further. No
+// hw_gpio_set_callback() path in this project has an automated test yet,
+// so before trusting anything about GPIO24/the STMPE610, this proves edge
+// detection + the callback dispatch pipeline work at all on this board,
+// using real physical buttons instead of a jumper wire.
+static const uint8_t _pitft_sw_pins[] = {22, 23, 21, 27, 17, 18};
 
 // @todo diagnostic: prints every raw edge on GPIO24 and SW1-4, independent
 // of dev_stmpe610's own SPI-based touch detection - lets us see whether the
