@@ -144,6 +144,7 @@ add_subdirectory(examples/helloworld)
 add_subdirectory(examples/flags)
 add_subdirectory(examples/stdin)
 add_subdirectory(examples/pitft)
+add_subdirectory(examples/wifi)
 
 # Hardware test runner
 add_subdirectory(src/test)
