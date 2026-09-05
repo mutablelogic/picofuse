@@ -22,9 +22,20 @@ static bool _dev_stmpe610_read_reg8(dev_stmpe610_t *stmpe610, uint8_t reg,
   return true;
 }
 
+// hw_deviceio_write_reg() sends the address and value as two separate SPI
+// message segments (relying on cs_change=0 to hold chip-select low
+// between them) - empirically, on this hardware, writes done that way
+// never actually reach the chip (every register reads back at its
+// power-on-reset value afterward, even though the transport layer
+// reports success), while the combined-buffer read path already used by
+// _dev_stmpe610_read_reg8() does work. Sending address+value as one
+// single-segment transfer sidesteps whatever the two-segment issue is
+// entirely, the same way the read path had to route around a read-side
+// quirk.
 static bool _dev_stmpe610_write_reg(dev_stmpe610_t *stmpe610, uint8_t reg,
                                     uint8_t value) {
-  return hw_deviceio_write_reg(stmpe610->device, reg, &value, 1, 0u) == 1;
+  uint8_t buf[2] = {reg, value};
+  return hw_deviceio_xfr(stmpe610->device, buf, 2, 0, 0u) == 2;
 }
 
 static bool _dev_stmpe610_probe(dev_stmpe610_t *stmpe610) {
@@ -37,10 +48,9 @@ static bool _dev_stmpe610_probe(dev_stmpe610_t *stmpe610) {
   return chip_id == STMPE610_CHIP_ID_VALUE;
 }
 
-// Init sequence cross-checked against the real STMPE610 datasheet and
-// Adafruit's own production device-tree overlay (pitft28-resistive-
-// overlay.dts) - see stmpe610.h's per-register comments for the specific
-// values that came from there.
+// Init sequence cross-checked against the real STMPE610 datasheet and two
+// independent, complete Adafruit reference drivers (Arduino and
+// CircuitPython) - see stmpe610.h's per-register comments.
 static bool _dev_stmpe610_configure(dev_stmpe610_t *stmpe610) {
   if (!_dev_stmpe610_write_reg(stmpe610, STMPE610_REG_SYS_CTRL1,
                                STMPE610_SYS_CTRL1_RESET)) {
@@ -63,16 +73,16 @@ static bool _dev_stmpe610_configure(dev_stmpe610_t *stmpe610) {
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_ADC_CTRL2,
                                 STMPE610_ADC_CTRL2_6_5MHZ);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_TSC_CFG,
-                                STMPE610_TSC_CFG_8SAMPLE |
+                                STMPE610_TSC_CFG_4SAMPLE |
                                     STMPE610_TSC_CFG_DELAY_1MS |
-                                    STMPE610_TSC_CFG_SETTLE_500US);
-  ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_TSC_FRACTION_Z, 0x07);
+                                    STMPE610_TSC_CFG_SETTLE_5MS);
+  ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_TSC_FRACTION_Z, 0x06);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_FIFO_TH, 0x01);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_FIFO_STA,
                                 STMPE610_FIFO_STA_RESET);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_FIFO_STA, 0x00);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_TSC_I_DRIVE,
-                                STMPE610_TSC_I_DRIVE_20MA);
+                                STMPE610_TSC_I_DRIVE_50MA);
   ok &= _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_INT_STA, 0xFF);
   // INT_POLARITY left clear (active low/falling edge): the datasheet's own
   // pin table documents INT as open-drain, and this board's schematic has
@@ -209,6 +219,19 @@ bool dev_stmpe610_poll(dev_stmpe610_t *stmpe610, dev_stmpe610_touch_t *touch) {
     stmpe610->last_x = touch->x;
     stmpe610->last_y = touch->y;
     stmpe610->last_z = touch->z;
+
+    // Matches Adafruit_CircuitPython_STMPE610's read_data(): once the FIFO
+    // is fully drained, clear pending interrupt status - otherwise, on a
+    // level-triggered INT line (this driver's default - see INT_CTRL in
+    // _dev_stmpe610_configure()), TOUCH_DET staying set in INT_STA could
+    // leave INT permanently asserted after the first touch instead of
+    // deasserting between samples.
+    uint8_t fifo_sta_after = 0;
+    if (_dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_FIFO_STA,
+                                &fifo_sta_after) &&
+        (fifo_sta_after & STMPE610_FIFO_STA_EMPTY)) {
+      _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_INT_STA, 0xFF);
+    }
     return true;
   }
 

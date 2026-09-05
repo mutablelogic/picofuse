@@ -9,9 +9,9 @@
 // controller's interrupt line is on GPIO24 (GPIO25 is the display's own
 // reset line, unused here).
 #define PITFT_SPI_DEVICE "/dev/spidev0.1"
-// 500kHz, not the datasheet's 1MHz theoretical max - matches Adafruit's
-// own production device-tree overlay (pitft28-resistive-overlay.dts).
-#define PITFT_SPI_BAUD 500000
+// 1MHz - the datasheet's stated max, and what both Adafruit's Arduino and
+// CircuitPython reference drivers default to.
+#define PITFT_SPI_BAUD 1000000
 #define PITFT_INT_GPIO_BANK 0
 #define PITFT_INT_GPIO_PIN 24
 
