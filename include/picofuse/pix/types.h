@@ -51,9 +51,9 @@ typedef enum {
 /**
  * @brief Plain in-memory pixel bitmap descriptor.
  * @ingroup Pixel
- * @details Describes a block of raw pixel memory with no backing device.
- * Unlike @ref pix_frame_t, a bitmap has no ctx and no lock/unlock/clear/
- * set/copy methods; callers read and write @ref data directly.
+ * @details Describes a block of raw pixel memory with no backing device -
+ * no ctx and no lock/unlock/clear/set/copy methods; callers read and
+ * write @ref data directly.
  */
 typedef struct {
   void *data;       ///< Pointer to bitmap memory.

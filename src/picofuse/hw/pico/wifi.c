@@ -107,13 +107,10 @@ static int _hw_wifi_scan_callback(void *env,
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-hw_wifi_t *hw_wifi_init_client(const char *country_code,
-                               hw_wifi_callback_t callback, void *userdata) {
-  sys_debugf("wifi",
-             "wifi_init_client: country_code=%s callback=%p userdata=%p",
-             country_code != NULL ? country_code : "(null)", (void *)callback,
-             userdata);
-  if (callback == NULL || _hw_wifi_adaptor.active) {
+hw_wifi_t *hw_wifi_init_client(const char *country_code) {
+  sys_debugf("wifi", "wifi_init_client: country_code=%s",
+             country_code != NULL ? country_code : "(null)");
+  if (_hw_wifi_adaptor.active) {
     return NULL;
   }
 
@@ -129,8 +126,8 @@ hw_wifi_t *hw_wifi_init_client(const char *country_code,
 
   memcpy(_hw_wifi_adaptor.country_code, country_code, 2);
   _hw_wifi_adaptor.country_code[2] = '\0';
-  _hw_wifi_adaptor.callback = callback;
-  _hw_wifi_adaptor.userdata = userdata;
+  _hw_wifi_adaptor.callback = NULL; // attached later via hw_wifi_set_callback()
+  _hw_wifi_adaptor.userdata = NULL;
   _hw_wifi_adaptor.accesspoint = false;
   _hw_wifi_adaptor.state = _HW_WIFI_STATE_UNKNOWN;
   sys_atomic_init(&_hw_wifi_adaptor.flags, 0);
@@ -174,7 +171,9 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code, const char *ssid,
 
   memcpy(_hw_wifi_adaptor.country_code, country_code, 2);
   _hw_wifi_adaptor.country_code[2] = '\0';
-  _hw_wifi_adaptor.callback = NULL; // no per-station events to report - see
+  _hw_wifi_adaptor.callback = NULL; // hw_wifi_set_callback() could attach
+                                    // one, but it would never fire - no
+                                    // per-station events to report, see
                                     // hw_wifi_init_accesspoint()'s own doc
   _hw_wifi_adaptor.userdata = NULL;
   _hw_wifi_adaptor.accesspoint = true;
@@ -202,13 +201,10 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code, const char *ssid,
 
 /** @brief Stub function - wpa_supplicant control sockets are a Linux concept.
  */
-hw_wifi_t *hw_wifi_init_device(const char *device, hw_wifi_callback_t callback,
-                               void *userdata) {
-  sys_debugf("wifi", "wifi_init_device: device=%s callback=%p userdata=%p",
-             device != NULL ? device : "(null)", (void *)callback, userdata);
+hw_wifi_t *hw_wifi_init_device(const char *device) {
+  sys_debugf("wifi", "wifi_init_device: device=%s",
+             device != NULL ? device : "(null)");
   (void)device;
-  (void)callback;
-  (void)userdata;
   return NULL;
 }
 
@@ -220,8 +216,8 @@ void hw_wifi_set_callback(hw_wifi_t *wifi, hw_wifi_callback_t callback,
   if (wifi == NULL || wifi != &_hw_wifi_adaptor || !wifi->active) {
     return;
   }
-  __atomic_store_n(&wifi->userdata, userdata, __ATOMIC_RELEASE);
-  __atomic_store_n(&wifi->callback, callback, __ATOMIC_RELEASE);
+  wifi->callback = callback;
+  wifi->userdata = userdata;
 }
 
 void hw_wifi_deinit(hw_wifi_t *wifi) {
@@ -477,6 +473,16 @@ static int16_t _hw_wifi_get_rssi(hw_wifi_t *wifi) {
   return 0;
 }
 
+/** @brief Notify the attached callback, if any - hw_wifi_set_callback()
+ * means a handle may legitimately have none attached yet (or ever, for an
+ * access-point handle). */
+static inline void _hw_wifi_notify(hw_wifi_t *wifi, hw_wifi_event_t event,
+                                   const hw_wifi_network_t *network) {
+  if (wifi->callback != NULL) {
+    wifi->callback(wifi, event, network, wifi->userdata);
+  }
+}
+
 /** @brief Callback for scan results from the CYW43 driver. */
 static int _hw_wifi_scan_callback(void *ctx,
                                   const cyw43_ev_scan_result_t *result) {
@@ -529,7 +535,7 @@ static int _hw_wifi_scan_callback(void *ctx,
     network.auth = hw_wifi_auth_wpa2_aes;
   }
 
-  wifi->callback(wifi, hw_wifi_event_scan, &network, wifi->userdata);
+  _hw_wifi_notify(wifi, hw_wifi_event_scan, &network);
 
   // Continue scanning.
   return 0;
@@ -563,8 +569,7 @@ void _hw_wifi_poll(void) {
 
         // A periodic refresh, not a new connection; see
         // hw_wifi_event_connected below for the one-time join transition.
-        wifi->callback(wifi, hw_wifi_event_status, &wifi->network,
-                       wifi->userdata);
+        _hw_wifi_notify(wifi, hw_wifi_event_status, &wifi->network);
       }
     }
   }
@@ -583,7 +588,7 @@ void _hw_wifi_poll(void) {
     cyw43_arch_lwip_end();
     if (!scan_active) {
       _hw_wifi_set_busy(wifi, _hw_wifi_busy_scanning, false);
-      wifi->callback(wifi, hw_wifi_event_scan, NULL, wifi->userdata);
+      _hw_wifi_notify(wifi, hw_wifi_event_scan, NULL);
     }
     return;
   }
@@ -603,13 +608,13 @@ void _hw_wifi_poll(void) {
                           _hw_wifi_busy_scanning,
                       false);
     wifi->state = _HW_WIFI_STATE_UNKNOWN;
-    wifi->callback(wifi, hw_wifi_event_disconnected, NULL, wifi->userdata);
+    _hw_wifi_notify(wifi, hw_wifi_event_disconnected, NULL);
     memset(&wifi->network, 0, sizeof(wifi->network));
     break;
   case CYW43_LINK_JOIN:
     sys_debugf("wifi", "CYW43_LINK_JOIN");
     _hw_wifi_set_busy(wifi, _hw_wifi_busy_joining, true);
-    wifi->callback(wifi, hw_wifi_event_joining, &wifi->network, wifi->userdata);
+    _hw_wifi_notify(wifi, hw_wifi_event_joining, &wifi->network);
     break;
   case CYW43_LINK_NOIP:
     sys_debugf("wifi", "CYW43_LINK_NOIP");
@@ -625,30 +630,28 @@ void _hw_wifi_poll(void) {
       wifi->network.channel = _hw_wifi_get_channel(wifi);
       wifi->ts = sys_timestamp_ms();
 
-      wifi->callback(wifi, hw_wifi_event_connected, &wifi->network,
-                     wifi->userdata);
+      _hw_wifi_notify(wifi, hw_wifi_event_connected, &wifi->network);
     }
     break;
   case CYW43_LINK_FAIL:
     sys_debugf("wifi", "CYW43_LINK_FAIL");
     _hw_wifi_set_busy(wifi, _hw_wifi_busy_joining, false);
     wifi->state = _HW_WIFI_STATE_UNKNOWN;
-    wifi->callback(wifi, hw_wifi_event_error, &wifi->network, wifi->userdata);
+    _hw_wifi_notify(wifi, hw_wifi_event_error, &wifi->network);
     memset(&wifi->network, 0, sizeof(wifi->network));
     break;
   case CYW43_LINK_NONET:
     sys_debugf("wifi", "CYW43_LINK_NONET");
     _hw_wifi_set_busy(wifi, _hw_wifi_busy_joining, false);
     wifi->state = _HW_WIFI_STATE_UNKNOWN;
-    wifi->callback(wifi, hw_wifi_event_notfound, &wifi->network,
-                   wifi->userdata);
+    _hw_wifi_notify(wifi, hw_wifi_event_notfound, &wifi->network);
     memset(&wifi->network, 0, sizeof(wifi->network));
     break;
   case CYW43_LINK_BADAUTH:
     sys_debugf("wifi", "CYW43_LINK_BADAUTH");
     _hw_wifi_set_busy(wifi, _hw_wifi_busy_joining, false);
     wifi->state = _HW_WIFI_STATE_UNKNOWN;
-    wifi->callback(wifi, hw_wifi_event_badauth, &wifi->network, wifi->userdata);
+    _hw_wifi_notify(wifi, hw_wifi_event_badauth, &wifi->network);
     memset(&wifi->network, 0, sizeof(wifi->network));
     break;
   default:
@@ -658,7 +661,7 @@ void _hw_wifi_poll(void) {
                           _hw_wifi_busy_scanning,
                       false);
     wifi->state = _HW_WIFI_STATE_UNKNOWN;
-    wifi->callback(wifi, hw_wifi_event_error, &wifi->network, wifi->userdata);
+    _hw_wifi_notify(wifi, hw_wifi_event_error, &wifi->network);
     memset(&wifi->network, 0, sizeof(wifi->network));
     break;
   }

@@ -44,6 +44,15 @@ static sys_mutex_t *_hw_wifi_mutex;
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+/** @brief Notify the attached callback, if any - hw_wifi_set_callback()
+ * means a handle may legitimately have none attached yet. */
+static inline void _hw_wifi_notify(hw_wifi_t *wifi, hw_wifi_event_t event,
+                                   const hw_wifi_network_t *network) {
+  if (wifi->callback != NULL) {
+    wifi->callback(wifi, event, network, wifi->userdata);
+  }
+}
+
 static hw_wifi_auth_t _hw_wifi_auth_from_network(CWNetwork *net) {
   hw_wifi_auth_t auth = 0;
   if ([net supportsSecurity:kCWSecurityNone]) {
@@ -158,14 +167,14 @@ static void _hw_wifi_scan_thread(void *arg) {
     if (networks == nil) {
       sys_debugf("wifi", "scan failed: %s",
                  error.localizedDescription.UTF8String);
-      wifi->callback(wifi, hw_wifi_event_error, NULL, wifi->userdata);
+      _hw_wifi_notify(wifi, hw_wifi_event_error, NULL);
     } else {
       for (CWNetwork *net in networks) {
         hw_wifi_network_t result;
         _hw_wifi_network_from_cwnetwork(net, &result);
-        wifi->callback(wifi, hw_wifi_event_scan, &result, wifi->userdata);
+        _hw_wifi_notify(wifi, hw_wifi_event_scan, &result);
       }
-      wifi->callback(wifi, hw_wifi_event_scan, NULL, wifi->userdata);
+      _hw_wifi_notify(wifi, hw_wifi_event_scan, NULL);
     }
   }
   sys_mutex_lock(_hw_wifi_mutex);
@@ -177,11 +186,11 @@ static void _hw_wifi_connect_thread(void *arg) {
   _hw_wifi_connect_ctx_t *ctx = (_hw_wifi_connect_ctx_t *)arg;
   hw_wifi_t *wifi = ctx->wifi;
   @autoreleasepool {
-    wifi->callback(wifi, hw_wifi_event_joining, NULL, wifi->userdata);
+    _hw_wifi_notify(wifi, hw_wifi_event_joining, NULL);
 
     CWNetwork *target = _hw_wifi_find_network(wifi->iface, &ctx->network);
     if (target == nil) {
-      wifi->callback(wifi, hw_wifi_event_notfound, NULL, wifi->userdata);
+      _hw_wifi_notify(wifi, hw_wifi_event_notfound, NULL);
     } else {
       NSError *error = nil;
       if ([wifi->iface associateToNetwork:target
@@ -189,8 +198,7 @@ static void _hw_wifi_connect_thread(void *arg) {
                                      error:&error]) {
         hw_wifi_network_t result;
         _hw_wifi_network_from_cwnetwork(target, &result);
-        wifi->callback(wifi, hw_wifi_event_connected, &result,
-                       wifi->userdata);
+        _hw_wifi_notify(wifi, hw_wifi_event_connected, &result);
       } else {
         sys_debugf("wifi", "associate failed: %s",
                    error.localizedDescription.UTF8String);
@@ -205,7 +213,7 @@ static void _hw_wifi_connect_thread(void *arg) {
           event = hw_wifi_event_error;
           break;
         }
-        wifi->callback(wifi, event, NULL, wifi->userdata);
+        _hw_wifi_notify(wifi, event, NULL);
       }
     }
   }
@@ -237,14 +245,10 @@ void _hw_wifi_module_exit(void) {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-hw_wifi_t *hw_wifi_init_client(const char *country_code,
-                               hw_wifi_callback_t callback, void *userdata) {
+hw_wifi_t *hw_wifi_init_client(const char *country_code) {
   // macOS exposes no public API to set the Wi-Fi regulatory country code -
   // the system manages it based on physical location.
   (void)country_code;
-  if (callback == NULL) {
-    return NULL;
-  }
 
   hw_wifi_t *wifi = NULL;
   @autoreleasepool {
@@ -261,8 +265,9 @@ hw_wifi_t *hw_wifi_init_client(const char *country_code,
     }
 
     _hw_wifi_adaptor.iface = iface;
-    _hw_wifi_adaptor.callback = callback;
-    _hw_wifi_adaptor.userdata = userdata;
+    _hw_wifi_adaptor.callback = NULL; // attached later via
+                                      // hw_wifi_set_callback()
+    _hw_wifi_adaptor.userdata = NULL;
     _hw_wifi_adaptor.active = true;
     _hw_wifi_adaptor.busy = false;
     wifi = &_hw_wifi_adaptor;
@@ -286,14 +291,24 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
   return NULL;
 }
 
-hw_wifi_t *hw_wifi_init_device(const char *device, hw_wifi_callback_t callback,
-                               void *userdata) {
+hw_wifi_t *hw_wifi_init_device(const char *device) {
   // wpa_supplicant control sockets are a Linux concept; macOS manages Wi-Fi
   // through CoreWLAN instead - see hw_wifi_init_client().
   (void)device;
-  (void)callback;
-  (void)userdata;
   return NULL;
+}
+
+void hw_wifi_set_callback(hw_wifi_t *wifi, hw_wifi_callback_t callback,
+                          void *userdata) {
+  if (wifi == NULL || wifi != &_hw_wifi_adaptor) {
+    return;
+  }
+  sys_mutex_lock(_hw_wifi_mutex);
+  if (wifi->active) {
+    wifi->callback = callback;
+    wifi->userdata = userdata;
+  }
+  sys_mutex_unlock(_hw_wifi_mutex);
 }
 
 void hw_wifi_deinit(hw_wifi_t *wifi) {
@@ -407,6 +422,6 @@ bool hw_wifi_disconnect(hw_wifi_t *wifi) {
     // whatever network is currently joined, if any.
     [wifi->iface disassociate];
   }
-  wifi->callback(wifi, hw_wifi_event_disconnected, NULL, wifi->userdata);
+  _hw_wifi_notify(wifi, hw_wifi_event_disconnected, NULL);
   return true;
 }

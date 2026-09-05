@@ -16,6 +16,9 @@ hw_gpio_t *hw_gpio_init(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode) {
 /** Stub implementation: no GPIO hardware on this platform. */
 void hw_gpio_deinit(hw_gpio_t *gpio) { (void)gpio; }
 
+/** Stub implementation: no board-default user button on this platform. */
+hw_gpio_t *hw_gpio_init_userbutton(void) { return NULL; }
+
 /** Stub implementation: no GPIO pins on this platform. */
 uint8_t hw_gpio_count(uint8_t bank) {
   (void)bank;

@@ -8,9 +8,10 @@
 // Pico-only, see hw_016/main.c (station init/deinit + scan) and
 // hw_017/main.c (station connect/disconnect).
 //
-// hw_wifi_init_accesspoint() takes no callback - there's nothing to
-// notify, see its own doc. Deliberately does not poll for or assert on
-// any AP-side status either: hw/pico/wifi.c's _hw_wifi_poll() is an
+// hw_wifi_set_callback() can still be attached to an AP handle (see this
+// file's own on_event()), but it never fires - there's nothing to notify,
+// see hw_wifi_init_accesspoint()'s own doc. Deliberately does not poll for
+// or assert on any AP-side status either: hw/pico/wifi.c's _hw_wifi_poll() is an
 // unconditional no-op for an AP handle (see its own comment) after a
 // real-hardware investigation found that actually reading the AP's own
 // link status there reliably deadlocks the next cyw43_arch_poll() call.
@@ -41,13 +42,17 @@ test_main_hw(0) {
   }
   sys_printf("[hw_018] AP \"%s\" up\n", HW_WIFI_TEST_AP_SSID);
 
+  // Attaching a callback is uniformly allowed on any handle kind - see
+  // hw_wifi_set_callback()'s own doc - even though it's a no-op here.
+  hw_wifi_set_callback(wifi, on_event, NULL);
+
   // A secured AP with no password is rejected.
   test_assert(hw_wifi_init_accesspoint(NULL, HW_WIFI_TEST_AP_SSID, NULL,
                                        hw_wifi_auth_wpa2_aes) == NULL);
 
   // The handle is a singleton - a second init while this one is still
   // active must fail, whichever entry point is used.
-  test_assert(hw_wifi_init_client(NULL, on_event, NULL) == NULL);
+  test_assert(hw_wifi_init_client(NULL) == NULL);
   test_assert(hw_wifi_init_accesspoint(NULL, HW_WIFI_TEST_AP_SSID,
                                        HW_WIFI_TEST_AP_PASSWORD,
                                        hw_wifi_auth_wpa2_aes) == NULL);
