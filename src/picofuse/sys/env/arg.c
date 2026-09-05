@@ -151,6 +151,10 @@ static const char *_sys_env_type_name(sys_env_arg_type_t type) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC FUNCTIONS
 
+void sys_env_set_args(int argc, char *argv[]) {
+  _sys_env_set_args(argc, argv);
+}
+
 sys_env_arg_t *sys_env_arg_parse(sys_env_arg_flag_t *flags) {
   _sys_env_arg_result.flags = NULL;
   _sys_env_arg_result.args_count = 0;

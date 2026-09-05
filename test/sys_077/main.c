@@ -3,7 +3,7 @@
 
 test_main_sys(0) {
   char *fake_argv[] = {"prog", "--name=bob", "--big=5000000000", "--pi=3.14"};
-  sys_init(4, fake_argv, 0, sys_stdio_rtt);
+  sys_env_set_args(4, fake_argv);
   sys_env_arg_flag_t flags[] = {
       {.long_name = "name",
        .short_name = NULL,
