@@ -184,6 +184,21 @@ const char *sys_env_system(void);
 const char *sys_env_version(void);
 
 /**
+ * @brief Replace the argc/argv that sys_env_arg_parse() reads.
+ * @ingroup SystemEnv
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ *
+ * sys_init() already calls this once with the process's real argc/argv -
+ * most programs never need to call it themselves. It exists for the rare
+ * case of validating sys_env_arg_parse() against several different
+ * command lines in one process (e.g. a test), without re-running
+ * sys_init()'s other, one-time module setup (stdio, the default arena,
+ * ...) again for each one.
+ */
+void sys_env_set_args(int argc, char *argv[]);
+
+/**
  * @brief Parse the process's command-line arguments against a set of flags.
  * @ingroup SystemEnv
  * @param flags Array of flag descriptors to match against. Use a

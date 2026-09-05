@@ -9,3 +9,4 @@
  */
 #pragma once
 #include "pix/color.h"
+#include "pix/types.h"

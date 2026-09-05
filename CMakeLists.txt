@@ -143,6 +143,7 @@ add_subdirectory(src/picofuse)
 add_subdirectory(examples/helloworld)
 add_subdirectory(examples/flags)
 add_subdirectory(examples/stdin)
+add_subdirectory(examples/pitft)
 
 # Hardware test runner
 add_subdirectory(src/test)
