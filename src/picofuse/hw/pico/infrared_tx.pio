@@ -3,8 +3,8 @@
 ; with a mark and strictly alternating - the natural representation for
 ; every common IR protocol (NEC, RC5, SIRC, ...) and for LIRC's own raw
 ; timing format, just in units of whole carrier periods here rather than
-; microseconds (ir_tx_program_init()'s caller converts, since it also
-; knows the carrier frequency).
+; microseconds (infrared_tx_program_init()'s caller converts, since it
+; also knows the carrier frequency).
 ;
 ; A two-state-machine split (a generic "burst" generator triggered by a
 ; separate "control" sequencer, as in the official pico-examples
@@ -22,7 +22,7 @@
 ; current than 50%); a space just holds the pin low for the same
 ; per-period duration, so the same period count means the same
 ; wall-clock time either way.
-.program ir_tx
+.program infrared_tx
 .side_set 1 opt
 
 .define public T_HIGH 1
@@ -44,17 +44,17 @@ space_loop:
 .wrap
 
 % c-sdk {
-static inline void ir_tx_program_init(PIO pio,
-                                      uint sm,
-                                      uint offset,
-                                      uint pin,
-                                      float carrier_freq) {
-    pio_sm_config c = ir_tx_program_get_default_config(offset);
+static inline void infrared_tx_program_init(PIO pio,
+                                            uint sm,
+                                            uint offset,
+                                            uint pin,
+                                            float carrier_freq) {
+    pio_sm_config c = infrared_tx_program_get_default_config(offset);
 
     sm_config_set_sideset_pins(&c, pin);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    const float cycles_per_period = (float)(ir_tx_T_HIGH + ir_tx_T_LOW);
+    const float cycles_per_period = (float)(infrared_tx_T_HIGH + infrared_tx_T_LOW);
     float div = (float)clock_get_hz(clk_sys) / (carrier_freq * cycles_per_period);
     sm_config_set_clkdiv(&c, div);
 
