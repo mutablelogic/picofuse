@@ -13,6 +13,18 @@
 #define PITFT_INT_GPIO_BANK 0
 #define PITFT_INT_GPIO_PIN 24
 
+// @todo diagnostic: prints every raw edge on GPIO24, independent of
+// dev_stmpe610's own SPI-based touch detection - lets us see whether the
+// STMPE610 is toggling its INT line at all when touched, before trusting
+// any assumption about its polarity or the poll() logic that reads it.
+static void _pitft_gpio_callback(uint8_t bank, uint8_t pin,
+                                 hw_gpio_event_t event, void *userdata) {
+  (void)userdata;
+  if (bank == PITFT_INT_GPIO_BANK && pin == PITFT_INT_GPIO_PIN) {
+    sys_printf("GPIO24 %s\n", event == hw_gpio_rising ? "rising" : "falling");
+  }
+}
+
 int main(int argc, char *argv[]) {
   sys_init(argc, argv, 0, sys_stdio_none);
   hw_init();
@@ -26,9 +38,13 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // Owned but not yet configured - dev_stmpe610_init() sets its mode itself.
+  // @todo diagnostic: hw_gpio_input (not hw_gpio_none) so the kernel
+  // actually requests edge detection on this line for the raw-edge
+  // callback below, independent of whatever mode dev_stmpe610_init()
+  // would otherwise set it to.
   hw_gpio_t *int_pin =
-      hw_gpio_init(PITFT_INT_GPIO_BANK, PITFT_INT_GPIO_PIN, hw_gpio_none);
+      hw_gpio_init(PITFT_INT_GPIO_BANK, PITFT_INT_GPIO_PIN, hw_gpio_input);
+  hw_gpio_set_callback(_pitft_gpio_callback, NULL);
 
   // @todo diagnostic: NULL forces pure polling, bypassing the IRQ-pin
   // idle-skip in dev_stmpe610_poll() entirely - if touches now show up,
