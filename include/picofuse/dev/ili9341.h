@@ -142,10 +142,13 @@ void dev_ili9341_size(const dev_ili9341_t *ili9341, pix_size_t *out_size);
  * @param ili9341 ILI9341 handle.
  * @param origin Top-left corner to write to, within the current rotation's
  * bounds.
- * @param bitmap Source bitmap. Must be @ref PIX_FMT_RGB565 - native byte
- * order; this function handles the wire's big-endian byte order
- * internally. `bitmap->stride` is honored, so the source need not be
- * tightly packed.
+ * @param bitmap Source bitmap. Must be @ref PIX_FMT_RGB565, with each
+ * pixel already stored **big-endian** (MSB first) - the byte order the
+ * wire protocol itself requires. This function sends `bitmap->data`
+ * as-is with no per-pixel conversion, so a bitmap built with native
+ * multi-byte writes (e.g. `uint16_t pixels[i] = 0xF800`) on a
+ * little-endian host must be byte-swapped by the caller first.
+ * `bitmap->stride` is honored, so the source need not be tightly packed.
  * @retval true Write succeeded.
  * @retval false The handle is invalid, `bitmap` is `NULL` or not
  * PIX_FMT_RGB565, or the rectangle falls outside the current rotation's

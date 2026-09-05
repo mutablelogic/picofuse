@@ -58,7 +58,10 @@ int main(int argc, char *argv[]) {
   pix_size_t size;
   dev_ili9341_size(ili9341, &size);
 
-  uint16_t *pixels = sys_malloc((size_t)size.w * size.h * sizeof(uint16_t));
+  size_t pixel_count = (size_t)size.w * size.h;
+  // 2 bytes/pixel, big-endian (MSB first) - dev_ili9341_write() sends
+  // this buffer as-is, with no conversion of its own.
+  uint8_t *pixels = sys_malloc(pixel_count * 2);
   if (pixels == NULL) {
     sys_puts("Failed to allocate framebuffer\n");
     dev_ili9341_deinit(ili9341);
@@ -71,7 +74,7 @@ int main(int argc, char *argv[]) {
   pix_bitmap_t bitmap = {
       .data = pixels,
       .size = size,
-      .stride = (size_t)size.w * sizeof(uint16_t),
+      .stride = (size_t)size.w * 2,
       .fmt = PIX_FMT_RGB565,
   };
   pix_point_t origin = {.x = 0, .y = 0};
@@ -79,8 +82,12 @@ int main(int argc, char *argv[]) {
   while (true) {
     for (size_t c = 0; c < sizeof(_pitft_colors) / sizeof(_pitft_colors[0]);
         c++) {
-      for (size_t i = 0; i < (size_t)size.w * size.h; i++) {
-        pixels[i] = _pitft_colors[c];
+      uint16_t color = _pitft_colors[c];
+      uint8_t hi = (uint8_t)(color >> 8);
+      uint8_t lo = (uint8_t)color;
+      for (size_t i = 0; i < pixel_count; i++) {
+        pixels[i * 2] = hi;
+        pixels[i * 2 + 1] = lo;
       }
       if (!dev_ili9341_write(ili9341, origin, &bitmap)) {
         sys_puts("Failed to write to display.\n");

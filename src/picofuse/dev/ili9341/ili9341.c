@@ -87,7 +87,7 @@ static bool _ili9341_resolve_rotation(uint16_t rotation, uint8_t *out_madctl,
     return true;
   case 270:
     *out_madctl = ILI9341_MADCTL_MX | ILI9341_MADCTL_MY | ILI9341_MADCTL_MV |
-                 ILI9341_MADCTL_BGR;
+                  ILI9341_MADCTL_BGR;
     *out_width = DEV_ILI9341_HEIGHT;
     *out_height = DEV_ILI9341_WIDTH;
     return true;
@@ -98,8 +98,8 @@ static bool _ili9341_resolve_rotation(uint16_t rotation, uint8_t *out_madctl,
 
 // Sets the GRAM address window and issues Memory Write (2Ch), leaving /DC
 // high and ready for the pixel data that follows.
-static bool _ili9341_set_window(dev_ili9341_t *ili9341, uint16_t x,
-                                uint16_t y, uint16_t w, uint16_t h) {
+static bool _ili9341_set_window(dev_ili9341_t *ili9341, uint16_t x, uint16_t y,
+                                uint16_t w, uint16_t h) {
   uint16_t x_end = x + w - 1;
   uint16_t y_end = y + h - 1;
   uint8_t xa[4] = {(uint8_t)(x >> 8), (uint8_t)x, (uint8_t)(x_end >> 8),
@@ -108,46 +108,32 @@ static bool _ili9341_set_window(dev_ili9341_t *ili9341, uint16_t x,
                    (uint8_t)y_end};
 
   return _ili9341_write_command(ili9341, ILI9341_CASET, xa, sizeof(xa)) &&
-        _ili9341_write_command(ili9341, ILI9341_PASET, ya, sizeof(ya)) &&
-        _ili9341_write_command(ili9341, ILI9341_RAMWR, NULL, 0);
+         _ili9341_write_command(ili9341, ILI9341_PASET, ya, sizeof(ya)) &&
+         _ili9341_write_command(ili9341, ILI9341_RAMWR, NULL, 0);
 }
 
-// Streams bitmap's pixels out, converting each one from native byte order
-// to the wire's big-endian order through a bounded stack buffer - the
-// bitmap can be arbitrarily large (a full-screen update), so this can't
-// just byte-swap the whole thing into one heap/stack buffer up front.
-//
-// 1024 pixels (2048 bytes) stays under half the Linux spidev driver's own
-// default per-transfer buffer size (module parameter `bufsiz`, 4096 on an
-// unmodified install), leaving headroom rather than sitting right at the
-// limit, while keeping the on-stack chunk buffer small enough to still be
-// reasonable on a constrained target - this driver's other dependencies
-// (hw_gpio, hw_deviceio_xfr) are platform-generic even though
-// hw_spi_init_device() itself is Linux-only today. Each chunk is one
-// ioctl() syscall, so this is still an 8x reduction in syscalls per
-// screen versus the 128-pixel chunking this replaced.
-#define ILI9341_CHUNK_PIXELS 1024u
+// bitmap->data is sent as-is, byte for byte - no per-pixel conversion, no
+// temporary buffer. This means the caller owns getting the wire's
+// big-endian byte order right (see dev_ili9341_write()'s doc); in
+// exchange, a write is just this device's own bytes going straight out,
+// chunked only because a single hw_deviceio_xfr() call still has to stay
+// under the Linux spidev driver's own default per-transfer buffer size
+// (module parameter `bufsiz`, 4096 bytes on an unmodified install).
+#define ILI9341_CHUNK_BYTES 4096u
 
 static bool _ili9341_write_pixels(dev_ili9341_t *ili9341,
                                   const pix_bitmap_t *bitmap) {
   hw_gpio_set(ili9341->dc_pin, true);
 
-  uint8_t chunk[ILI9341_CHUNK_PIXELS * 2];
+  size_t row_bytes = (size_t)bitmap->size.w * 2;
   for (uint16_t row = 0; row < bitmap->size.h; row++) {
-    const uint16_t *src =
-        (const uint16_t *)((const uint8_t *)bitmap->data +
-                           (size_t)row * bitmap->stride);
-    uint16_t remaining = bitmap->size.w;
+    const uint8_t *src =
+        (const uint8_t *)bitmap->data + (size_t)row * bitmap->stride;
+    size_t remaining = row_bytes;
     while (remaining > 0) {
-      uint16_t n = remaining < ILI9341_CHUNK_PIXELS ? remaining
-                                                    : ILI9341_CHUNK_PIXELS;
-      for (uint16_t i = 0; i < n; i++) {
-        uint16_t pixel = src[i];
-        chunk[i * 2] = (uint8_t)(pixel >> 8);
-        chunk[i * 2 + 1] = (uint8_t)pixel;
-      }
-      if (hw_deviceio_xfr(ili9341->device, chunk, (size_t)n * 2, 0, 0) !=
-          (size_t)n * 2) {
+      size_t n = remaining < ILI9341_CHUNK_BYTES ? remaining
+                                                 : ILI9341_CHUNK_BYTES;
+      if (hw_deviceio_xfr(ili9341->device, (void *)src, n, 0, 0) != n) {
         return false;
       }
       src += n;
@@ -182,8 +168,7 @@ dev_ili9341_t *dev_ili9341_init(hw_deviceio_t *device, hw_gpio_t *dc_pin,
 
   uint8_t madctl = 0;
   uint16_t width = 0, height = 0;
-  if (!_ili9341_resolve_rotation(resolved.rotation, &madctl, &width,
-                                 &height)) {
+  if (!_ili9341_resolve_rotation(resolved.rotation, &madctl, &width, &height)) {
     return NULL;
   }
 
