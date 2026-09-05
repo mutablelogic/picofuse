@@ -58,21 +58,24 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // @todo diagnostic: hw_gpio_input (not hw_gpio_none) so the kernel
+  // @todo diagnostic: hw_gpio_pullup (not hw_gpio_none) so the kernel
   // actually requests edge detection on this line for the raw-edge
   // callback below, independent of whatever mode dev_stmpe610_init()
-  // would otherwise set it to.
+  // would otherwise set it to. STMPE610's INT is open-drain (datasheet
+  // pin table) with no external pull-up in the schematic, so it needs
+  // the Pi's own internal pull-up to read a defined idle-high level.
   hw_gpio_t *int_pin =
-      hw_gpio_init(PITFT_INT_GPIO_BANK, PITFT_INT_GPIO_PIN, hw_gpio_input);
+      hw_gpio_init(PITFT_INT_GPIO_BANK, PITFT_INT_GPIO_PIN, hw_gpio_pullup);
 
-  // @todo diagnostic: claim SW1-4 too, same reasoning as int_pin above.
-  // Leaked deliberately (no hw_gpio_deinit()) - this whole block is
-  // throwaway diagnostic code for one manual test run, not shipped
-  // behavior worth cleaning up on every exit path.
-  hw_gpio_t *sw_pins[sizeof(_pitft_sw_pins)];
+  // @todo diagnostic: claim SW1-4 too, same reasoning as int_pin above -
+  // each switch just shorts the pin to GND with no pull-up resistor of
+  // its own visible in the schematic, so hw_gpio_pullup is needed here
+  // for a defined idle-high level too. Leaked deliberately (no
+  // hw_gpio_deinit()) - this whole block is throwaway diagnostic code
+  // for one manual test run, not shipped behavior worth cleaning up on
+  // every exit path.
   for (size_t i = 0; i < sizeof(_pitft_sw_pins); i++) {
-    sw_pins[i] =
-        hw_gpio_init(PITFT_INT_GPIO_BANK, _pitft_sw_pins[i], hw_gpio_input);
+    hw_gpio_init(PITFT_INT_GPIO_BANK, _pitft_sw_pins[i], hw_gpio_pullup);
   }
 
   hw_gpio_set_callback(_pitft_gpio_callback, NULL);
