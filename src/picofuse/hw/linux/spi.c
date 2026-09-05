@@ -50,7 +50,10 @@ static size_t _hw_spi_write_read(int fd, uint32_t baud_rate,
     messages[count].len = (uint32_t)wlen;
     messages[count].speed_hz = baud_rate;
     messages[count].bits_per_word = bits_per_word;
-    messages[count].cs_change = rlen > 0 ? 0u : 1u;
+    // Always 0 - see the cs_change comment below on the rx segment for
+    // why setting it to 1 here (when this is also the last segment,
+    // i.e. rlen == 0) was wrong.
+    messages[count].cs_change = 0u;
     count++;
   }
 
@@ -59,7 +62,13 @@ static size_t _hw_spi_write_read(int fd, uint32_t baud_rate,
     messages[count].len = (uint32_t)rlen;
     messages[count].speed_hz = baud_rate;
     messages[count].bits_per_word = bits_per_word;
-    messages[count].cs_change = 1u;
+    // 0, not 1: cs_change on a message governs whether CS toggles *before
+    // the next* transfer, not "deassert now" - setting it on the very
+    // last message in the ioctl was empirically confirmed (against a
+    // reference driver read/write byte-for-byte identical to this one)
+    // to leave CS asserted rather than properly closing the transaction,
+    // which writes need to actually commit.
+    messages[count].cs_change = 0u;
     count++;
   }
 
@@ -83,7 +92,10 @@ static size_t _hw_spi_write_write(int fd, uint32_t baud_rate,
   messages[0].len = (uint32_t)len1;
   messages[0].speed_hz = baud_rate;
   messages[0].bits_per_word = bits_per_word;
-  messages[0].cs_change = len2 > 0 ? 0u : 1u;
+  // Always 0 - see _hw_spi_write_read()'s cs_change comment: setting this
+  // to 1 on the last message of an ioctl (which this is, when len2 == 0)
+  // leaves CS asserted instead of properly closing the transaction.
+  messages[0].cs_change = 0u;
 
   uint32_t count = 1;
   if (len2 > 0) {
@@ -91,7 +103,7 @@ static size_t _hw_spi_write_write(int fd, uint32_t baud_rate,
     messages[1].len = (uint32_t)len2;
     messages[1].speed_hz = baud_rate;
     messages[1].bits_per_word = bits_per_word;
-    messages[1].cs_change = 1u;
+    messages[1].cs_change = 0u;
     count = 2;
   }
 

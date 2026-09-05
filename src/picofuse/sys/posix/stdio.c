@@ -104,6 +104,20 @@ void _sys_stdio_module_init(sys_stdio_t type) {
   _sys_stdio_platform_init();
 }
 
+/** @brief Restores the tty's original settings if _sys_stdio_module_init()
+ * put it into raw mode; a no-op otherwise (including when stdio was never
+ * initialized - _sys_stdio_termios_saved starts false in static storage).
+ * Also called from sys_halt() before abort(): a panicking test/app never
+ * reaches _sys_stdio_module_exit() via the normal sys_exit() path, and
+ * without this the terminal is left echo-less for whatever shell runs
+ * next. */
+void _sys_stdio_restore_terminal(void) {
+  if (_sys_stdio_termios_saved) {
+    tcsetattr(STDIN_FILENO, TCSANOW, &_sys_stdio_orig_termios);
+    _sys_stdio_termios_saved = false;
+  }
+}
+
 void _sys_stdio_module_exit(void) {
   _sys_stdio_platform_exit();
   sys_iostream_close(sys_stdout);
@@ -111,8 +125,5 @@ void _sys_stdio_module_exit(void) {
   sys_stdout = NULL;
   sys_stdin = NULL;
 
-  if (_sys_stdio_termios_saved) {
-    tcsetattr(STDIN_FILENO, TCSANOW, &_sys_stdio_orig_termios);
-    _sys_stdio_termios_saved = false;
-  }
+  _sys_stdio_restore_terminal();
 }
