@@ -35,7 +35,13 @@ static bool _dev_stmpe610_read_reg8(dev_stmpe610_t *stmpe610, uint8_t reg,
 static bool _dev_stmpe610_write_reg(dev_stmpe610_t *stmpe610, uint8_t reg,
                                     uint8_t value) {
   uint8_t buf[2] = {reg, value};
-  return hw_deviceio_xfr(stmpe610->device, buf, 2, 0, 0u) == 2;
+  bool ok = hw_deviceio_xfr(stmpe610->device, buf, 2, 0, 0u) == 2;
+  // @todo diagnostic: the datasheet's tCSH (CS-high period between
+  // transactions) is a 2us minimum - back-to-back writes with no gap at
+  // all is the one timing variable not yet ruled out as the reason
+  // writes read back unchanged, so give it a generous margin here.
+  sys_sleep_ms(2);
+  return ok;
 }
 
 static bool _dev_stmpe610_probe(dev_stmpe610_t *stmpe610) {
