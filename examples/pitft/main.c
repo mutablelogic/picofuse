@@ -16,9 +16,14 @@
 #define PITFT_DC_GPIO_BANK 0
 #define PITFT_DC_GPIO_PIN 25
 
-// RGB565: 5 bits red, 6 bits green, 5 bits blue - pure red is red maxed,
-// green/blue at zero.
-#define PITFT_COLOR_RED 0xF800u
+// RGB565: 5 bits red, 6 bits green, 5 bits blue.
+static const uint16_t _pitft_colors[] = {
+    0xF800u, // red
+    0x07E0u, // green
+    0x001Fu, // blue
+    0xFFFFu, // white
+    0x0000u, // black
+};
 
 int main(int argc, char *argv[]) {
   sys_init(argc, argv, 0, sys_stdio_none);
@@ -60,10 +65,6 @@ int main(int argc, char *argv[]) {
     sys_exit();
     return 1;
   }
-  for (size_t i = 0; i < (size_t)size.w * size.h; i++) {
-    pixels[i] = PITFT_COLOR_RED;
-  }
-
   pix_bitmap_t bitmap = {
       .data = pixels,
       .size = size,
@@ -72,17 +73,16 @@ int main(int argc, char *argv[]) {
   };
   pix_point_t origin = {.x = 0, .y = 0};
 
-  if (dev_ili9341_write(ili9341, origin, &bitmap)) {
-    sys_puts("Screen cleared to red.\n");
-  } else {
-    sys_puts("Failed to write to display.\n");
+  while (true) {
+    for (size_t c = 0; c < sizeof(_pitft_colors) / sizeof(_pitft_colors[0]);
+        c++) {
+      for (size_t i = 0; i < (size_t)size.w * size.h; i++) {
+        pixels[i] = _pitft_colors[c];
+      }
+      if (!dev_ili9341_write(ili9341, origin, &bitmap)) {
+        sys_puts("Failed to write to display.\n");
+      }
+      sys_sleep_ms(1000);
+    }
   }
-
-  sys_free(pixels);
-  dev_ili9341_deinit(ili9341);
-  hw_gpio_deinit(dc_pin);
-  hw_deviceio_deinit(device);
-  hw_exit();
-  sys_exit();
-  return 0;
 }
