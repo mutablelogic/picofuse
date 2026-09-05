@@ -3,6 +3,7 @@ picofuse_library(
     SOURCES
         bme680/bme680.c
         ft6236/ft6236.c
+        ili9341/ili9341.c
         stmpe610/stmpe610.c
 )
 

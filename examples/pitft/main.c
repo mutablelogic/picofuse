@@ -2,27 +2,23 @@
 #include <picofuse/hw.h>
 #include <picofuse/sys.h>
 
-// Adafruit 2.8" PiTFT (resistive): STMPE610 touch controller and ILI9341
-// display controller share the Pi's primary SPI bus (SCK/MOSI/MISO on
-// GPIO11/10/9), each on its own chip-select - display on CE0
-// (/dev/spidev0.0, GPIO8), touch on CE1 (/dev/spidev0.1, GPIO7). The touch
-// controller's interrupt line is on GPIO24 (GPIO25 is the display's own
-// reset line, unused here).
-#define PITFT_SPI_DEVICE "/dev/spidev0.1"
-// 1MHz - the datasheet's stated max, and what both Adafruit's Arduino and
-// CircuitPython reference drivers default to.
-#define PITFT_SPI_BAUD 1000000
-#define PITFT_INT_GPIO_BANK 0
-#define PITFT_INT_GPIO_PIN 24
+// Adafruit 2.8" PiTFT (resistive): ILI9341 display controller on the Pi's
+// primary SPI bus (SCK/MOSI/MISO on GPIO11/10/9), chip-select on CE0
+// (/dev/spidev0.0, GPIO8 - hardware chip-select, no separate GPIO needed).
+// /DC (data/command select) is GPIO25; /RESET has no GPIO of its own on
+// this board - it's generated on-board by a power-on-reset supervisor
+// (see dev/ili9341.h's module note), so dev_ili9341_init() is passed NULL
+// for rst_pin and falls back to the panel's own software-reset command.
+#define PITFT_SPI_DEVICE "/dev/spidev0.0"
+// 32MHz - the datasheet's stated max for RAM write throughput, and what
+// Adafruit's own production device-tree overlay uses for this panel.
+#define PITFT_SPI_BAUD 32000000
+#define PITFT_DC_GPIO_BANK 0
+#define PITFT_DC_GPIO_PIN 25
 
-static void pitft_touch_callback(dev_stmpe610_t *stmpe610,
-                                 const dev_stmpe610_touch_t *touch,
-                                 void *userdata) {
-  (void)stmpe610;
-  (void)userdata;
-  sys_printf("touch event=%u x=%u y=%u z=%u\n", touch->event, touch->x,
-             touch->y, touch->z);
-}
+// RGB565: 5 bits red, 6 bits green, 5 bits blue - pure red is red maxed,
+// green/blue at zero.
+#define PITFT_COLOR_RED 0xF800u
 
 int main(int argc, char *argv[]) {
   sys_init(argc, argv, 0, sys_stdio_none);
@@ -37,25 +33,56 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // Owned but not yet configured - dev_stmpe610_init() sets its mode itself.
-  hw_gpio_t *int_pin =
-      hw_gpio_init(PITFT_INT_GPIO_BANK, PITFT_INT_GPIO_PIN, hw_gpio_none);
+  // Owned but not yet configured - dev_ili9341_init() sets its mode itself.
+  hw_gpio_t *dc_pin =
+      hw_gpio_init(PITFT_DC_GPIO_BANK, PITFT_DC_GPIO_PIN, hw_gpio_none);
 
-  dev_stmpe610_t *stmpe610 =
-      dev_stmpe610_init(device, int_pin, pitft_touch_callback, NULL, NULL);
-  if (stmpe610 == NULL) {
-    sys_puts("Failed to initialize STMPE610 touch controller\n");
-    hw_gpio_deinit(int_pin);
+  dev_ili9341_t *ili9341 = dev_ili9341_init(device, dc_pin, NULL, NULL);
+  if (ili9341 == NULL) {
+    sys_puts("Failed to initialize ILI9341 display\n");
+    hw_gpio_deinit(dc_pin);
     hw_deviceio_deinit(device);
     hw_exit();
     sys_exit();
     return 1;
   }
 
-  sys_puts("PiTFT touch controller ready. Waiting for touches...\n");
+  pix_size_t size;
+  dev_ili9341_size(ili9341, &size);
 
-  while (true) {
-    dev_stmpe610_poll(stmpe610);
-    sys_sleep_ms(20);
+  uint16_t *pixels = sys_malloc((size_t)size.w * size.h * sizeof(uint16_t));
+  if (pixels == NULL) {
+    sys_puts("Failed to allocate framebuffer\n");
+    dev_ili9341_deinit(ili9341);
+    hw_gpio_deinit(dc_pin);
+    hw_deviceio_deinit(device);
+    hw_exit();
+    sys_exit();
+    return 1;
   }
+  for (size_t i = 0; i < (size_t)size.w * size.h; i++) {
+    pixels[i] = PITFT_COLOR_RED;
+  }
+
+  pix_bitmap_t bitmap = {
+      .data = pixels,
+      .size = size,
+      .stride = (size_t)size.w * sizeof(uint16_t),
+      .fmt = PIX_FMT_RGB565,
+  };
+  pix_point_t origin = {.x = 0, .y = 0};
+
+  if (dev_ili9341_write(ili9341, origin, &bitmap)) {
+    sys_puts("Screen cleared to red.\n");
+  } else {
+    sys_puts("Failed to write to display.\n");
+  }
+
+  sys_free(pixels);
+  dev_ili9341_deinit(ili9341);
+  hw_gpio_deinit(dc_pin);
+  hw_deviceio_deinit(device);
+  hw_exit();
+  sys_exit();
+  return 0;
 }

@@ -13,4 +13,5 @@
 #pragma once
 #include "dev/bme680.h"
 #include "dev/ft6236.h"
+#include "dev/ili9341.h"
 #include "dev/stmpe610.h"
