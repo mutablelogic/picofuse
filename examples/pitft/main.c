@@ -13,15 +13,35 @@
 #define PITFT_INT_GPIO_BANK 0
 #define PITFT_INT_GPIO_PIN 24
 
-// @todo diagnostic: prints every raw edge on GPIO24, independent of
-// dev_stmpe610's own SPI-based touch detection - lets us see whether the
-// STMPE610 is toggling its INT line at all when touched, before trusting
-// any assumption about its polarity or the poll() logic that reads it.
+// @todo diagnostic: SW1-4, wired GPIO22/27/17/23 -> GND on button press
+// (with a pull-up cap on the PiTFT board itself). No hw_gpio_set_callback()
+// path in this project has an automated test yet, so before trusting
+// anything about GPIO24/the STMPE610, this proves edge detection + the
+// callback dispatch pipeline work at all on this board, using real physical
+// buttons instead of a jumper wire.
+static const uint8_t _pitft_sw_pins[] = {22, 27, 17, 23};
+
+// @todo diagnostic: prints every raw edge on GPIO24 and SW1-4, independent
+// of dev_stmpe610's own SPI-based touch detection - lets us see whether the
+// STMPE610 is toggling its INT line at all when touched, and separately
+// whether GPIO edge callbacks work on this platform at all, before trusting
+// any assumption about polarity or the poll() logic.
 static void _pitft_gpio_callback(uint8_t bank, uint8_t pin,
                                  hw_gpio_event_t event, void *userdata) {
   (void)userdata;
-  if (bank == PITFT_INT_GPIO_BANK && pin == PITFT_INT_GPIO_PIN) {
-    sys_printf("GPIO24 %s\n", event == hw_gpio_rising ? "rising" : "falling");
+  if (bank != PITFT_INT_GPIO_BANK) {
+    return;
+  }
+  const char *edge = event == hw_gpio_rising ? "rising" : "falling";
+  if (pin == PITFT_INT_GPIO_PIN) {
+    sys_printf("GPIO24 %s\n", edge);
+    return;
+  }
+  for (size_t i = 0; i < sizeof(_pitft_sw_pins); i++) {
+    if (pin == _pitft_sw_pins[i]) {
+      sys_printf("GPIO%u (SW%u) %s\n", pin, (unsigned)(i + 1), edge);
+      return;
+    }
   }
 }
 
@@ -44,6 +64,17 @@ int main(int argc, char *argv[]) {
   // would otherwise set it to.
   hw_gpio_t *int_pin =
       hw_gpio_init(PITFT_INT_GPIO_BANK, PITFT_INT_GPIO_PIN, hw_gpio_input);
+
+  // @todo diagnostic: claim SW1-4 too, same reasoning as int_pin above.
+  // Leaked deliberately (no hw_gpio_deinit()) - this whole block is
+  // throwaway diagnostic code for one manual test run, not shipped
+  // behavior worth cleaning up on every exit path.
+  hw_gpio_t *sw_pins[sizeof(_pitft_sw_pins)];
+  for (size_t i = 0; i < sizeof(_pitft_sw_pins); i++) {
+    sw_pins[i] =
+        hw_gpio_init(PITFT_INT_GPIO_BANK, _pitft_sw_pins[i], hw_gpio_input);
+  }
+
   hw_gpio_set_callback(_pitft_gpio_callback, NULL);
 
   // @todo diagnostic: NULL forces pure polling, bypassing the IRQ-pin
