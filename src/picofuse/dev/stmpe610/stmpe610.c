@@ -99,6 +99,8 @@ void dev_stmpe610_default_config(dev_stmpe610_config_t *config) {
 }
 
 dev_stmpe610_t *dev_stmpe610_init(hw_deviceio_t *device, hw_gpio_t *int_pin,
+                                  dev_stmpe610_callback_t callback,
+                                  void *userdata,
                                   const dev_stmpe610_config_t *config) {
   if (device == NULL) {
     return NULL;
@@ -117,6 +119,8 @@ dev_stmpe610_t *dev_stmpe610_init(hw_deviceio_t *device, hw_gpio_t *int_pin,
 
   stmpe610->device = device;
   stmpe610->int_pin = int_pin;
+  stmpe610->callback = callback;
+  stmpe610->userdata = userdata;
   stmpe610->irq_active_low = resolved.irq_active_low;
 
   if (stmpe610->int_pin != NULL) {
@@ -155,21 +159,23 @@ bool dev_stmpe610_irq_active(const dev_stmpe610_t *stmpe610) {
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
 
-bool dev_stmpe610_poll(dev_stmpe610_t *stmpe610, dev_stmpe610_touch_t *touch) {
-  if (stmpe610 == NULL || touch == NULL) {
-    return false;
+void dev_stmpe610_poll(dev_stmpe610_t *stmpe610) {
+  if (stmpe610 == NULL) {
+    return;
   }
 
+  // With an interrupt pin, there's nothing to do unless it's actually
+  // signalling something pending (or a touch is already in progress and
+  // we're waiting for its lift-off) - a real no-op, not just a cheap
+  // early return, since nothing below can fire the callback either way.
   if (stmpe610->int_pin != NULL && !dev_stmpe610_irq_active(stmpe610) &&
       !stmpe610->had_touch) {
-    memset(touch, 0, sizeof(*touch));
-    touch->event = dev_stmpe610_touch_up;
-    return true;
+    return;
   }
 
   uint8_t fifo_sta = 0;
   if (!_dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_FIFO_STA, &fifo_sta)) {
-    return false;
+    return;
   }
 
   if (!(fifo_sta & STMPE610_FIFO_STA_EMPTY)) {
@@ -180,18 +186,19 @@ bool dev_stmpe610_poll(dev_stmpe610_t *stmpe610, dev_stmpe610_touch_t *touch) {
     for (size_t i = 0; i < sizeof(data); i++) {
       if (!_dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_TSC_DATA_NONINC,
                                    &data[i])) {
-        return false;
+        return;
       }
     }
-    touch->x = ((uint16_t)data[0] << 4) | (data[1] >> 4);
-    touch->y = (((uint16_t)data[1] & 0x0Fu) << 8) | data[2];
-    touch->z = data[3];
-    touch->event =
-        stmpe610->had_touch ? dev_stmpe610_touch_move : dev_stmpe610_touch_down;
+    dev_stmpe610_touch_t touch = {
+        .event =
+            stmpe610->had_touch ? dev_stmpe610_touch_move : dev_stmpe610_touch_down,
+        .x = ((uint16_t)data[0] << 4) | (data[1] >> 4),
+        .y = (((uint16_t)data[1] & 0x0Fu) << 8) | data[2],
+        .z = data[3],
+    };
     stmpe610->had_touch = true;
-    stmpe610->last_x = touch->x;
-    stmpe610->last_y = touch->y;
-    stmpe610->last_z = touch->z;
+    stmpe610->last_x = touch.x;
+    stmpe610->last_y = touch.y;
 
     // Matches Adafruit_CircuitPython_STMPE610's read_data(): once the FIFO
     // is fully drained, clear pending interrupt status - otherwise, on a
@@ -205,29 +212,32 @@ bool dev_stmpe610_poll(dev_stmpe610_t *stmpe610, dev_stmpe610_touch_t *touch) {
         (fifo_sta_after & STMPE610_FIFO_STA_EMPTY)) {
       _dev_stmpe610_write_reg(stmpe610, STMPE610_REG_INT_STA, 0xFF);
     }
-    return true;
+
+    if (stmpe610->callback != NULL) {
+      stmpe610->callback(stmpe610, &touch, stmpe610->userdata);
+    }
+    return;
   }
 
   uint8_t tsc_ctrl = 0;
   if (!_dev_stmpe610_read_reg8(stmpe610, STMPE610_REG_TSC_CTRL, &tsc_ctrl)) {
-    return false;
+    return;
   }
 
   if (!(tsc_ctrl & STMPE610_TSC_CTRL_TOUCHING) && stmpe610->had_touch) {
     stmpe610->had_touch = false;
-    touch->event = dev_stmpe610_touch_up;
-    touch->x = stmpe610->last_x;
-    touch->y = stmpe610->last_y;
-    touch->z = 0;
-    return true;
+    dev_stmpe610_touch_t touch = {
+        .event = dev_stmpe610_touch_up,
+        .x = stmpe610->last_x,
+        .y = stmpe610->last_y,
+        .z = 0,
+    };
+    if (stmpe610->callback != NULL) {
+      stmpe610->callback(stmpe610, &touch, stmpe610->userdata);
+    }
+    return;
   }
 
-  // Still touching (or still idle) with nothing new in the FIFO - report
-  // the last known sample again rather than a spurious change.
-  touch->event =
-      stmpe610->had_touch ? dev_stmpe610_touch_move : dev_stmpe610_touch_up;
-  touch->x = stmpe610->last_x;
-  touch->y = stmpe610->last_y;
-  touch->z = stmpe610->had_touch ? stmpe610->last_z : 0;
-  return true;
+  // Still touching (or still idle) with nothing new in the FIFO - nothing
+  // changed, so no callback.
 }

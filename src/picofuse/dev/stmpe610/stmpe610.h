@@ -1,4 +1,5 @@
 #pragma once
+#include <picofuse/dev/stmpe610.h>
 #include <picofuse/hw.h>
 #include <stdbool.h>
 
@@ -71,9 +72,10 @@
 struct dev_stmpe610_t {
   hw_deviceio_t *device;
   hw_gpio_t *int_pin;
+  dev_stmpe610_callback_t callback;
+  void *userdata;
   bool irq_active_low;
   bool had_touch;
   uint16_t last_x;
   uint16_t last_y;
-  uint8_t last_z;
 };
