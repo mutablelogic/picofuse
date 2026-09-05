@@ -2,19 +2,7 @@
 #include <picofuse/hw.h>
 #include <picofuse/sys.h>
 
-// Adafruit 2.8" PiTFT (resistive): ILI9341 display controller on the Pi's
-// primary SPI bus (SCK/MOSI/MISO on GPIO11/10/9), chip-select on CE0
-// (/dev/spidev0.0, GPIO8 - hardware chip-select, no separate GPIO needed).
-// /DC (data/command select) is GPIO25; /RESET has no GPIO of its own on
-// this board - it's generated on-board by a power-on-reset supervisor
-// (see dev/ili9341.h's module note), so dev_ili9341_init() is passed NULL
-// for rst_pin and falls back to the panel's own software-reset command.
 #define PITFT_SPI_DEVICE "/dev/spidev0.0"
-// 80MHz - Adafruit's own Arduino driver (Adafruit_ILI9341.cpp) defaults
-// to this exact value for "RASPI" specifically, well above the 32MHz the
-// device-tree overlay used (that overlay drives the panel through the
-// Linux fbtft framebuffer driver, not hand-tuned for throughput the way
-// a direct SPI client can be).
 #define PITFT_SPI_BAUD 80000000
 #define PITFT_DC_GPIO_BANK 0
 #define PITFT_DC_GPIO_PIN 25
@@ -81,7 +69,7 @@ int main(int argc, char *argv[]) {
 
   while (true) {
     for (size_t c = 0; c < sizeof(_pitft_colors) / sizeof(_pitft_colors[0]);
-        c++) {
+         c++) {
       uint16_t color = _pitft_colors[c];
       uint8_t hi = (uint8_t)(color >> 8);
       uint8_t lo = (uint8_t)color;
@@ -100,7 +88,7 @@ int main(int argc, char *argv[]) {
         sys_printf("full-screen write: %llu ms (%.1f fps)\n",
                    (unsigned long long)elapsed_ms, fps);
       }
-      sys_sleep_ms(1000);
+      sys_sleep_ms(10);
     }
   }
 }
