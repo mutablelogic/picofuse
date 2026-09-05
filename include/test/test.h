@@ -3,6 +3,7 @@
  * @brief Assertion macros for picofuse system tests.
  */
 #pragma once
+#include <picofuse/app.h>
 #include <picofuse/hw.h>
 #include <picofuse/sys.h>
 #include <string.h>
@@ -106,4 +107,48 @@
     return 0;                                                                  \
   }                                                                            \
   static void _test_main(int argc __attribute__((unused)),                     \
+                         char *argv[] __attribute__((unused)))
+
+/**
+ * @def test_main_app(flags)
+ * @brief Like test_main_sys()/test_main_hw(), but wraps app_main() around
+ * the test body instead of calling sys_init()/hw_init() directly -
+ * app_main() already wraps those itself (see picofuse/app.h), so calling
+ * either again here would double-initialize. The test body runs inside
+ * app_main()'s on_start() callback instead, with the app_t* it receives
+ * available the same way argc/argv are, and app_shutdown(0) is called for
+ * you immediately afterward - the test body should not call it itself.
+ * Prints the "[TEST] [INIT]"/"[TEST] [EXIT]" markers testrunner waits for
+ * around the body, mirroring test_main_sys()/test_main_hw()'s own
+ * print-then-teardown ordering (they also print "[TEST] [EXIT]" before
+ * tearing down, not after).
+ * @param flags Forwarded to app_main() - see app_flag_t. Passing
+ * APP_FLAG_WIFI or APP_FLAG_MULTICORE here needs real hardware to exercise
+ * meaningfully (see hid_008's own gating for the same reason); most tests
+ * won't need either.
+ *
+ * Usage:
+ *   test_main_app(APP_FLAG_SIGNAL) {
+ *     ...test body, optionally using app/argc/argv...
+ *   }
+ */
+#define test_main_app(flags)                                                   \
+  static void _test_main(app_t *app, int argc, char *argv[]);                  \
+  typedef struct {                                                             \
+    int argc;                                                                  \
+    char **argv;                                                               \
+  } _test_app_ctx_t;                                                           \
+  static void _test_on_start(app_t *app, void *userdata) {                     \
+    _test_app_ctx_t *ctx = (_test_app_ctx_t *)userdata;                        \
+    sys_printf("[TEST] [INIT] %s\n", sys_env_name());                          \
+    _test_main(app, ctx->argc, ctx->argv);                                     \
+    sys_printf("[TEST] [EXIT] %s\n", sys_env_name());                          \
+    app_shutdown(0);                                                           \
+  }                                                                            \
+  int main(int argc, char *argv[]) {                                          \
+    _test_app_ctx_t ctx = {argc, argv};                                        \
+    return app_main(argc, argv, (flags), _test_on_start, NULL, &ctx);          \
+  }                                                                            \
+  static void _test_main(app_t *app __attribute__((unused)),                   \
+                         int argc __attribute__((unused)),                     \
                          char *argv[] __attribute__((unused)))

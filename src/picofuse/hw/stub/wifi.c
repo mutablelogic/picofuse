@@ -5,11 +5,8 @@
 // LIFECYCLE
 
 /** Stub implementation: no Wi-Fi hardware on this platform. */
-hw_wifi_t *hw_wifi_init_client(const char *country_code,
-                               hw_wifi_callback_t callback, void *userdata) {
+hw_wifi_t *hw_wifi_init_client(const char *country_code) {
   (void)country_code;
-  (void)callback;
-  (void)userdata;
   return NULL;
 }
 
@@ -25,12 +22,17 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
 }
 
 /** Stub implementation: no Wi-Fi hardware on this platform. */
-hw_wifi_t *hw_wifi_init_device(const char *device, hw_wifi_callback_t callback,
-                               void *userdata) {
+hw_wifi_t *hw_wifi_init_device(const char *device) {
   (void)device;
+  return NULL;
+}
+
+/** Stub implementation: no Wi-Fi hardware on this platform. */
+void hw_wifi_set_callback(hw_wifi_t *wifi, hw_wifi_callback_t callback,
+                          void *userdata) {
+  (void)wifi;
   (void)callback;
   (void)userdata;
-  return NULL;
 }
 
 /** Stub implementation: no Wi-Fi hardware on this platform. */

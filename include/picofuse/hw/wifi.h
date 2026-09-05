@@ -12,25 +12,37 @@
  * only to hw_wifi_deinit() it and init a new one in the other mode:
  * - Station mode (hw_wifi_init_client(), hw_wifi_init_device()): the device
  *   discovers and joins someone else's network. hw_wifi_scan(),
- *   hw_wifi_connect() and hw_wifi_disconnect() are asynchronous and call
- *   the provided callback function to update operation status.
+ *   hw_wifi_connect() and hw_wifi_disconnect() are asynchronous and notify
+ *   status updates through whatever callback is currently attached via
+ *   hw_wifi_set_callback() - a handle starts with none attached, so init
+ *   itself never delivers a notification.
  * - Access-point mode (hw_wifi_init_accesspoint()): the device broadcasts
  *   its own network for others to join. hw_wifi_scan(), hw_wifi_connect()
  *   and hw_wifi_disconnect() are unavailable in this mode - see their own
- *   documentation. There's no callback here at all: backends have no way
+ *   documentation. A callback can still be attached via
+ *   hw_wifi_set_callback(), but it will never fire: backends have no way
  *   to report individual stations joining or leaving (see
  *   hw_wifi_init_accesspoint()'s own doc), so there's nothing to notify.
  *   hw_wifi_deinit() stops broadcasting.
  *
- * When connecting (station mode only), the callback will be invoked with
- * the current status of the connection attempt, including any relevant
- * network information. The callback will then be called occasionally with
- * updates on the connection status (for example, the signal strength).
+ * Init and callback registration are deliberately separate calls
+ * (hw_wifi_init_client()/_accesspoint()/_device(), then
+ * hw_wifi_set_callback()) rather than the callback being an init
+ * parameter: this lets one part of a program bring the radio up while a
+ * different, unrelated part (for example, picofuse/hid's
+ * hid_register_wifi(), which only observes) attaches to it, without
+ * either one needing to be the one that called init.
  *
- * When scanning (station mode only), the callback will be invoked with the
- * results of the scan, including information about any discovered
- * networks. The scan is completed when the callback is invoked with a NULL
- * network pointer.
+ * When connecting (station mode only), the attached callback will be
+ * invoked with the current status of the connection attempt, including
+ * any relevant network information. It will then be called occasionally
+ * with updates on the connection status (for example, the signal
+ * strength).
+ *
+ * When scanning (station mode only), the attached callback will be
+ * invoked with the results of the scan, including information about any
+ * discovered networks. The scan is completed when the callback is invoked
+ * with a NULL network pointer.
  */
 #pragma once
 #include <stdbool.h>
@@ -129,11 +141,12 @@ typedef struct hw_wifi_t hw_wifi_t;
  * @param network When event is hw_wifi_event_scan, this contains a pointer
  * to the current scan result, or NULL to indicate the scan operation has
  * completed.
- * @param userdata User-defined data pointer supplied when the operation
- * started.
+ * @param userdata User-defined data pointer supplied to
+ * hw_wifi_set_callback().
  *
  * This callback is used when connecting or disconnecting from a network,
- * and when scanning for networks.
+ * and when scanning for networks. See hw_wifi_set_callback() to attach
+ * one.
  */
 typedef void (*hw_wifi_callback_t)(hw_wifi_t *wifi, hw_wifi_event_t event,
                                    const hw_wifi_network_t *network,
@@ -150,14 +163,14 @@ typedef void (*hw_wifi_callback_t)(hw_wifi_t *wifi, hw_wifi_event_t event,
  * @ingroup WiFi
  * @param country_code Country code for the Wi-Fi region (e.g. "US", "EU").
  * If NULL, defaults to "XX" (worldwide).
- * @param callback Callback to notify progress/completion of connection,
- * disconnection and scanning asynchronous operations (must not be NULL).
- * @param userdata User-defined data pointer forwarded to @p callback.
  * @return Wi-Fi handle, or NULL when unsupported, on failure, or when
  * another handle is already live (see hw_wifi_t).
+ *
+ * The returned handle has no callback attached - operations proceed
+ * normally, but nothing is notified until hw_wifi_set_callback() is
+ * called.
  */
-hw_wifi_t *hw_wifi_init_client(const char *country_code,
-                               hw_wifi_callback_t callback, void *userdata);
+hw_wifi_t *hw_wifi_init_client(const char *country_code);
 
 /**
  * @brief Initialize Wi-Fi as an access point.
@@ -197,9 +210,6 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
  * @ingroup WiFi
  * @param device Device identifier for the Wi-Fi interface, e.g.
  * `/var/run/wpa_supplicant/wlan0`.
- * @param callback Callback to notify progress/completion of connection,
- * disconnection and scanning asynchronous operations (must not be NULL).
- * @param userdata User-defined data pointer forwarded to @p callback.
  * @return Wi-Fi handle, or NULL when unsupported, on failure, or when
  * another handle is already live (see hw_wifi_t).
  *
@@ -207,9 +217,35 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
  * system service (wpa_supplicant) reachable over a control socket, rather
  * than a radio directly driven by this process - on Linux, the standard way
  * to manage Wi-Fi. Unsupported elsewhere.
+ *
+ * The returned handle has no callback attached - see
+ * hw_wifi_init_client()'s own doc.
+ *
+ * @todo Not implemented yet on Linux - always returns NULL there (see
+ * `src/picofuse/hw/linux/CMakeLists.txt`, which always falls back to
+ * `hw/stub/wifi.c` rather than gating a real backend behind
+ * `PICOFUSE_WIFI` the way `hw/pico/CMakeLists.txt` does). Needs a real
+ * wpa_supplicant control-socket client under `picofuse/hw`.
  */
-hw_wifi_t *hw_wifi_init_device(const char *device, hw_wifi_callback_t callback,
-                               void *userdata);
+hw_wifi_t *hw_wifi_init_device(const char *device);
+
+/**
+ * @brief Attach or replace the callback notified of Wi-Fi status updates.
+ * @ingroup WiFi
+ * @param wifi Wi-Fi handle, from any of the hw_wifi_init_*() functions.
+ * @param callback Callback to notify of connection/disconnection/scanning
+ * status updates, or NULL to detach the current callback.
+ * @param userdata User-defined data pointer forwarded to @p callback.
+ *
+ * Separate from init so that whichever part of a program brought the
+ * radio up doesn't have to be the same part that observes it - see this
+ * file's own top-level doc. Safe to call at any time, including while an
+ * operation is in progress or on an access-point handle (where it has no
+ * observable effect - see hw_wifi_init_accesspoint()'s own doc). A no-op
+ * on an invalid handle.
+ */
+void hw_wifi_set_callback(hw_wifi_t *wifi, hw_wifi_callback_t callback,
+                          void *userdata);
 
 /**
  * @brief Deinitialize and release a Wi-Fi handle.

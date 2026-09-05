@@ -80,6 +80,21 @@ typedef void (*hw_gpio_callback_t)(uint8_t bank, uint8_t pin,
 hw_gpio_t *hw_gpio_init(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode);
 
 /**
+ * @brief Initialize the board's default user-button GPIO pin, if known.
+ * @ingroup GPIO
+ * @return GPIO handle configured as a pull-up input, or `NULL` when the
+ * current board has no known user-button pin (or on a platform with no
+ * GPIO hardware at all).
+ *
+ * Board user buttons are conventionally wired active-low - pressing
+ * connects the pin to GND - so `hw_gpio_get()` reads `false` while
+ * pressed. Backed by a board header macro (e.g. `PICO_USER_SW_PIN`); only
+ * meaningful on Pico targets, since Darwin/Linux have no notion of a
+ * board-specific user button.
+ */
+hw_gpio_t *hw_gpio_init_userbutton(void);
+
+/**
  * @brief Deinitialize and release a GPIO pin.
  * @ingroup GPIO
  *
