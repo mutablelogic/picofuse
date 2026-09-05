@@ -109,18 +109,19 @@ typedef struct {
  * @brief Wi-Fi-oriented HID event payload.
  * @ingroup HIDEvents
  *
- * @p network is passed through from the underlying hw_wifi_callback_t
- * without copying: it always points to program-lifetime storage (either
- * a field on the singleton hw_wifi_t handle, or a static buffer reused
- * per scan result — never a freed/stack-transient pointer), so it is
- * never dangling. It may however show newer data than when this event
- * was queued if a later Wi-Fi event arrives before this one is consumed
- * (the same characteristic hw_wifi_callback_t already has). NULL when
- * not applicable (a plain disconnect, or the scan-complete marker).
+ * @p network is copied by value into this event at the point it's queued -
+ * unlike hw_wifi_callback_t's own @p network parameter (which some
+ * backends pass as a pointer to worker-thread-local storage, valid only
+ * for the duration of that callback), this is safe to read at any point up
+ * until hid_event_free(). @p has_network is false for events with no
+ * associated network (a plain disconnect, or the scan-complete marker), in
+ * which case @p network itself is unspecified.
  */
 typedef struct {
-  hw_wifi_event_t event; ///< Wi-Fi status event (see hw_wifi_event_t).
-  const hw_wifi_network_t *network; ///< Associated network info, or NULL.
+  hw_wifi_event_t event;     ///< Wi-Fi status event (see hw_wifi_event_t).
+  hw_wifi_network_t network; ///< Associated network info - only valid if
+                             ///< has_network is true.
+  bool has_network;          ///< True if network is populated.
 } hid_wifi_t;
 
 /**
@@ -217,8 +218,8 @@ bool hid_event_queue_signal(hid_device_t *device, sys_env_signal_t signal);
  * @ingroup HIDEvents
  * @param device HID device associated with the event.
  * @param event Wi-Fi status event to publish (see hw_wifi_event_t).
- * @param network Associated network info, or NULL if not applicable. Not
- * copied — see hid_wifi_t for the pointer's lifetime characteristics.
+ * @param network Associated network info, or NULL if not applicable.
+ * Copied by value into the queued event - see hid_wifi_t.
  * @retval true Event queued successfully.
  * @retval false Queueing failed.
  */

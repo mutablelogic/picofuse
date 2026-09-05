@@ -10,3 +10,6 @@ add_subdirectory(dev)
 
 # hid provides Human Interface Device (HID) support
 add_subdirectory(hid)
+
+# app wraps the sys/hw/hid lifecycle behind a single app_main() entry point
+add_subdirectory(app)

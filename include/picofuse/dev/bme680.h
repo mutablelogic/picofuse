@@ -168,6 +168,11 @@
  */
 typedef struct dev_bme680_t dev_bme680_t;
 
+/**
+ * @brief Oversampling rate for a BME680 measurement channel (temperature,
+ * pressure, or humidity).
+ * @ingroup BME680
+ */
 typedef enum {
   dev_bme680_oversampling_skip = 0,
   dev_bme680_oversampling_1x = 1,
@@ -177,6 +182,11 @@ typedef enum {
   dev_bme680_oversampling_16x = 5,
 } dev_bme680_oversampling_t;
 
+/**
+ * @brief IIR filter coefficient applied to BME680 temperature/pressure
+ * readings.
+ * @ingroup BME680
+ */
 typedef enum {
   dev_bme680_iir_filter_off = 0,
   dev_bme680_iir_filter_1 = 1,
@@ -188,6 +198,11 @@ typedef enum {
   dev_bme680_iir_filter_127 = 7,
 } dev_bme680_iir_filter_t;
 
+/**
+ * @brief Target heater plate temperature for the BME680 gas sensor, in
+ * degrees Celsius.
+ * @ingroup BME680
+ */
 typedef enum {
   dev_bme680_heater_temp_200c = 200,
   dev_bme680_heater_temp_250c = 250,
@@ -197,6 +212,11 @@ typedef enum {
   dev_bme680_heater_temp_400c = 400,
 } dev_bme680_heater_temp_t;
 
+/**
+ * @brief Gas heater conditioning duration for the BME680 gas sensor, in
+ * milliseconds.
+ * @ingroup BME680
+ */
 typedef enum {
   dev_bme680_heater_dur_50ms = 50,
   dev_bme680_heater_dur_100ms = 100,
@@ -205,6 +225,11 @@ typedef enum {
   dev_bme680_heater_dur_200ms = 200,
 } dev_bme680_heater_duration_t;
 
+/**
+ * @brief Ambient temperature used by the BME680 to compute gas heater
+ * control parameters, in degrees Celsius.
+ * @ingroup BME680
+ */
 typedef enum {
   dev_bme680_ambient_temp_0c = 0,
   dev_bme680_ambient_temp_10c = 10,
@@ -215,6 +240,10 @@ typedef enum {
   dev_bme680_ambient_temp_40c = 40,
 } dev_bme680_ambient_temp_t;
 
+/**
+ * @brief Whether the BME680's gas heater is enabled.
+ * @ingroup BME680
+ */
 typedef enum {
   dev_bme680_gas_disabled = 0,
   dev_bme680_gas_enabled = 1,

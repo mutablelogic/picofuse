@@ -55,7 +55,7 @@ test_main_hw(0) {
       test_assert(event->type == hid_event_type_wifi);
       test_assert(event->device == device);
       if (event->data.wifi.event == hw_wifi_event_scan) {
-        if (event->data.wifi.network == NULL) {
+        if (!event->data.wifi.has_network) {
           got_scan_complete = true;
         } else {
           scan_results++;

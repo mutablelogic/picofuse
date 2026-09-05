@@ -2,7 +2,7 @@
  * @file app.h
  * @brief Application bootstrap: a single entry point wrapping the sys
  * lifecycle and run loop.
- * @defgroup App App
+ * @defgroup Application Application
  * @ingroup Picofuse
  *
  * @code
@@ -36,7 +36,7 @@
 
 /**
  * @brief Feature flags controlling how app_main() runs.
- * @ingroup App
+ * @ingroup Application
  */
 typedef enum {
   APP_FLAG_NONE = 0,               ///< Default behavior.
@@ -75,14 +75,14 @@ typedef enum {
 
 /**
  * @brief Opaque application instance passed to app callbacks.
- * @ingroup App
+ * @ingroup Application
  */
 typedef struct app_t app_t;
 
 /**
  * @brief Called once, on the main worker, before the run loop starts
  * dispatching events.
- * @ingroup App
+ * @ingroup Application
  * @param app Application instance. Valid for the duration of app_main().
  * @param userdata Opaque pointer, as passed to app_main().
  *
@@ -93,7 +93,7 @@ typedef void (*app_callback_start_t)(app_t *app, void *userdata);
 
 /**
  * @brief Called on a worker for each event the run loop dispatches.
- * @ingroup App
+ * @ingroup Application
  * @param app Application instance.
  * @param event Event to handle, as posted via `sys_runloop_post()` (see
  * `sys/runloop.h`).
@@ -111,7 +111,7 @@ typedef void (*app_callback_event_t)(app_t *app, sys_event_t event,
 /**
  * @brief Initialize the sys subsystem, run the event loop, then tear it
  * down.
- * @ingroup App
+ * @ingroup Application
  * @param argc Argument count, as passed to `main()`.
  * @param argv Argument vector, as passed to `main()`.
  * @param flags Feature flags selecting optional behavior (see
@@ -152,7 +152,7 @@ int app_main(int argc, char *argv[], app_flag_t flags,
 
 /**
  * @brief Get the HID instance initialized for this app.
- * @ingroup App
+ * @ingroup Application
  * @param app Application instance.
  * @return HID instance, or NULL if the `picofuse-hid` library is not
  * linked into this binary (see @ref app_main).
@@ -161,7 +161,7 @@ hid_t *app_hid(const app_t *app);
 
 /**
  * @brief Get the Wi-Fi handle registered for this app.
- * @ingroup App
+ * @ingroup Application
  * @param app Application instance.
  * @return Wi-Fi handle, or NULL if @ref APP_FLAG_WIFI was not passed to
  * app_main(), or Wi-Fi is unavailable on this platform.
@@ -174,7 +174,7 @@ hw_wifi_t *app_wifi(const app_t *app);
 
 /**
  * @brief Get the on-board LED handle initialized for this app.
- * @ingroup App
+ * @ingroup Application
  * @param app Application instance.
  * @return LED handle, or NULL if the platform has no default on-board LED
  * (see hw_led_init_default()), or the picofuse-hw library is not linked
@@ -195,7 +195,7 @@ hw_led_t *app_led(const app_t *app);
 
 /**
  * @brief Request that the running app's event loop stop.
- * @ingroup App
+ * @ingroup Application
  * @param exit_code Value app_main() returns once the loop has drained and
  * stopped.
  *

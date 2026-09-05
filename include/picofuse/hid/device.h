@@ -227,10 +227,9 @@ hid_device_t *hid_register_gpio_pulldown(hid_t *instance, uint8_t bank,
  * Resolves the channel to its GPIO pin (`hw_adc_gpio_pin()`), reads it on
  * every poll, and publishes a `hid_event_type_metric` event named
  * @p metric_name (0-65535) whenever the value has changed since the last
- * poll, mirroring the change-detection behavior of
- * @ref dev_bme680_hid_register_i2c. No temperature metric is reported here;
- * see @ref hid_register_temperature for the internal temperature-sensor
- * channel.
+ * poll, the same change-detection behavior @ref hid_register_temperature
+ * itself uses for the internal temperature-sensor channel. No temperature
+ * metric is reported here; see @ref hid_register_temperature for that.
  */
 hid_device_t *hid_register_adc(hid_t *instance, uint8_t channel,
                                const char *metric_name, uint16_t num_samples,

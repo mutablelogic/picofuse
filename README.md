@@ -43,8 +43,8 @@ block-beta
 * `fs` : Filesystem abstraction for persistent storage.
 * `net`: Network stack for TCP/IP communication.
 * `wav`: Audio library for playing and recording sound.
-* `hid`: [Human Interface Device library for handling input devices, such as keyboards, button and mice, plus sensor readings.](https://mutablelogic.github.io/picofuse/group__HID.html)
-* `app`: Application framework for event-driven programming.
+* `hid`: [Human Interface Device library for handling input events from keyboards, buttons and mice, plus sensor readings.](https://mutablelogic.github.io/picofuse/group__HID.html)
+* `app`: [Application framework for event-driven programming.](https://mutablelogic.github.io/picofuse/group__Application.html)
 
 A standalone, per-board "picofuse"
 installation is built, together with its headers and `pkg-config` metadata,

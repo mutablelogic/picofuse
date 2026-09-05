@@ -220,6 +220,12 @@ hw_wifi_t *hw_wifi_init_accesspoint(const char *country_code,
  *
  * The returned handle has no callback attached - see
  * hw_wifi_init_client()'s own doc.
+ *
+ * @todo Not implemented yet on Linux - always returns NULL there (see
+ * `src/picofuse/hw/linux/CMakeLists.txt`, which always falls back to
+ * `hw/stub/wifi.c` rather than gating a real backend behind
+ * `PICOFUSE_WIFI` the way `hw/pico/CMakeLists.txt` does). Needs a real
+ * wpa_supplicant control-socket client under `picofuse/hw`.
  */
 hw_wifi_t *hw_wifi_init_device(const char *device);
 

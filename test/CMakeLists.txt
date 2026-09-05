@@ -861,3 +861,13 @@ if(DEFINED PICO_BOARD)
 	)
 	target_link_libraries(hid_009 PRIVATE hardware_uart_headers)
 endif()
+
+# app_main()'s lifecycle: sys/hw/hid wired up automatically, app_hid()/
+# app_led()/app_wifi() accessors, APP_FLAG_SIGNAL/_USER_BUTTON/_TEMPERATURE
+# registration, userdata passed through to on_start(), and a clean
+# app_shutdown() exit. Defines its own main() rather than using
+# test_main_sys()/test_main_hw() - see app_001/main.c's own comment.
+picofuse_test(app_001
+	app_001/main.c
+	LIBRARIES picofuse-app picofuse-hw picofuse-hid
+)

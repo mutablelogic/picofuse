@@ -211,7 +211,16 @@ bool hid_event_queue_wifi(hid_device_t *device, hw_wifi_event_t event_type,
 
   event->device = device;
   event->data.wifi.event = event_type;
-  event->data.wifi.network = network;
+  // Copied by value rather than stored as a pointer - some backends (e.g.
+  // darwin/wifi.m's scan/connect worker threads) only guarantee *network
+  // for the duration of this call, not until the consumer eventually pops
+  // and frees this event.
+  if (network != NULL) {
+    event->data.wifi.network = *network;
+    event->data.wifi.has_network = true;
+  } else {
+    event->data.wifi.has_network = false;
+  }
   return _hid_event_push(event);
 }
 
