@@ -80,26 +80,39 @@ static void _hid_timer_callback(sys_timer_t *timer) {
     return;
   }
 
+  if (!repeating) {
+    // sys_timer_deinit() from inside its own callback is the documented
+    // way to implement one-shot behavior. The hid_device_t pool slot
+    // itself can't be released yet though - event->device (once the
+    // retain/push below succeeds) must stay valid until the consumer
+    // frees that event, so that's deferred to hid_event_free() via
+    // timer_remove_after_event.
+    //
+    // This flag must be set *before* attempting the retain/push below,
+    // not after: a failed push frees the event immediately (inside
+    // _hid_event_push()), and hid_event_free() only runs its
+    // deferred-deregister check if the flag is already true by then -
+    // setting it afterward would silently leak this device slot forever
+    // on a push failure.
+    sys_timer_deinit(timer);
+    _HID_LOCK();
+    memset(device->context, 0, sizeof(timer));
+    device->timer_remove_after_event = true;
+    _HID_UNLOCK();
+  }
+
   hid_event_t *event =
       _hid_event_retain(device->instance, hid_event_type_timer);
   if (event != NULL) {
     event->device = device;
     event->data.timer.userdata = userdata;
     _hid_event_push(event);
-  }
-
-  if (!repeating) {
-    // sys_timer_deinit() from inside its own callback is the documented
-    // way to implement one-shot behavior. The hid_device_t pool slot
-    // itself can't be released yet though - event->device (if the retain
-    // above succeeded) must stay valid until the consumer frees that
-    // event, so that's deferred to hid_event_free() via
-    // timer_remove_after_event.
-    sys_timer_deinit(timer);
-    _HID_LOCK();
-    memset(device->context, 0, sizeof(timer));
-    device->timer_remove_after_event = true;
-    _HID_UNLOCK();
+  } else if (!repeating) {
+    // No event slot was available to ever carry the deferred deregister
+    // above through to hid_event_free() - deregister directly instead, or
+    // this already-expired one-shot device would sit in the pool forever
+    // with nothing left to release it.
+    hid_deregister(device->instance, device);
   }
 }
 

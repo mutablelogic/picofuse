@@ -75,9 +75,18 @@ static void _hid_event_release(hid_event_t *event) {
 // METHODS
 
 // Push a retained-and-filled event onto its owning instance's queue,
-// releasing it back to the pool if the push itself fails (e.g. queue full).
+// releasing it back to the pool if the push itself fails for any reason
+// (queue full, or the owning device having been concurrently deregistered
+// between _hid_event_retain() and here - see _hid_event_release()'s own
+// note on why that leaves event->device->instance stale rather than
+// simply NULL).
 bool _hid_event_push(hid_event_t *event) {
-  if (event == NULL || event->device == NULL || event->device->instance == NULL) {
+  if (event == NULL) {
+    return false;
+  }
+
+  if (event->device == NULL || event->device->instance == NULL) {
+    _hid_event_release(event);
     return false;
   }
 
@@ -105,8 +114,17 @@ bool hid_event_queue_keycode(hid_device_t *device, hid_state_t state,
   // just being reported per-event, so a later unrelated keycode still
   // reflects e.g. Shift being held. Lock keys are the exception: they
   // toggle once per press rather than tracking held/released.
+  //
+  // The read-modify-write of device->state/device->keycode is locked -
+  // this can run from GPIO edge-interrupt context (see
+  // _hid_gpio_callback()'s own doc), and on a two-core Pico both cores can
+  // service edge interrupts for the same device concurrently, racing on
+  // these fields with no lock otherwise.
   hid_state_t translated_state = hid_keycode_to_state(keycode);
-  hid_state_t next_state = device->state;
+  hid_state_t next_state;
+
+  _HID_LOCK();
+  next_state = device->state;
 
   if ((state & hid_state_on) != 0) {
     if ((translated_state & _HID_STATE_LOCK_MASK) != 0) {
@@ -131,6 +149,7 @@ bool hid_event_queue_keycode(hid_device_t *device, hid_state_t state,
 
   device->state = next_state;
   device->keycode = keycode;
+  _HID_UNLOCK();
 
   // Transient one-shot annotations (auto-repeat, click counts) describe
   // this event only, so they're reported here without being folded into

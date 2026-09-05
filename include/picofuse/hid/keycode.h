@@ -17,7 +17,8 @@
  * This set of bitflags describes instantaneous and latent input states for
  * buttons and keys. Flags are combined with bitwise-or to represent
  * simultaneous conditions (for example, a key that is down and also
- * generates a click event). Use bit tests to query states, e.g.:
+ * generates a click event). Use bit tests to query states, e.g.
+ * `if ((state & hid_state_shift) != 0) { ... }`.
  */
 typedef enum {
   hid_state_none = 0,       ///< No input state set.

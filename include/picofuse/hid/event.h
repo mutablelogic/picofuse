@@ -190,6 +190,14 @@ bool hid_event_queue_metric_float(hid_device_t *device, const char *name,
  * @param slot Touch slot index.
  * @retval true Event queued successfully.
  * @retval false Queueing failed.
+ *
+ * @todo Not implemented yet - there is no `.c` definition for this
+ * function anywhere in `src/picofuse/hid/`, so linking any code that
+ * calls it will fail. There is also no touch-controller registration
+ * helper (a `hid_register_touch()`-style function) yet; a driver such as
+ * `dev/ft6236.h` or `dev/stmpe610.h` would presumably call this directly
+ * once it exists, the same way ADC/temperature drivers call
+ * `hid_event_queue_metric_float()`.
  */
 bool hid_event_queue_touch(hid_device_t *device, hid_state_t state,
                            pix_point_t point, uint8_t slot);
