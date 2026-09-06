@@ -20,6 +20,7 @@ static void on_accept(net_listener_t *listener, sys_iostream_t *conn,
                       void *userdata) {
   (void)listener;
   (void)userdata;
+  (void)remote_port; // only referenced via sys_debugf(), a no-op in release
   char addrbuf[64];
   net_addr_to_string(remote, addrbuf, sizeof(addrbuf));
   sys_debugf("net_003", "datagram from %s:%u", addrbuf, (unsigned)remote_port);
