@@ -58,15 +58,6 @@ typedef enum {
                                    ///< @ref app_hid). Has no effect when the
                                    ///< platform has no internal temperature
                                    ///< sensor.
-  app_flag_wifi = (1 << 4),        ///< Register a Wi-Fi connection-state
-                                   ///< observer with the default ("XX",
-                                   ///< worldwide) country code (see
-                                   ///< hid_register_wifi() and
-                                   ///< @ref app_hid). Call hid_register_wifi()
-                                   ///< directly instead of using this flag if
-                                   ///< a specific country code is required.
-                                   ///< Has no effect when the platform has
-                                   ///< no Wi-Fi hardware support built in.
   app_flag_stdio_rtt = (1 << 5),   ///< Initialize standard I/O via SEGGER
                                    ///< RTT (sys_stdio_rtt) instead of the
                                    ///< platform default.
@@ -134,8 +125,7 @@ typedef void (*app_callback_event_t)(app_t *app, sys_event_t event,
  * events if @ref app_flag_signal is set, registers the board's user button
  * as a HID event if @ref app_flag_user_button is set, registers the
  * internal temperature sensor as a HID metric source if
- * @ref app_flag_temperature is set, registers a Wi-Fi connection-state
- * observer if @ref app_flag_wifi is set, then runs the event loop across
+ * @ref app_flag_temperature is set, then runs the event loop across
  * every available core if @ref app_flag_multicore is set, or on the
  * calling thread alone otherwise. Blocks until @ref app_shutdown is called
  * from within a callback (or from another thread), then tears down
@@ -161,23 +151,6 @@ int app_main(int argc, char *argv[], app_flag_t flags,
  * (see @ref app_main) - picofuse-app always links picofuse-hid.
  */
 hid_t *app_hid(const app_t *app);
-
-/**
- * @brief Get the Wi-Fi handle registered for this app.
- * @ingroup Application
- * @param app Application instance.
- * @return Wi-Fi handle, or NULL if @ref app_flag_wifi was not passed to
- * app_main(), or Wi-Fi is unavailable on this platform.
- *
- * This is the same handle @ref hid_register_wifi() would have returned via
- * `hid_device_userdata()`; call `hw_wifi_scan()`/`hw_wifi_connect()`/
- * `hw_wifi_disconnect()` on it directly to drive the connection. On Pico
- * this handle's own fields are not internally synchronized, so under
- * @ref app_flag_multicore, call these consistently from a single core (or
- * synchronize your own access) rather than from whichever core an
- * on_event() happens to run on.
- */
-hw_wifi_t *app_wifi(const app_t *app);
 
 /**
  * @brief Get the on-board LED handle initialized for this app.

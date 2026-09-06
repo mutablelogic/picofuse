@@ -17,7 +17,6 @@
 struct app_t {
   sys_event_queue_t *queue;
   hid_t *hid;
-  hw_wifi_t *wifi;
   hw_led_t *led;
   app_flag_t flags;
   app_callback_start_t on_start;
@@ -84,21 +83,6 @@ static void _app_on_init(uint8_t worker) {
     }
   }
 
-  // wifi
-  if (_app->hid != NULL && (_app->flags & app_flag_wifi)) {
-    _app->wifi = hw_wifi_init_client("XX");
-    if (_app->wifi != NULL &&
-        hid_register_wifi(_app->hid, _app->wifi, NULL) == NULL) {
-      hw_wifi_deinit(_app->wifi);
-      _app->wifi = NULL;
-    }
-  }
-  if (_app->wifi) {
-    sys_debugf("app", "app_flag_wifi enabled");
-  } else if (_app->flags & app_flag_wifi) {
-    sys_debugf("app", "app_flag_wifi not enabled");
-  }
-
   // callback for app start
   if (_app->on_start != NULL) {
     _app->on_start(_app, _app->userdata);
@@ -123,17 +107,8 @@ static void _app_on_exit(uint8_t worker) {
     return;
   }
 
-  // hid_deinit() only detaches the callback it attached to _app->wifi (see
-  // hid_register_wifi()'s own doc) - it does not bring the radio down, so
-  // that's still this app's own responsibility below, mirroring who
-  // brought it up in _app_on_init().
   hid_deinit(_app->hid);
   _app->hid = NULL;
-
-  if (_app->wifi != NULL) {
-    hw_wifi_deinit(_app->wifi);
-    _app->wifi = NULL;
-  }
 
   hw_led_deinit(_app->led);
   _app->led = NULL;
@@ -156,7 +131,6 @@ int app_main(int argc, char *argv[], app_flag_t flags,
   app_t app = {
       .queue = queue,
       .hid = NULL,
-      .wifi = NULL,
       .led = NULL,
       .flags = flags,
       .on_start = on_start,
@@ -184,10 +158,6 @@ int app_main(int argc, char *argv[], app_flag_t flags,
 // PROPERTIES
 
 hid_t *app_hid(const app_t *app) { return (app != NULL) ? app->hid : NULL; }
-
-hw_wifi_t *app_wifi(const app_t *app) {
-  return (app != NULL) ? app->wifi : NULL;
-}
 
 hw_led_t *app_led(const app_t *app) { return (app != NULL) ? app->led : NULL; }
 

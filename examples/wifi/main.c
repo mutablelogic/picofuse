@@ -10,20 +10,32 @@
 #define WIFI_PASSWORD ""
 #endif
 
+// Wi-Fi is application-managed for now, not app_main()'s job - own the
+// handle here, bring it up in on_start(), register it with HID so its
+// status flows in as hid_event_type_wifi events, and bring it down again
+// on shutdown.
+static hw_wifi_t *g_wifi = NULL;
+
 static void _on_start(app_t *app, void *userdata) {
   (void)userdata;
   sys_debugf("wifi", "on_start: running on core %u of %u", sys_thread_core(),
              sys_thread_numcores());
 
-  hw_wifi_t *wifi = app_wifi(app);
-  if (wifi == NULL) {
+  g_wifi = hw_wifi_init_client("XX");
+  if (g_wifi == NULL) {
     sys_debugf("wifi", "on_start: no Wi-Fi hardware on this platform/build");
+    return;
+  }
+  if (hid_register_wifi(app_hid(app), g_wifi, NULL) == NULL) {
+    sys_debugf("wifi", "on_start: hid_register_wifi failed");
+    hw_wifi_deinit(g_wifi);
+    g_wifi = NULL;
     return;
   }
 
   // Join a network if WIFI_SSID/WIFI_PASSWORD were supplied at build time
   // (export them before running cmake), otherwise just scan for nearby
-  // networks - either way, hid_register_wifi() (see app_main()) is already
+  // networks - either way, the hid_register_wifi() call above is already
   // observing wifi and will report the result as a hid_event_type_wifi
   // event below.
   if (WIFI_SSID[0] != '\0') {
@@ -32,12 +44,12 @@ static void _on_start(app_t *app, void *userdata) {
         .auth = hw_wifi_auth_wpa2_aes,
     };
     sys_debugf("wifi", "on_start: joining ssid=%s", WIFI_SSID);
-    if (!hw_wifi_connect(wifi, &network, WIFI_PASSWORD)) {
+    if (!hw_wifi_connect(g_wifi, &network, WIFI_PASSWORD)) {
       sys_debugf("wifi", "on_start: failed to start connection");
     }
   } else {
     sys_debugf("wifi", "on_start: scanning for nearby networks");
-    if (!hw_wifi_scan(wifi)) {
+    if (!hw_wifi_scan(g_wifi)) {
       sys_debugf("wifi", "on_start: failed to start scan");
     }
   }
@@ -101,6 +113,10 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
     // Ctrl-C/SIGTERM on a host build - a Pico board has no such signals.
     sys_debugf("wifi", "on_event: received signal, shutting down (core=%u)",
                sys_thread_core());
+    if (g_wifi != NULL) {
+      hw_wifi_deinit(g_wifi);
+      g_wifi = NULL;
+    }
     app_shutdown(0);
     break;
   default:
@@ -114,7 +130,6 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
 
 int main(int argc, char *argv[]) {
   return app_main(argc, argv,
-                  app_flag_multicore | app_flag_wifi | app_flag_signal |
-                      app_flag_led,
+                  app_flag_multicore | app_flag_signal | app_flag_led,
                   _on_start, _on_event, NULL);
 }

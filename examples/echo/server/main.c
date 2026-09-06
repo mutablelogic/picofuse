@@ -38,6 +38,11 @@ static sys_mutex_t *g_lock;
 static _echo_client_t g_clients[ECHO_MAX_CLIENTS];
 static net_listener_t *g_listener;
 
+// Wi-Fi is application-managed for now, not app_main()'s job - own the
+// handle here, bring it up in _on_start(), and bring it down again on
+// shutdown.
+static hw_wifi_t *g_wifi;
+
 static void _broadcast(const char *buf, size_t n) {
   sys_mutex_lock(g_lock);
   for (size_t i = 0; i < ECHO_MAX_CLIENTS; i++) {
@@ -128,17 +133,22 @@ static void _on_start(app_t *app, void *userdata) {
   g_lock = sys_mutex_init();
   sys_assert(g_lock != NULL);
 
-  hw_wifi_t *wifi = app_wifi(app);
-  if (wifi != NULL && WIFI_SSID[0] != '\0') {
+  g_wifi = hw_wifi_init_client("XX");
+  if (g_wifi != NULL && hid_register_wifi(app_hid(app), g_wifi, NULL) == NULL) {
+    hw_wifi_deinit(g_wifi);
+    g_wifi = NULL;
+  }
+
+  if (g_wifi != NULL && WIFI_SSID[0] != '\0') {
     hw_wifi_network_t network = {
         .ssid = WIFI_SSID,
         .auth = hw_wifi_auth_wpa2_aes,
     };
     sys_printf("[echo] joining ssid=%s\n", WIFI_SSID);
-    if (!hw_wifi_connect(wifi, &network, WIFI_PASSWORD)) {
+    if (!hw_wifi_connect(g_wifi, &network, WIFI_PASSWORD)) {
       sys_printf("[echo] failed to start connection\n");
     }
-  } else if (wifi != NULL) {
+  } else if (g_wifi != NULL) {
     sys_printf("[echo] no WIFI_SSID set - listening without joining a "
                "network\n");
   }
@@ -180,7 +190,7 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
     hw_wifi_event_t wifi_event = hid_event->data.wifi.event;
     if (wifi_event & hw_wifi_event_connected) {
       net_addr_t addr;
-      if (hw_wifi_get_address(app_wifi(app), net_addr_family_v4, &addr)) {
+      if (hw_wifi_get_address(g_wifi, net_addr_family_v4, &addr)) {
         char addrbuf[32];
         net_addr_to_string(&addr, addrbuf, sizeof(addrbuf));
         sys_printf("[echo] wifi connected, address=%s\n", addrbuf);
@@ -212,6 +222,10 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
     g_listener = NULL;
     sys_mutex_deinit(g_lock);
     g_lock = NULL;
+    if (g_wifi != NULL) {
+      hw_wifi_deinit(g_wifi);
+      g_wifi = NULL;
+    }
     app_shutdown(0);
     break;
   default:
@@ -223,7 +237,7 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
 
 int main(int argc, char *argv[]) {
   return app_main(argc, argv,
-                  app_flag_wifi | app_flag_signal | app_flag_stdio_rtt |
-                      app_flag_led | app_flag_user_button,
+                  app_flag_signal | app_flag_stdio_rtt | app_flag_led |
+                      app_flag_user_button,
                   _on_start, _on_event, NULL);
 }

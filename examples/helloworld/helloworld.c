@@ -5,6 +5,11 @@
 
 static bool _led_on = false;
 
+// Wi-Fi is application-managed for now, not app_main()'s job - own the
+// handle here so hid_event_type_wifi events keep flowing for the demo
+// below, purely as an observer (never actually joins or scans).
+static hw_wifi_t *_wifi = NULL;
+
 static const char *_wifi_event_label(hw_wifi_event_t event, bool has_network) {
   if (event & hw_wifi_event_scan) {
     return has_network ? "scan result" : "scan complete";
@@ -27,9 +32,14 @@ static const char *_wifi_event_label(hw_wifi_event_t event, bool has_network) {
 }
 
 static void _on_start(app_t *app, void *userdata) {
-  (void)app;
   (void)userdata;
   sys_puts("Hello, world!\n");
+
+  _wifi = hw_wifi_init_client("XX");
+  if (_wifi != NULL && hid_register_wifi(app_hid(app), _wifi, NULL) == NULL) {
+    hw_wifi_deinit(_wifi);
+    _wifi = NULL;
+  }
 }
 
 static void _on_event(app_t *app, sys_event_t event, void *userdata) {
@@ -64,6 +74,10 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
     // Ctrl-C/SIGTERM on a host build - a Pico board has no such signals, so
     // this branch never fires there; app_shutdown() is only reachable by
     // physically resetting the board instead.
+    if (_wifi != NULL) {
+      hw_wifi_deinit(_wifi);
+      _wifi = NULL;
+    }
     app_shutdown(0);
     break;
 
@@ -105,12 +119,12 @@ int main(int argc, char *argv[]) {
   // Every flag on for testing, including app_flag_multicore. on_event()
   // below calls hw_led_set() straight from a keycode event regardless of
   // which core it lands on - safe even when the default LED is wired
-  // through the Wi-Fi chip (see app_wifi()'s own doc), since cyw43_arch's
-  // threadsafe_background context (what this project builds against)
-  // serializes every call into the driver internally, from any core.
+  // through the Wi-Fi chip, since cyw43_arch's threadsafe_background
+  // context (what this project builds against) serializes every call
+  // into the driver internally, from any core.
   return app_main(argc, argv,
                   app_flag_stdio_rtt | app_flag_multicore | app_flag_led |
                       app_flag_signal | app_flag_user_button |
-                      app_flag_temperature | app_flag_wifi,
+                      app_flag_temperature,
                   _on_start, _on_event, NULL);
 }
