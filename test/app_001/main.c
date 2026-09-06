@@ -2,7 +2,7 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
-test_main_app(APP_FLAG_SIGNAL | APP_FLAG_USER_BUTTON | APP_FLAG_TEMPERATURE) {
+test_main_app(app_flag_signal | app_flag_user_button | app_flag_temperature) {
   test_assert(app != NULL);
 
   // picofuse-hid is linked into this test (see app_001's LIBRARIES below),
@@ -14,6 +14,6 @@ test_main_app(APP_FLAG_SIGNAL | APP_FLAG_USER_BUTTON | APP_FLAG_TEMPERATURE) {
   // on-board LED at all is unrelated to what this test is checking.
   (void)app_led(app);
 
-  // APP_FLAG_WIFI was not passed, so there's nothing to observe yet.
+  // app_flag_wifi was not passed, so there's nothing to observe yet.
   test_assert(app_wifi(app) == NULL);
 }

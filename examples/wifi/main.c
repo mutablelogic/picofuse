@@ -114,6 +114,7 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
 
 int main(int argc, char *argv[]) {
   return app_main(argc, argv,
-                  APP_FLAG_MULTICORE | APP_FLAG_WIFI | APP_FLAG_SIGNAL,
+                  app_flag_multicore | app_flag_wifi | app_flag_signal |
+                      app_flag_led,
                   _on_start, _on_event, NULL);
 }

@@ -5,6 +5,27 @@
 
 static bool _led_on = false;
 
+static const char *_wifi_event_label(hw_wifi_event_t event, bool has_network) {
+  if (event & hw_wifi_event_scan) {
+    return has_network ? "scan result" : "scan complete";
+  } else if (event & hw_wifi_event_joining) {
+    return "joining";
+  } else if (event & hw_wifi_event_connected) {
+    return "connected";
+  } else if (event & hw_wifi_event_disconnected) {
+    return "disconnected";
+  } else if (event & hw_wifi_event_badauth) {
+    return "bad auth";
+  } else if (event & hw_wifi_event_notfound) {
+    return "not found";
+  } else if (event & hw_wifi_event_error) {
+    return "error";
+  } else if (event & hw_wifi_event_status) {
+    return "status";
+  }
+  return "unknown";
+}
+
 static void _on_start(app_t *app, void *userdata) {
   (void)app;
   (void)userdata;
@@ -19,8 +40,16 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
     return;
   }
 
+  char state_buf[128];
+
   switch (hid_event->type) {
   case hid_event_type_keycode:
+    hid_state_to_string(hid_event->data.keycode.state, state_buf,
+                        sizeof(state_buf));
+    sys_printf("Keycode event: %s state: %s\n",
+               hid_keycode_to_string(hid_event->data.keycode.keycode),
+               state_buf);
+
     // Toggle the on-board LED on each user-button press - ignoring the
     // release means holding it down doesn't flicker. app_led() is NULL-safe
     // to pass to hw_led_set() if this platform has no default LED.
@@ -30,11 +59,41 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
     }
     break;
   case hid_event_type_signal:
+    sys_printf("Signal event: %u\n", (unsigned)hid_event->data.signal.signal);
+
     // Ctrl-C/SIGTERM on a host build - a Pico board has no such signals, so
     // this branch never fires there; app_shutdown() is only reachable by
     // physically resetting the board instead.
     app_shutdown(0);
     break;
+
+  case hid_event_type_metric:
+    sys_printf("Metric event: %s=%.2f %s\n", hid_event->data.metric.name,
+               (double)hid_event->data.metric.value,
+               hid_event->data.metric.unit);
+    break;
+
+  case hid_event_type_wifi:
+    if (hid_event->data.wifi.has_network) {
+      sys_printf("Wi-Fi event: %s ssid=%s rssi=%d\n",
+                 _wifi_event_label(hid_event->data.wifi.event, true),
+                 hid_event->data.wifi.network.ssid,
+                 (int)hid_event->data.wifi.network.rssi);
+    } else {
+      sys_printf("Wi-Fi event: %s\n",
+                 _wifi_event_label(hid_event->data.wifi.event, false));
+    }
+    break;
+
+  case hid_event_type_touch:
+    hid_state_to_string(hid_event->data.touch.state, state_buf,
+                        sizeof(state_buf));
+    sys_printf("Touch event: %s slot=%u x=%d y=%d\n", state_buf,
+               (unsigned)hid_event->data.touch.slot,
+               (int)hid_event->data.touch.point.x,
+               (int)hid_event->data.touch.point.y);
+    break;
+
   default:
     break;
   }
@@ -43,8 +102,17 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
 }
 
 int main(int argc, char *argv[]) {
-  // APP_FLAG_USER_BUTTON is a no-op on boards/platforms with no user
-  // button (see hid_register_user_button()) - nothing else to gate here.
-  return app_main(argc, argv, APP_FLAG_SIGNAL | APP_FLAG_USER_BUTTON,
+  // Every flag on for testing, including app_flag_multicore - note this is
+  // the exact unsafe combination app_flag_led's own doc warns about: this
+  // board's default LED is wired through the Wi-Fi chip, and on_event()
+  // below calls hw_led_set() straight from a keycode event, which under
+  // app_flag_multicore is not guaranteed to land on core 0. Kept here
+  // deliberately to observe that hazard on real hardware rather than
+  // hiding it; drop app_flag_multicore (see examples/wifi for how) if this
+  // ever needs to be reliable rather than just observed.
+  return app_main(argc, argv,
+                  app_flag_stdio_rtt | app_flag_multicore | app_flag_led |
+                      app_flag_signal | app_flag_user_button |
+                      app_flag_temperature | app_flag_wifi,
                   _on_start, _on_event, NULL);
 }
