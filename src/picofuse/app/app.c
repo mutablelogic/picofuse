@@ -11,23 +11,11 @@
 #define APP_QUEUE_CAPACITY 32
 #endif
 
-/**
- * @def APP_WIFI_QUEUE_CAPACITY
- * @brief Maximum number of hid_event_type_wifi events held for worker 0
- * (see _app_on_event()).
- */
-#ifndef APP_WIFI_QUEUE_CAPACITY
-#define APP_WIFI_QUEUE_CAPACITY 8
-#endif
-
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 struct app_t {
   sys_event_queue_t *queue;
-  // Holds hid_event_type_wifi events popped on a non-zero core, so they can
-  // be redispatched from worker 0 (see _app_on_event()/_app_poll()).
-  sys_event_queue_t *wifi_queue;
   hid_t *hid;
   hw_wifi_t *wifi;
   hw_led_t *led;
@@ -103,34 +91,13 @@ static void _app_on_init(uint8_t worker) {
   }
 }
 
-// use core 0 for wifi events
 static void _app_on_event(sys_event_t event) {
-  hid_event_t *hid_event = (hid_event_t *)event;
-  if (hid_event != NULL && hid_event->type == hid_event_type_wifi &&
-      sys_thread_core() != 0u) {
-    if (!sys_event_queue_try_push(_app->wifi_queue, event)) {
-      sys_debugf("app", "wifi event queue full, dropping event");
-      hid_event_free(hid_event);
-    }
-    return;
-  }
-
   if (_app->on_event != NULL) {
     _app->on_event(_app, event, _app->userdata);
   }
 }
 
 static void _app_poll(void) {
-  // Guaranteed to run on worker 0 only (see sys_runloop_poll_func_t's own
-  // doc), so it's safe to redeliver wifi events deferred by
-  // _app_on_event() here.
-  sys_event_t deferred;
-  while ((deferred = sys_event_queue_try_pop(_app->wifi_queue)) != NULL) {
-    if (_app->on_event != NULL) {
-      _app->on_event(_app, deferred, _app->userdata);
-    }
-  }
-
   hw_poll();
   if (_app->hid != NULL) {
     (void)hid_poll(_app->hid);
@@ -141,15 +108,6 @@ static void _app_on_exit(uint8_t worker) {
   if (worker != 0u) {
     return;
   }
-
-  // Free any wifi events deferred by _app_on_event() that never reached
-  // _app_poll() before shutdown, so nothing leaks.
-  sys_event_t deferred;
-  while ((deferred = sys_event_queue_try_pop(_app->wifi_queue)) != NULL) {
-    hid_event_free((hid_event_t *)deferred);
-  }
-  sys_event_queue_deinit(_app->wifi_queue);
-  _app->wifi_queue = NULL;
 
   // hid_deinit() only detaches the callback it attached to _app->wifi (see
   // hid_register_wifi()'s own doc) - it does not bring the radio down, so
@@ -181,12 +139,8 @@ int app_main(int argc, char *argv[], app_flag_t flags,
   sys_event_queue_t *queue = sys_event_queue_init(APP_QUEUE_CAPACITY);
   sys_assert(queue != NULL);
 
-  sys_event_queue_t *wifi_queue = sys_event_queue_init(APP_WIFI_QUEUE_CAPACITY);
-  sys_assert(wifi_queue != NULL);
-
   app_t app = {
       .queue = queue,
-      .wifi_queue = wifi_queue,
       .hid = NULL,
       .wifi = NULL,
       .led = NULL,

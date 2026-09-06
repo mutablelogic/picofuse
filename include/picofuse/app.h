@@ -73,13 +73,7 @@ typedef enum {
   app_flag_led = (1 << 6),         ///< Initialize the on-board LED if
                                    ///< available (see @ref app_led). Has no
                                    ///< effect when the platform has no
-                                   ///< default on-board LED. On some boards
-                                   ///< the default LED is wired through the
-                                   ///< Wi-Fi chip rather than a plain GPIO
-                                   ///< (see hw_led_gpio_default()), in which
-                                   ///< case hw_led_set()/_blink() on it is
-                                   ///< only safe from core 0 - see
-                                   ///< @ref app_led's own note.
+                                   ///< default on-board LED.
 } app_flag_t;
 
 /**
@@ -177,7 +171,11 @@ hid_t *app_hid(const app_t *app);
  *
  * This is the same handle @ref hid_register_wifi() would have returned via
  * `hid_device_userdata()`; call `hw_wifi_scan()`/`hw_wifi_connect()`/
- * `hw_wifi_disconnect()` on it directly to drive the connection.
+ * `hw_wifi_disconnect()` on it directly to drive the connection. On Pico
+ * this handle's own fields are not internally synchronized, so under
+ * @ref app_flag_multicore, call these consistently from a single core (or
+ * synchronize your own access) rather than from whichever core an
+ * on_event() happens to run on.
  */
 hw_wifi_t *app_wifi(const app_t *app);
 
@@ -190,14 +188,6 @@ hw_wifi_t *app_wifi(const app_t *app);
  * hw_led_init_default()).
  *
  * Call hw_led_set()/hw_led_blink() on it directly.
- *
- * On some boards the default LED is wired through the Wi-Fi chip rather
- * than a plain GPIO (see hw_led_gpio_default()'s own doc for which), the
- * same case @ref hw_wifi_t itself has: calling hw_led_set()/_blink() on
- * this handle is then only safe from the core hw_init() ran on (core 0) -
- * an on_event() running under @ref app_flag_multicore is not guaranteed to
- * be on that core (see hid_event_type_wifi's own handling in app_main() for
- * the same restriction).
  */
 hw_led_t *app_led(const app_t *app);
 

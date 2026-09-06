@@ -102,14 +102,12 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
 }
 
 int main(int argc, char *argv[]) {
-  // Every flag on for testing, including app_flag_multicore - note this is
-  // the exact unsafe combination app_flag_led's own doc warns about: this
-  // board's default LED is wired through the Wi-Fi chip, and on_event()
-  // below calls hw_led_set() straight from a keycode event, which under
-  // app_flag_multicore is not guaranteed to land on core 0. Kept here
-  // deliberately to observe that hazard on real hardware rather than
-  // hiding it; drop app_flag_multicore (see examples/wifi for how) if this
-  // ever needs to be reliable rather than just observed.
+  // Every flag on for testing, including app_flag_multicore. on_event()
+  // below calls hw_led_set() straight from a keycode event regardless of
+  // which core it lands on - safe even when the default LED is wired
+  // through the Wi-Fi chip (see app_wifi()'s own doc), since cyw43_arch's
+  // threadsafe_background context (what this project builds against)
+  // serializes every call into the driver internally, from any core.
   return app_main(argc, argv,
                   app_flag_stdio_rtt | app_flag_multicore | app_flag_led |
                       app_flag_signal | app_flag_user_button |
