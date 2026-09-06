@@ -123,12 +123,12 @@
  * print-then-teardown ordering (they also print "[TEST] [EXIT]" before
  * tearing down, not after).
  * @param flags Forwarded to app_main() - see app_flag_t. Passing
- * APP_FLAG_WIFI or APP_FLAG_MULTICORE here needs real hardware to exercise
+ * app_flag_wifi or app_flag_multicore here needs real hardware to exercise
  * meaningfully (see hid_008's own gating for the same reason); most tests
  * won't need either.
  *
  * Usage:
- *   test_main_app(APP_FLAG_SIGNAL) {
+ *   test_main_app(app_flag_signal) {
  *     ...test body, optionally using app/argc/argv...
  *   }
  */
