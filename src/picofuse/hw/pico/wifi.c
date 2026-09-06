@@ -4,6 +4,7 @@
 
 #include "cyw43.h"
 #include "cyw43_country.h"
+#include "lwip/netif.h"
 #include <pico/cyw43_arch.h>
 
 // Sentinel for hw_wifi_t.state meaning "no last-observed link state yet /
@@ -404,6 +405,39 @@ bool hw_wifi_disconnect(hw_wifi_t *wifi) {
   _hw_wifi_set_busy(wifi, _hw_wifi_busy_leaving, true);
   wifi->state = _HW_WIFI_STATE_UNKNOWN;
   wifi->ts = 0;
+  return true;
+}
+
+/**
+ * @brief Return the address currently bound to the Wi-Fi interface.
+ *
+ * IPv6 is never available: this project's lwipopts.h only defines
+ * LWIP_IPV4 (see include/runtime/pico/lwipopts.h), so cyw43_state's netifs
+ * never carry an IPv6 address to report.
+ */
+bool hw_wifi_get_address(hw_wifi_t *wifi, net_addr_family_t family,
+                         net_addr_t *addr) {
+  if (wifi == NULL || wifi != &_hw_wifi_adaptor || !wifi->active ||
+      addr == NULL) {
+    return false;
+  }
+  if (family != net_addr_family_v4) {
+    return false;
+  }
+
+  struct netif *netif =
+      &cyw43_state.netif[wifi->accesspoint ? CYW43_ITF_AP : CYW43_ITF_STA];
+  cyw43_arch_lwip_begin();
+  const ip4_addr_t *ip4 = netif_ip4_addr(netif);
+  bool has_addr = !ip4_addr_isany(ip4);
+  uint32_t raw = has_addr ? ip4_addr_get_u32(ip4) : 0;
+  cyw43_arch_lwip_end();
+  if (!has_addr) {
+    return false;
+  }
+
+  addr->family = net_addr_family_v4;
+  memcpy(addr->addr.v4, &raw, sizeof(addr->addr.v4));
   return true;
 }
 

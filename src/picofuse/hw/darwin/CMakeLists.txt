@@ -22,6 +22,7 @@ picofuse_library(
         ../stub/pwm.c
         ../stub/spi.c
         ../posix/uart.c
+        ../posix/address.c
         ${_wifi_src}
 )
 
