@@ -6,4 +6,5 @@
  */
 #pragma once
 #include "net/net.h"
+#include "net/ntp.h"
 #include "net/types.h"

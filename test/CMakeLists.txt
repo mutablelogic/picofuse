@@ -901,3 +901,19 @@ picofuse_test(net_004
 	net_004/main.c
 	LIBRARIES picofuse-net
 )
+
+# net_ntp_init()/_read()/_deinit() against a real NTP server over the
+# network - skips (not asserted) if no reply arrives, since that needs
+# actual internet access - see net_005/main.c's own comment.
+picofuse_test(net_005
+	net_005/main.c
+	LIBRARIES picofuse-net
+)
+
+# net_ntp_register_hid() against a real NTP server, via a real hid_t
+# instance - see net_006/main.c's own comment on why a real reply is
+# skipped rather than asserted.
+picofuse_test(net_006
+	net_006/main.c
+	LIBRARIES picofuse-net picofuse-hid
+)

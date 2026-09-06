@@ -1,6 +1,6 @@
 picofuse_executable(
     NAME wifi
-    LIBRARIES picofuse-app picofuse-hw picofuse-hid
+    LIBRARIES picofuse-app picofuse-hw picofuse-hid picofuse-net
     SOURCES main.c
 )
 target_include_directories(wifi PRIVATE ${CMAKE_SOURCE_DIR}/include)

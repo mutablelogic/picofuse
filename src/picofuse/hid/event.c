@@ -240,6 +240,21 @@ bool hid_event_queue_iostream(hid_device_t *device,
   return _hid_event_push(event);
 }
 
+bool hid_event_queue_time(hid_device_t *device, const sys_date_t *date) {
+  if (device == NULL || date == NULL) {
+    return false;
+  }
+
+  hid_event_t *event = _hid_event_retain(device->instance, hid_event_type_time);
+  if (event == NULL) {
+    return false;
+  }
+
+  event->device = device;
+  event->data.time.date = *date;
+  return _hid_event_push(event);
+}
+
 void hid_event_free(hid_event_t *event) {
   // A one-shot timer's sys_timer_t is already gone by the time its event
   // reaches here (see timer.c's _hid_timer_callback) - this is what

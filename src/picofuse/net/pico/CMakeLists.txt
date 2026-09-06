@@ -14,11 +14,13 @@ picofuse_library(
     LIBRARIES picosdk
     SOURCES
         ../addr/addr.c
+        ../ntp/ntp.c
+        ../ntp/hid.c
         ${_net_src}
 )
 
 target_include_directories(picofuse-net PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(picofuse-net PRIVATE picofuse-sys)
+target_link_libraries(picofuse-net PRIVATE picofuse-sys picofuse-hid)
 
 if(PICOFUSE_WIFI AND PICO_CYW43_SUPPORTED)
     # socket.c/listener.c pull in pico/cyw43_arch.h (transitively
