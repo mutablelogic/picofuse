@@ -77,6 +77,7 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date) {
   sys_iostream_t *conn =
       net_open(net_proto_udp, &_net_ntp_singleton.addr, _net_ntp_singleton.port);
   if (conn == NULL) {
+    sys_debugf("net", "ntp: net_open failed");
     return false;
   }
 
@@ -86,8 +87,10 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date) {
   uint8_t packet[NET_NTP_PACKET_SIZE] = {0};
   packet[0] = 0x23;
 
-  if (sys_iostream_write(conn, (char *)packet, sizeof(packet)) !=
-      sizeof(packet)) {
+  size_t wrote = sys_iostream_write(conn, (char *)packet, sizeof(packet));
+  if (wrote != sizeof(packet)) {
+    sys_debugf("net", "ntp: write failed, wrote %zu/%zu bytes", wrote,
+              sizeof(packet));
     sys_iostream_close(conn);
     return false;
   }
@@ -103,6 +106,8 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date) {
   }
   sys_iostream_close(conn);
   if (got != sizeof(packet)) {
+    sys_debugf("net", "ntp: read timed out after %ums, got %zu/%zu bytes",
+              (unsigned)_net_ntp_singleton.timeout_ms, got, sizeof(packet));
     return false;
   }
 
@@ -120,6 +125,7 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date) {
                          ((uint32_t)packet[46] << 8) | (uint32_t)packet[47];
 
   if (ntp_seconds < NET_NTP_EPOCH_OFFSET) {
+    sys_debugf("net", "ntp: implausible reply, ntp_seconds=%u", ntp_seconds);
     return false; // a pre-1970 reply is nonsensical - reject rather than
                   // wrap negative
   }

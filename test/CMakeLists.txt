@@ -583,6 +583,12 @@ picofuse_test(sys_107
 	sys_107/main.c
 )
 
+# sys_date_to_string()'s three formats (iso8601/rfc2822/log), tzoffset
+# handling, NULL-uses-current-time, and truncation semantics.
+picofuse_test(sys_108
+	sys_108/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
