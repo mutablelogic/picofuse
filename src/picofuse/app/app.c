@@ -36,11 +36,14 @@ static void _app_on_init(uint8_t worker) {
     return;
   }
 
+  sys_debugf("app", "%s version=%s (system=%s serial=%s)", sys_env_name(),
+             sys_env_version(), sys_env_system(), sys_env_serial());
+
   // Initialize the hardware and HID subsystems.
   hw_init();
   _app->hid = hid_init(_app->queue);
   if (_app->hid) {
-    sys_debugf("app", "app_flag_hid");
+    sys_debugf("app", "app_flag_hid enabled");
   }
 
   // hw_led_init_default()
@@ -48,27 +51,36 @@ static void _app_on_init(uint8_t worker) {
     _app->led = hw_led_init_default();
   }
   if (_app->led) {
-    sys_debugf("app", "app_flag_led");
+    sys_debugf("app", "app_flag_led enabled");
+    hw_led_clear(_app->led);
+  } else if (_app->flags & app_flag_led) {
+    sys_debugf("app", "app_flag_led not enabled");
   }
 
   // signals
   if (_app->hid != NULL && (_app->flags & app_flag_signal)) {
     if (hid_register_signal(_app->hid, NULL)) {
-      sys_debugf("app", "app_flag_signal");
+      sys_debugf("app", "app_flag_signal enabled");
+    } else {
+      sys_debugf("app", "app_flag_signal not enabled");
     }
   }
 
   // user button
   if (_app->hid != NULL && (_app->flags & app_flag_user_button)) {
     if (hid_register_user_button(_app->hid, KEYCODE_BUTTON_USER, NULL)) {
-      sys_debugf("app", "app_flag_user_button");
+      sys_debugf("app", "app_flag_user_button enabled");
+    } else {
+      sys_debugf("app", "app_flag_user_button not enabled");
     }
   }
 
   // internal temperature sensor
   if (_app->hid != NULL && (_app->flags & app_flag_temperature)) {
     if (hid_register_temperature(_app->hid, 0u, NULL)) {
-      sys_debugf("app", "app_flag_temperature");
+      sys_debugf("app", "app_flag_temperature enabled");
+    } else {
+      sys_debugf("app", "app_flag_temperature not enabled");
     }
   }
 
@@ -82,7 +94,9 @@ static void _app_on_init(uint8_t worker) {
     }
   }
   if (_app->wifi) {
-    sys_debugf("app", "app_flag_wifi");
+    sys_debugf("app", "app_flag_wifi enabled");
+  } else if (_app->flags & app_flag_wifi) {
+    sys_debugf("app", "app_flag_wifi not enabled");
   }
 
   // callback for app start

@@ -1,4 +1,5 @@
 #include <picofuse/hw.h>
+#include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <test/test.h>
 
@@ -31,10 +32,13 @@ static void on_event(hw_wifi_t *wifi, hw_wifi_event_t event,
 }
 
 test_main_hw(0) {
+  net_addr_t addr;
+
   // NULL-safety: every operation must tolerate an invalid handle.
   test_assert(hw_wifi_scan(NULL) == false);
   test_assert(hw_wifi_connect(NULL, NULL, NULL) == false);
   test_assert(hw_wifi_disconnect(NULL) == false);
+  test_assert(hw_wifi_get_address(NULL, net_addr_family_v4, &addr) == false);
   hw_wifi_deinit(NULL); // must not crash
 
   hw_wifi_t *wifi = hw_wifi_init_client(NULL);
@@ -42,6 +46,10 @@ test_main_hw(0) {
     sys_printf("[hw_016] no Wi-Fi client backend on this board\n");
     return;
   }
+
+  // Not associated yet - no address bound, for either family.
+  test_assert(hw_wifi_get_address(wifi, net_addr_family_v4, &addr) == false);
+  test_assert(hw_wifi_get_address(wifi, net_addr_family_v6, &addr) == false);
 
   // A freshly initialized handle has no callback attached - detaching
   // (NULL) and attaching are both safe to call at any time.

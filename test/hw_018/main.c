@@ -1,4 +1,5 @@
 #include <picofuse/hw.h>
+#include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <test/test.h>
 
@@ -41,6 +42,21 @@ test_main_hw(0) {
     return;
   }
   sys_printf("[hw_018] AP \"%s\" up\n", HW_WIFI_TEST_AP_SSID);
+
+  // An access point's own address is bound synchronously as part of
+  // bringing the interface up (the CYW43 driver's cyw43_cb_tcpip_init()
+  // assigns it and starts its DHCP server for stations - see
+  // cyw43_lwip.c), unlike station mode's DHCP-leased address, which only
+  // arrives once actually joined (see hw_017). CYW43_DEFAULT_IP_AP_ADDRESS
+  // is 192.168.4.1 unless the vendored cyw43-driver's own config was
+  // changed.
+  net_addr_t addr;
+  test_assert(hw_wifi_get_address(wifi, net_addr_family_v4, &addr));
+  char addrbuf[32];
+  net_addr_to_string(&addr, addrbuf, sizeof(addrbuf));
+  sys_printf("[hw_018] AP address: %s\n", addrbuf);
+  test_assert_strequal(addrbuf, "192.168.4.1");
+  test_assert(hw_wifi_get_address(wifi, net_addr_family_v6, &addr) == false);
 
   // Attaching a callback is uniformly allowed on any handle kind - see
   // hw_wifi_set_callback()'s own doc - even though it's a no-op here.

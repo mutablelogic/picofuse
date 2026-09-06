@@ -1,4 +1,5 @@
 #include <picofuse/hw.h>
+#include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <string.h>
 #include <test/test.h>
@@ -87,11 +88,26 @@ test_main_hw(0) {
   sys_printf("[hw_017] connect result: event=%d\n", (int)g_last_connect_event);
   test_assert(g_last_connect_event == hw_wifi_event_connected);
 
+  // Once joined, the STA interface has a real, DHCP-leased address.
+  net_addr_t addr;
+  test_assert(hw_wifi_get_address(wifi, net_addr_family_v4, &addr));
+  char addrbuf[32];
+  net_addr_to_string(&addr, addrbuf, sizeof(addrbuf));
+  sys_printf("[hw_017] bound address: %s\n", addrbuf);
+  test_assert(memcmp(addr.addr.v4, "\x00\x00\x00\x00", 4) != 0);
+
+  // IPv6 is never available - this project's lwipopts.h only enables
+  // LWIP_IPV4 (see hw_wifi_get_address()'s own doc).
+  test_assert(hw_wifi_get_address(wifi, net_addr_family_v6, &addr) == false);
+
   sys_printf("[hw_017] disconnecting...\n");
   g_last_connect_event = 0;
   test_assert(hw_wifi_disconnect(wifi));
   test_assert(wait_for(&g_last_connect_event, HW_WIFI_TEST_TIMEOUT_MS));
   test_assert(g_last_connect_event == hw_wifi_event_disconnected);
+
+  // No address bound once disconnected.
+  test_assert(hw_wifi_get_address(wifi, net_addr_family_v4, &addr) == false);
 
   hw_wifi_deinit(wifi);
 }

@@ -712,7 +712,7 @@ picofuse_test(hw_015
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_016
 		hw_016/main.c
-		LIBRARIES picofuse-hw
+		LIBRARIES picofuse-hw picofuse-net
 		TESTRUNNER_TIMEOUT 30
 	)
 endif()
@@ -722,7 +722,7 @@ endif()
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_017
 		hw_017/main.c
-		LIBRARIES picofuse-hw
+		LIBRARIES picofuse-hw picofuse-net
 		TESTRUNNER_TIMEOUT 60
 	)
 
@@ -742,7 +742,7 @@ endif()
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_018
 		hw_018/main.c
-		LIBRARIES picofuse-hw
+		LIBRARIES picofuse-hw picofuse-net
 	)
 endif()
 
@@ -870,4 +870,34 @@ endif()
 picofuse_test(app_001
 	app_001/main.c
 	LIBRARIES picofuse-app picofuse-hw picofuse-hid
+)
+
+# net_addr_v4()/_v4_any()/_v6()/_v6_any()/_to_string() - pure logic, no
+# sockets, so this runs (and is expected to fully pass) on every platform.
+picofuse_test(net_001
+	net_001/main.c
+	LIBRARIES picofuse-net
+)
+
+# net_open()/net_listener_init(net_proto_tcp, ...) round trip over
+# loopback. Skips gracefully wherever there's no real backend yet (Pico's
+# net/pico/socket.c is a stub - see its own @todo), same pattern hw_016
+# uses for missing Wi-Fi hardware.
+picofuse_test(net_002
+	net_002/main.c
+	LIBRARIES picofuse-net
+)
+
+# Same as net_002, but net_proto_udp - the single-shot stream contract
+# (one read, one reply write, then closed).
+picofuse_test(net_003
+	net_003/main.c
+	LIBRARIES picofuse-net
+)
+
+# NULL-safety, NET_LISTENER_CAPACITY exhaustion, address/port already in
+# use, and connection-refused - see net_002's own comment on skipping.
+picofuse_test(net_004
+	net_004/main.c
+	LIBRARIES picofuse-net
 )
