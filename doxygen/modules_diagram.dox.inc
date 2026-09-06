@@ -50,6 +50,7 @@ digraph modules {
   HID         [label="HID",                      URL="\ref HID"];
   HIDEvents   [label="Events",                   URL="\ref HIDEvents"];
   HIDKeycodes [label="Keycodes",                 URL="\ref HIDKeycodes"];
+  Network     [label="Network",                  URL="\ref Network"];
 
   System -> Memory;
   System -> Sync;

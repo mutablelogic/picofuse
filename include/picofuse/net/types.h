@@ -1,7 +1,7 @@
 /**
  * @file types.h
  * @brief Network module types.
- * @ingroup Net
+ * @ingroup Network
  */
 #pragma once
 #include <picofuse/sys/io.h>
@@ -13,7 +13,7 @@ extern "C" {
 
 /**
  * @def NET_LISTENER_CAPACITY
- * @ingroup Net
+ * @ingroup Network
  * @brief Maximum number of listeners open at once (see net_listener_init()).
  */
 #ifndef NET_LISTENER_CAPACITY
@@ -25,7 +25,7 @@ extern "C" {
 
 /**
  * @brief Transport protocol for a socket.
- * @ingroup Net
+ * @ingroup Network
  */
 typedef enum {
   net_proto_tcp, ///< Connection-oriented, reliable, ordered byte stream.
@@ -34,7 +34,7 @@ typedef enum {
 
 /**
  * @brief Address family for a net_addr_t.
- * @ingroup Net
+ * @ingroup Network
  */
 typedef enum {
   net_addr_family_v4, ///< IPv4 - net_addr_t.addr.v4 is valid.
@@ -43,26 +43,26 @@ typedef enum {
 
 /**
  * @brief An IPv4 or IPv6 address.
- * @ingroup Net
+ * @ingroup Network
  */
 typedef struct {
   net_addr_family_t family; ///< Which member of addr is valid.
   union {
     uint8_t v4[4];  ///< IPv4 address, network byte order.
     uint8_t v6[16]; ///< IPv6 address, network byte order.
-  } addr;
+  } addr;           ///< Address bytes - see family.
 } net_addr_t;
 
 /**
  * @brief Opaque listening socket, from net_listener_init().
- * @ingroup Net
+ * @ingroup Network
  */
 typedef struct net_listener_t net_listener_t;
 
 /**
  * @brief Called for each accepted TCP connection or received UDP datagram
  * on a listener.
- * @ingroup Net
+ * @ingroup Network
  * @param listener The listener this arrived on.
  * @param conn Stream to read/write. Caller-owned - close with
  * sys_iostream_close() when done with it; net_listener_deinit() on

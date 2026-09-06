@@ -1,7 +1,7 @@
 /**
  * @file net.h
  * @brief TCP/UDP network sockets.
- * @ingroup Net
+ * @ingroup Network
  *
  * Every socket - an outgoing connection from net_open(), or an incoming
  * one accepted by net_listener_init() - is a plain sys_iostream_t
@@ -62,19 +62,19 @@ extern "C" {
 
 /**
  * @brief Build an IPv4 address from four octets.
- * @ingroup Net
+ * @ingroup Network
  */
 net_addr_t net_addr_v4(uint8_t a, uint8_t b, uint8_t c, uint8_t d);
 
 /**
  * @brief The IPv4 "any" address (0.0.0.0), for binding to all interfaces.
- * @ingroup Net
+ * @ingroup Network
  */
 net_addr_t net_addr_v4_any(void);
 
 /**
  * @brief Build an IPv6 address from sixteen bytes.
- * @ingroup Net
+ * @ingroup Network
  * @param bytes Address bytes, network byte order. Must point to at least
  * 16 bytes.
  */
@@ -82,13 +82,13 @@ net_addr_t net_addr_v6(const uint8_t bytes[16]);
 
 /**
  * @brief The IPv6 "any" address (::), for binding to all interfaces.
- * @ingroup Net
+ * @ingroup Network
  */
 net_addr_t net_addr_v6_any(void);
 
 /**
  * @brief Format an address as a human-readable string.
- * @ingroup Net
+ * @ingroup Network
  * @param addr Address to format.
  * @param buf Destination buffer.
  * @param buf_size Size of @p buf in bytes.
@@ -108,7 +108,7 @@ size_t net_addr_to_string(const net_addr_t *addr, char *buf, size_t buf_size);
 
 /**
  * @brief Open a connection to a remote host.
- * @ingroup Net
+ * @ingroup Network
  * @param proto Transport protocol.
  * @param addr Remote address to connect to.
  * @param port Remote port to connect to.
@@ -126,7 +126,7 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
 
 /**
  * @brief Start listening for incoming connections or datagrams.
- * @ingroup Net
+ * @ingroup Network
  * @param proto Transport protocol.
  * @param addr Local address to bind to (see net_addr_v4_any()/
  * net_addr_v6_any() to bind to all interfaces).
@@ -145,7 +145,7 @@ net_listener_t *net_listener_init(net_proto_t proto, const net_addr_t *addr,
 
 /**
  * @brief Stop listening and release a listener.
- * @ingroup Net
+ * @ingroup Network
  * @param listener The listener to close, or NULL (a no-op). Streams
  * already handed to @p callback are unaffected - see its own doc.
  */

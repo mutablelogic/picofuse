@@ -1,7 +1,7 @@
 /**
  * @file net.h
  * @brief Network interfaces and applications
- * @defgroup Net Network
+ * @defgroup Network Network
  * @ingroup Picofuse
  */
 #pragma once
