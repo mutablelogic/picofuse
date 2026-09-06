@@ -16,6 +16,21 @@
 #define _HID_UNLOCK()
 #endif
 
+/**
+ * @def HID_GPIO_DEBOUNCE_MS
+ * @brief Minimum time between accepted edges on the same gpio-backed HID
+ * device. A mechanical switch's contacts bounce for a few milliseconds
+ * around each physical transition, generating many rapid rising/falling
+ * IRQs for what is really a single press or release - well under any real
+ * human press/release cadence, so filtering edges this close together
+ * loses nothing but bounce. Override at compile time if a specific input
+ * needs otherwise, e.g. `-DHID_GPIO_DEBOUNCE_MS=5` for a clean (non-bouncy)
+ * logic-level input.
+ */
+#ifndef HID_GPIO_DEBOUNCE_MS
+#define HID_GPIO_DEBOUNCE_MS 20u
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
@@ -55,6 +70,19 @@ static const hid_device_callbacks_t _hid_gpio_device_callbacks = {
 // mid-update. Snapshotting both fields inside the same locked scan means
 // this either sees the device fully registered or not found at all, never
 // partially filled.
+//
+// Also debounces here, reusing last_event_ms (otherwise meaningless for a
+// gpio device - it has no .read callback, so hid_poll()'s own polling-
+// interval use of that field never applies to it) as "time of the last
+// accepted edge" rather than "time of the last poll". Debouncing at the
+// source like this - not just downstream in whatever consumes the
+// resulting hid_event_type_keycode events - matters on real hardware: an
+// un-debounced button can produce enough bounce-driven events between one
+// physical press and the next dispatch that the fixed-size event pool
+// (HID_EVENT_CAPACITY) fills up before the consumer can keep up,
+// especially with only a single runloop worker draining it (see
+// hid_event_queue_keycode()'s own "event pool exhausted" log line if this
+// ever happens again).
 static void _hid_gpio_callback(uint8_t bank, uint8_t pin, hw_gpio_event_t event,
                                void *userdata) {
   (void)userdata;
@@ -68,6 +96,8 @@ static void _hid_gpio_callback(uint8_t bank, uint8_t pin, hw_gpio_event_t event,
   hid_device_t *device = NULL;
   bool invert = false;
   uint16_t keycode = 0;
+  bool debounced = false;
+  uint64_t now = sys_timestamp_ms();
 
   _HID_LOCK();
   for (size_t i = 0; i < HID_DEVICE_CAPACITY; i++) {
@@ -76,12 +106,18 @@ static void _hid_gpio_callback(uint8_t bank, uint8_t pin, hw_gpio_event_t event,
       device = candidate;
       invert = candidate->gpio_invert;
       keycode = candidate->keycode;
+      if (candidate->last_event_ms != 0 &&
+          (now - candidate->last_event_ms) < HID_GPIO_DEBOUNCE_MS) {
+        debounced = true;
+      } else {
+        candidate->last_event_ms = now;
+      }
       break;
     }
   }
   _HID_UNLOCK();
 
-  if (device == NULL) {
+  if (device == NULL || debounced) {
     return;
   }
 

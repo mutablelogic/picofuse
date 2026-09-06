@@ -22,7 +22,7 @@
  * }
  *
  * int main(int argc, char *argv[]) {
- *   return app_main(argc, argv, APP_FLAG_NONE, on_start, on_event, NULL);
+ *   return app_main(argc, argv, app_flag_none, on_start, on_event, NULL);
  * }
  * @endcode
  */
@@ -39,38 +39,41 @@
  * @ingroup Application
  */
 typedef enum {
-  APP_FLAG_NONE = 0,               ///< Default behavior.
-  APP_FLAG_MULTICORE = (1 << 0),   ///< Run the event loop across all cores.
-  APP_FLAG_SIGNAL = (1 << 1),      ///< Register environment signals (TERM,
-                                   ///< INT, QUIT) as HID events, if HID is
-                                   ///< available (see @ref app_hid). Has no
-                                   ///< effect otherwise.
-  APP_FLAG_USER_BUTTON = (1 << 2), ///< Register the board's user button (if
+  app_flag_none = 0,               ///< Default behavior.
+  app_flag_multicore = (1 << 0),   ///< Run the event loop across all cores.
+  app_flag_signal = (1 << 1),      ///< Register environment signals (TERM,
+                                   ///< INT, QUIT) as HID events (see
+                                   ///< @ref app_hid). Has no effect on a
+                                   ///< platform with no signal support.
+  app_flag_user_button = (1 << 2), ///< Register the board's user button (if
                                    ///< any) as a HID event with keycode
-                                   ///< KEYCODE_BUTTON_USER, if HID is
-                                   ///< available (see @ref app_hid). Not
-                                   ///< every board has a user button; has no
-                                   ///< effect when HID is unavailable or the
+                                   ///< KEYCODE_BUTTON_USER (see
+                                   ///< @ref app_hid). Not every board has a
+                                   ///< user button; has no effect when the
                                    ///< board has none.
-  APP_FLAG_TEMPERATURE = (1 << 3), ///< Register the internal
+  app_flag_temperature = (1 << 3), ///< Register the internal
                                    ///< temperature-sensor channel as a
                                    ///< polling HID metric source (see
-                                   ///< hid_register_temperature()), if HID
-                                   ///< is available (see @ref app_hid). Has
-                                   ///< no effect when HID is unavailable or
-                                   ///< the platform has no internal
-                                   ///< temperature sensor.
-  APP_FLAG_WIFI = (1 << 4),        ///< Register a Wi-Fi connection-state
+                                   ///< hid_register_temperature() and
+                                   ///< @ref app_hid). Has no effect when the
+                                   ///< platform has no internal temperature
+                                   ///< sensor.
+  app_flag_wifi = (1 << 4),        ///< Register a Wi-Fi connection-state
                                    ///< observer with the default ("XX",
                                    ///< worldwide) country code (see
-                                   ///< hid_register_wifi()), if HID is
-                                   ///< available (see @ref app_hid). Call
-                                   ///< hid_register_wifi() directly instead
-                                   ///< of using this flag if a specific
-                                   ///< country code is required. Has no
-                                   ///< effect when HID is unavailable or the
-                                   ///< platform has no Wi-Fi hardware
-                                   ///< support built in.
+                                   ///< hid_register_wifi() and
+                                   ///< @ref app_hid). Call hid_register_wifi()
+                                   ///< directly instead of using this flag if
+                                   ///< a specific country code is required.
+                                   ///< Has no effect when the platform has
+                                   ///< no Wi-Fi hardware support built in.
+  app_flag_stdio_rtt = (1 << 5),   ///< Initialize standard I/O via SEGGER
+                                   ///< RTT (sys_stdio_rtt) instead of the
+                                   ///< platform default.
+  app_flag_led = (1 << 6),         ///< Initialize the on-board LED if
+                                   ///< available (see @ref app_led). Has no
+                                   ///< effect when the platform has no
+                                   ///< default on-board LED.
 } app_flag_t;
 
 /**
@@ -124,18 +127,18 @@ typedef void (*app_callback_event_t)(app_t *app, sys_event_t event,
  * @p on_event.
  * @return Exit code, suitable for returning directly from `main()`.
  *
- * Calls `sys_init()`, attempts `hw_init()` and `hid_init()` (see
- * @ref app_hid), initializes the on-board LED if available (see
- * @ref app_led), registers environment signals as HID events if
- * @ref APP_FLAG_SIGNAL is set and HID is available, registers the board's
- * user button as a HID event if @ref APP_FLAG_USER_BUTTON is set and HID is
- * available, registers the internal temperature sensor as a HID metric
- * source if @ref APP_FLAG_TEMPERATURE is set and HID is available, registers
- * a Wi-Fi connection-state observer if @ref APP_FLAG_WIFI is set and HID is
- * available, then runs the event loop across every available core if
- * @ref APP_FLAG_MULTICORE is set, or on the calling thread alone otherwise.
- * Blocks until @ref app_shutdown is called from within a callback (or from
- * another thread), then tears down
+ * Calls `sys_init()` (with `sys_stdio_rtt` if @ref app_flag_stdio_rtt is set,
+ * otherwise the platform default), `hw_init()`, and `hid_init()` (see
+ * @ref app_hid), initializes the on-board LED if @ref app_flag_led is set
+ * and available (see @ref app_led), registers environment signals as HID
+ * events if @ref app_flag_signal is set, registers the board's user button
+ * as a HID event if @ref app_flag_user_button is set, registers the
+ * internal temperature sensor as a HID metric source if
+ * @ref app_flag_temperature is set, registers a Wi-Fi connection-state
+ * observer if @ref app_flag_wifi is set, then runs the event loop across
+ * every available core if @ref app_flag_multicore is set, or on the
+ * calling thread alone otherwise. Blocks until @ref app_shutdown is called
+ * from within a callback (or from another thread), then tears down
  * (`hid_deinit()`, `hw_led_deinit()`, `hw_exit()`, `sys_exit()`).
  */
 int app_main(int argc, char *argv[], app_flag_t flags,
@@ -154,8 +157,8 @@ int app_main(int argc, char *argv[], app_flag_t flags,
  * @brief Get the HID instance initialized for this app.
  * @ingroup Application
  * @param app Application instance.
- * @return HID instance, or NULL if the `picofuse-hid` library is not
- * linked into this binary (see @ref app_main).
+ * @return HID instance. Never NULL once app_main() has called @p on_start
+ * (see @ref app_main) - picofuse-app always links picofuse-hid.
  */
 hid_t *app_hid(const app_t *app);
 
@@ -163,12 +166,16 @@ hid_t *app_hid(const app_t *app);
  * @brief Get the Wi-Fi handle registered for this app.
  * @ingroup Application
  * @param app Application instance.
- * @return Wi-Fi handle, or NULL if @ref APP_FLAG_WIFI was not passed to
+ * @return Wi-Fi handle, or NULL if @ref app_flag_wifi was not passed to
  * app_main(), or Wi-Fi is unavailable on this platform.
  *
  * This is the same handle @ref hid_register_wifi() would have returned via
  * `hid_device_userdata()`; call `hw_wifi_scan()`/`hw_wifi_connect()`/
- * `hw_wifi_disconnect()` on it directly to drive the connection.
+ * `hw_wifi_disconnect()` on it directly to drive the connection. On Pico
+ * this handle's own fields are not internally synchronized, so under
+ * @ref app_flag_multicore, call these consistently from a single core (or
+ * synchronize your own access) rather than from whichever core an
+ * on_event() happens to run on.
  */
 hw_wifi_t *app_wifi(const app_t *app);
 
@@ -176,12 +183,11 @@ hw_wifi_t *app_wifi(const app_t *app);
  * @brief Get the on-board LED handle initialized for this app.
  * @ingroup Application
  * @param app Application instance.
- * @return LED handle, or NULL if the platform has no default on-board LED
- * (see hw_led_init_default()), or the picofuse-hw library is not linked
- * into this binary.
+ * @return LED handle, or NULL if @ref app_flag_led was not passed to
+ * app_main(), or the platform has no default on-board LED (see
+ * hw_led_init_default()).
  *
- * Always attempted on startup, unlike the optional @ref app_flag_t-gated
- * features; call hw_led_set()/hw_led_blink() on it directly.
+ * Call hw_led_set()/hw_led_blink() on it directly.
  */
 hw_led_t *app_led(const app_t *app);
 

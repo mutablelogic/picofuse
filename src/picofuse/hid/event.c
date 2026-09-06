@@ -20,7 +20,7 @@
 // hid_state_t mask, since unlike e.g. hid_state_shift (left vs. right sides
 // of the *same* modifier), the three lock keys are unrelated toggles, so
 // "is any lock active" isn't a meaningful query to expose.
-#define _HID_STATE_LOCK_MASK                                                  \
+#define _HID_STATE_LOCK_MASK                                                   \
   (hid_state_caps_lock | hid_state_num_lock | hid_state_scroll_lock)
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -171,7 +171,8 @@ bool hid_event_queue_metric_float(hid_device_t *device, const char *name,
     return false;
   }
 
-  hid_event_t *event = _hid_event_retain(device->instance, hid_event_type_metric);
+  hid_event_t *event =
+      _hid_event_retain(device->instance, hid_event_type_metric);
   if (event == NULL) {
     return false;
   }
@@ -188,7 +189,8 @@ bool hid_event_queue_signal(hid_device_t *device, sys_env_signal_t signal) {
     return false;
   }
 
-  hid_event_t *event = _hid_event_retain(device->instance, hid_event_type_signal);
+  hid_event_t *event =
+      _hid_event_retain(device->instance, hid_event_type_signal);
   if (event == NULL) {
     return false;
   }
@@ -199,7 +201,7 @@ bool hid_event_queue_signal(hid_device_t *device, sys_env_signal_t signal) {
 }
 
 bool hid_event_queue_wifi(hid_device_t *device, hw_wifi_event_t event_type,
-                         const hw_wifi_network_t *network) {
+                          const hw_wifi_network_t *network) {
   if (device == NULL) {
     return false;
   }
@@ -209,12 +211,9 @@ bool hid_event_queue_wifi(hid_device_t *device, hw_wifi_event_t event_type,
     return false;
   }
 
+  // Copied by value rather than stored as a pointer
   event->device = device;
   event->data.wifi.event = event_type;
-  // Copied by value rather than stored as a pointer - some backends (e.g.
-  // darwin/wifi.m's scan/connect worker threads) only guarantee *network
-  // for the duration of this call, not until the consumer eventually pops
-  // and frees this event.
   if (network != NULL) {
     event->data.wifi.network = *network;
     event->data.wifi.has_network = true;
