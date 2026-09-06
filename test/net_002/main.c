@@ -24,8 +24,18 @@ static void on_accept(net_listener_t *listener, sys_iostream_t *conn,
   net_addr_to_string(remote, addrbuf, sizeof(addrbuf));
   sys_debugf("net_002", "accepted from %s:%u", addrbuf, (unsigned)remote_port);
 
+  // A connection being accepted doesn't guarantee the client's first
+  // write has arrived yet - retry rather than assuming one read() call
+  // gets everything, same as the main test body's own client-side reads.
   char buf[16] = {0};
-  size_t n = sys_iostream_read(conn, buf, sizeof(buf) - 1);
+  size_t n = 0;
+  uint64_t start = sys_timestamp_ms();
+  while (n < 4 && sys_timestamp_ms() - start < NET_002_WAIT_MS) {
+    n += sys_iostream_read(conn, buf + n, sizeof(buf) - n);
+    if (n < 4) {
+      sys_sleep_ms(NET_002_POLL_MS);
+    }
+  }
   test_assert(n == 4);
   test_assert(memcmp(buf, "ping", 4) == 0);
 

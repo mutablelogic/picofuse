@@ -145,6 +145,13 @@ add_subdirectory(examples/flags)
 add_subdirectory(examples/stdin)
 add_subdirectory(examples/pitft)
 add_subdirectory(examples/wifi)
+add_subdirectory(examples/echo/server)
+if(NOT DEFINED PICO_BOARD)
+    # A --server command-line argument doesn't fit Pico (no argv, no
+    # interactive terminal) - host-only, like test/CMakeLists.txt's own
+    # hw_020.
+    add_subdirectory(examples/echo/client)
+endif()
 
 # Hardware test runner
 add_subdirectory(src/test)

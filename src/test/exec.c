@@ -27,8 +27,13 @@ bool exec_openocd(const exec_openocd_opts_t *opts) {
     return false;
   }
 
-  // A single deadline covers flashing and marker collection.
-  uint64_t deadline_ms = sys_timestamp_ms() + (uint64_t)opts->timeout * 1000u;
+  // A single deadline covers flashing and marker collection - UINT64_MAX
+  // (opts->timeout == 0) means "no deadline"; see serial_wait_for_marker()'s
+  // own handling of that sentinel for why it's more than just a very large
+  // number here.
+  uint64_t deadline_ms = (opts->timeout == 0)
+                             ? UINT64_MAX
+                             : sys_timestamp_ms() + (uint64_t)opts->timeout * 1000u;
 
   int serial_fd = -1;
   bool want_serial = opts->serial != NULL && opts->serial[0] != '\0';

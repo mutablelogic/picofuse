@@ -130,7 +130,7 @@ static void _net_listener_tcp_thread(void *arg) {
       break;
     }
 
-    sys_iostream_t *conn = _net_wrap_connected_fd(conn_fd);
+    sys_iostream_t *conn = _net_wrap_connected_fd(conn_fd, net_proto_tcp);
     if (conn == NULL) {
       continue;
     }

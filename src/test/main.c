@@ -3,6 +3,7 @@
 #include "exec.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #define USAGE_BUF_CAP 1024
@@ -111,12 +112,12 @@ static sys_env_arg_flag_t flags[] = {
     {0},
 };
 
-static void print_usage(void) {
+static void print_usage(const sys_env_arg_flag_t *usage_flags) {
   sys_printf("Usage: %s [options] <elf-file>\n\n", sys_env_name());
   char buf[USAGE_BUF_CAP];
   sys_iostream_t *stream = sys_string_open(buf, sizeof(buf));
   if (stream != NULL) {
-    sys_env_arg_usage(flags, stream);
+    sys_env_arg_usage((sys_env_arg_flag_t *)usage_flags, stream);
     sys_puts(buf);
     sys_iostream_close(stream);
   }
@@ -125,9 +126,19 @@ static void print_usage(void) {
 int main(int argc, char *argv[]) {
   sys_init(argc, argv, 0, sys_stdio_none);
 
+  // sys_env_arg_parse() overwrites each matched flag's own .value in
+  // place with the value that was actually passed (see sys/env/arg.c's
+  // own doc on sys_env_arg_t.flags) - a snapshot taken *before* parsing is
+  // what print_usage() needs so it keeps showing the true declared
+  // defaults instead of whatever was just parsed. Most visible with
+  // --help itself: without this, the one flag usage() gets printed for is
+  // also the one whose "default" was just overwritten with "true".
+  sys_env_arg_flag_t flags_snapshot[sizeof(flags) / sizeof(flags[0])];
+  memcpy(flags_snapshot, flags, sizeof(flags));
+
   sys_env_arg_t *args = sys_env_arg_parse(flags);
   if (args == NULL) {
-    print_usage();
+    print_usage(flags_snapshot);
     sys_exit();
     return 1;
   }
@@ -135,14 +146,14 @@ int main(int argc, char *argv[]) {
   bool help = false;
   sys_env_arg_parse_bool(args, "help", &help);
   if (help) {
-    print_usage();
+    print_usage(flags_snapshot);
     sys_exit();
     return 0;
   }
 
   if (sys_env_arg_count(args) < 1) {
     sys_puts("Error: missing <elf-file> argument\n\n");
-    print_usage();
+    print_usage(flags_snapshot);
     sys_exit();
     return 1;
   }
@@ -165,7 +176,7 @@ int main(int argc, char *argv[]) {
   sys_env_arg_parse_string(args, "target", target, sizeof(target));
   if (target[0] == '\0') {
     sys_puts("Error: --target is required\n\n");
-    print_usage();
+    print_usage(flags_snapshot);
     sys_exit();
     return 1;
   }

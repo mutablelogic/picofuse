@@ -21,8 +21,8 @@ void serial_close(int fd);
 // Reads lines from fd, echoing each one via sys_puts() as it arrives, until
 // either a line starting with success_prefix is seen (returns true), a line
 // starting with fail_prefix is seen (returns false), or deadline_ms (an
-// absolute sys_timestamp_ms() value) is reached with neither seen (returns
-// false).
+// absolute sys_timestamp_ms() value, or UINT64_MAX for "no deadline") is
+// reached with neither seen (returns false).
 bool serial_wait_for_marker(int fd, uint64_t deadline_ms,
                             const char *success_prefix,
                             const char *fail_prefix);

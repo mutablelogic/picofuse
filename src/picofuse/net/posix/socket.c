@@ -13,6 +13,21 @@
 #define NET_CONN_BUFFER_SIZE 512
 #endif
 
+// Per-datagram cap for a "connected" UDP stream's receive queue - large
+// enough for a typical Ethernet-path MTU's worth of payload. A datagram
+// larger than this is truncated the same way a too-small recv() buffer
+// would truncate a real UDP socket's read.
+#ifndef NET_CONN_UDP_DGRAM_MAX_SIZE
+#define NET_CONN_UDP_DGRAM_MAX_SIZE 1500
+#endif
+
+// How many not-yet-fully-read datagrams a "connected" UDP stream
+// (net_open()) buffers before dropping further arrivals - UDP has no
+// flow control, so this is a best-effort cap, not backpressure.
+#ifndef NET_CONN_UDP_QUEUE_CAPACITY
+#define NET_CONN_UDP_QUEUE_CAPACITY 4
+#endif
+
 // How often the background RX thread re-checks whether it should keep
 // running, between otherwise-blocking poll() calls - same convention as
 // hw/posix/uart.c's own HW_UART_POLL_TIMEOUT_MS.
@@ -21,11 +36,22 @@
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+typedef struct {
+  char data[NET_CONN_UDP_DGRAM_MAX_SIZE];
+  size_t len;
+} _net_conn_dgram_t;
+
 // Heap-allocated per-connection context - net_open()'s socket and each TCP
 // connection listener.c's net_listener_init() accepts, both backed by a
-// real, ongoing socket with a background thread feeding an RX ring buffer
-// for sys_iostream_read()/readiness callbacks. Same pattern as
+// real, ongoing socket with a background thread feeding an RX buffer for
+// sys_iostream_read()/readiness callbacks. Same pattern as
 // hw/posix/uart.c's own _hw_uart_ctx_t.
+//
+// TCP has no message boundaries - rx.tcp is a plain byte ring, same as
+// hw/posix/uart.c's own. UDP does: rx.udp is a queue of whole, separate
+// datagrams, so a single sys_iostream_read() call (or a run of them before
+// the current datagram is exhausted) never mixes bytes from two different
+// datagrams together - see _net_conn_ops_read()'s own doc.
 typedef struct {
   int fd;
   // Clear to ask the background thread to exit - a real sys_atomic_t, not
@@ -35,12 +61,26 @@ typedef struct {
   sys_waitgroup_t *wg; // signaled by the thread just before it exits
   sys_mutex_t *lock;   // guards everything below, shared with the thread
   sys_iostream_t *stream;
+  net_proto_t proto;
   // sys_iostream_peek()'s read-then-undo contract - see
-  // hw/posix/uart.c's own last_byte/pushback for the same trick.
+  // hw/posix/uart.c's own last_byte/pushback for the same trick. Note:
+  // for a UDP stream, peeking the *last* byte of a datagram and then
+  // reading again can still glue it to the next datagram's first byte -
+  // an accepted, narrow limitation of retrofitting a 1-byte-undo peek
+  // onto datagram semantics (see _net_conn_ops_read()'s own doc).
   int last_byte;
   int pushback;
-  char rx_buf[NET_CONN_BUFFER_SIZE];
-  size_t rx_read, rx_write, rx_count;
+  union {
+    struct {
+      char buf[NET_CONN_BUFFER_SIZE];
+      size_t read, write, count;
+    } tcp;
+    struct {
+      _net_conn_dgram_t queue[NET_CONN_UDP_QUEUE_CAPACITY];
+      size_t head, count;   // circular queue over queue[]
+      size_t front_offset;  // bytes already consumed from queue[head]
+    } udp;
+  } rx;
 } _net_conn_ctx_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -108,7 +148,12 @@ static void _net_conn_rx_thread(void *arg) {
       continue; // timeout - just recheck ctx->running
     }
 
-    char buf[64];
+    // Sized for a whole UDP datagram in one recv() call - a smaller
+    // buffer would silently truncate a real datagram right here (recv()
+    // on a SOCK_DGRAM discards whatever doesn't fit), before
+    // NET_CONN_UDP_DGRAM_MAX_SIZE's own truncation-on-store below even
+    // gets a say. Harmless for TCP either way - just a bigger chunk size.
+    char buf[NET_CONN_UDP_DGRAM_MAX_SIZE];
     ssize_t got = recv(ctx->fd, buf, sizeof(buf), 0);
     if (got < 0) {
       if (errno == EINTR) {
@@ -125,10 +170,31 @@ static void _net_conn_rx_thread(void *arg) {
     }
 
     sys_mutex_lock(ctx->lock);
-    for (ssize_t i = 0; i < got && ctx->rx_count < NET_CONN_BUFFER_SIZE; i++) {
-      ctx->rx_buf[ctx->rx_write] = buf[i];
-      ctx->rx_write = (ctx->rx_write + 1) % NET_CONN_BUFFER_SIZE;
-      ctx->rx_count++;
+    if (ctx->proto == net_proto_udp) {
+      // One recv() is one whole datagram (or a truncated one, if it was
+      // bigger than our own buf above) - store it as a single queue
+      // entry, never appended to anything else, so it can never merge
+      // with another datagram. Silently dropped if the queue is already
+      // full - no flow control on UDP, matching NET_CONN_UDP_QUEUE_CAPACITY's
+      // own doc.
+      if (ctx->rx.udp.count < NET_CONN_UDP_QUEUE_CAPACITY) {
+        size_t slot =
+            (ctx->rx.udp.head + ctx->rx.udp.count) % NET_CONN_UDP_QUEUE_CAPACITY;
+        size_t copy_len = (size_t)got;
+        if (copy_len > NET_CONN_UDP_DGRAM_MAX_SIZE) {
+          copy_len = NET_CONN_UDP_DGRAM_MAX_SIZE;
+        }
+        memcpy(ctx->rx.udp.queue[slot].data, buf, copy_len);
+        ctx->rx.udp.queue[slot].len = copy_len;
+        ctx->rx.udp.count++;
+      }
+    } else {
+      for (ssize_t i = 0; i < got && ctx->rx.tcp.count < NET_CONN_BUFFER_SIZE;
+          i++) {
+        ctx->rx.tcp.buf[ctx->rx.tcp.write] = buf[i];
+        ctx->rx.tcp.write = (ctx->rx.tcp.write + 1) % NET_CONN_BUFFER_SIZE;
+        ctx->rx.tcp.count++;
+      }
     }
     // Snapshot callback/userdata together under the same lock
     // _net_conn_ops_set_callback() writes them under, then call out to
@@ -143,26 +209,86 @@ static void _net_conn_rx_thread(void *arg) {
     }
   }
 
+  // Notify once more, whatever broke the loop above (peer closed, or a
+  // poll/recv error) - the standard "readable, but read() returns 0"
+  // idiom for EOF, letting the app notice a dead connection instead of
+  // this thread just quietly vanishing. Snapshot everything needed into
+  // locals and signal sys_waitgroup_done() *before* invoking the
+  // callback: the natural thing for it to do is call
+  // sys_iostream_close() synchronously, and that call's own
+  // sys_waitgroup_wait() must not block on this very thread reaching
+  // sys_waitgroup_done() further down - so it has to already be done.
+  // ctx must not be touched again after that point, since close() may
+  // free it before this function returns.
+  sys_mutex_lock(ctx->lock);
+  sys_iostream_t *stream = ctx->stream;
+  sys_iostream_callback_t callback = stream->backend.net.callback;
+  void *userdata = stream->backend.net.userdata;
+  sys_mutex_unlock(ctx->lock);
+
   sys_atomic_set(&ctx->running, 0);
   sys_waitgroup_done(ctx->wg);
+
+  if (callback != NULL) {
+    callback(stream, sys_iostream_event_read, userdata);
+  }
 }
 
+// Reads buffered data. For TCP (a plain byte stream, no message
+// boundaries to preserve) this drains ctx->rx.tcp same as
+// hw/posix/uart.c's own ring buffer always has. For UDP, this only ever
+// returns bytes from a single datagram per call: it drains
+// ctx->rx.udp.queue[head] until that entry is fully consumed and then
+// stops (even if the caller's buffer has room left and another datagram
+// is already queued behind it) - the actual guarantee this exists for is
+// that one sys_iostream_read() (or a contiguous run of them before the
+// current datagram is exhausted) can never glue two separate datagrams'
+// bytes together. A caller whose buffer is smaller than one datagram
+// simply gets the rest of it on a follow-up call, rather than losing
+// data - unlike a real recv() on a SOCK_DGRAM socket, which would discard
+// whatever didn't fit; this behaves more like TCP in that one respect,
+// while still never mixing datagrams.
 static size_t _net_conn_ops_read(sys_iostream_t *s, char *buf, size_t n) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
+  if (n == 0) {
+    return 0;
+  }
 
   sys_mutex_lock(ctx->lock);
   size_t read_n = 0;
-  if (ctx->pushback >= 0 && read_n < n) {
+  if (ctx->pushback >= 0) {
     buf[read_n++] = (char)(uint8_t)ctx->pushback;
     ctx->last_byte = ctx->pushback;
     ctx->pushback = -1;
   }
-  while (read_n < n && ctx->rx_count > 0) {
-    uint8_t byte = (uint8_t)ctx->rx_buf[ctx->rx_read];
-    ctx->rx_read = (ctx->rx_read + 1) % NET_CONN_BUFFER_SIZE;
-    ctx->rx_count--;
-    buf[read_n++] = (char)byte;
-    ctx->last_byte = byte;
+
+  if (ctx->proto == net_proto_udp) {
+    while (read_n < n && ctx->rx.udp.count > 0) {
+      _net_conn_dgram_t *front = &ctx->rx.udp.queue[ctx->rx.udp.head];
+      size_t avail = front->len - ctx->rx.udp.front_offset;
+      size_t want = n - read_n;
+      size_t copy_len = (want < avail) ? want : avail;
+      memcpy(buf + read_n, front->data + ctx->rx.udp.front_offset, copy_len);
+      ctx->rx.udp.front_offset += copy_len;
+      read_n += copy_len;
+      if (copy_len > 0) {
+        ctx->last_byte = (uint8_t)buf[read_n - 1];
+      }
+      if (ctx->rx.udp.front_offset >= front->len) {
+        ctx->rx.udp.head = (ctx->rx.udp.head + 1) % NET_CONN_UDP_QUEUE_CAPACITY;
+        ctx->rx.udp.count--;
+        ctx->rx.udp.front_offset = 0;
+      }
+      break; // never span into a second datagram within one call
+    }
+  } else {
+    while (read_n < n && ctx->rx.tcp.count > 0) {
+      uint8_t byte = (uint8_t)ctx->rx.tcp.buf[ctx->rx.tcp.read];
+      ctx->rx.tcp.read = (ctx->rx.tcp.read + 1) % NET_CONN_BUFFER_SIZE;
+      ctx->rx.tcp.count--;
+      buf[read_n++] = (char)byte;
+      ctx->last_byte = byte;
+    }
   }
   sys_mutex_unlock(ctx->lock);
   return read_n;
@@ -223,13 +349,14 @@ static const sys_iostream_ops_t _net_conn_ops = {
     .close = _net_conn_ops_close,
 };
 
-sys_iostream_t *_net_wrap_connected_fd(int fd) {
+sys_iostream_t *_net_wrap_connected_fd(int fd, net_proto_t proto) {
   _net_conn_ctx_t *ctx = sys_calloc(1, sizeof(*ctx));
   if (ctx == NULL) {
     close(fd);
     return NULL;
   }
   ctx->fd = fd;
+  ctx->proto = proto;
   ctx->last_byte = -1;
   ctx->pushback = -1;
   ctx->lock = sys_mutex_init();
@@ -305,5 +432,5 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
     return NULL;
   }
 
-  return _net_wrap_connected_fd(fd);
+  return _net_wrap_connected_fd(fd, proto);
 }

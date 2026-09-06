@@ -22,5 +22,7 @@ void _net_sockaddr_to_addr(const struct sockaddr_storage *sa,
 // Defined in socket.c. Wraps an already-connected (net_open()) or
 // already-accepted (a TCP listener) fd as a sys_iostream_t, spinning up
 // its background RX thread. Takes ownership of fd - closes it on any
-// failure path.
-sys_iostream_t *_net_wrap_connected_fd(int fd);
+// failure path. proto must match the fd's actual socket type - it
+// selects the byte-stream (TCP) vs. datagram-queue (UDP) receive-buffer
+// shape (see socket.c's own _net_conn_ctx_t doc).
+sys_iostream_t *_net_wrap_connected_fd(int fd, net_proto_t proto);
