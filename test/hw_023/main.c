@@ -26,11 +26,13 @@ static void _hw_023_callback(hw_usb_t *usb, hw_usb_event_t event,
                  "interface=n/a\n",
                  (unsigned)device->device_id, device->vid, device->pid);
     } else {
-      sys_printf("[hw_023] attached: device_id=%u vid=%04x pid=%04x "
-                 "interface=%u class=%s\n",
-                 (unsigned)device->device_id, device->vid, device->pid,
-                 device->interface_number,
-                 hw_usb_device_class_to_string(device->interface_class));
+      sys_printf(
+          "[hw_023] attached: device_id=%u vid=%04x pid=%04x interface=%u "
+          "class=%s protocol=%s\n",
+          (unsigned)device->device_id, device->vid, device->pid,
+          device->interface_number,
+          hw_usb_device_class_to_string(device->interface_class),
+          hw_usb_device_protocol_to_string(device->interface_protocol));
     }
   }
 }
@@ -52,6 +54,26 @@ static void _test_class_to_string(void) {
       hw_usb_device_class_to_string((hw_usb_device_class_t)0x11), "0x11");
 }
 
+// hw_usb_device_protocol_to_string(): same idiom as _test_class_to_string()
+// above - keyboard/mouse are USB HID's own "boot protocol" codes (only
+// meaningful when interface_subclass == hw_usb_device_subclass_boot_
+// interface - see hw_usb_device_protocol_t's own doc), not general
+// touchpad/joystick/gamepad classification.
+static void _test_protocol_to_string(void) {
+#ifndef NDEBUG
+  test_assert_strequal(
+      hw_usb_device_protocol_to_string(hw_usb_device_protocol_keyboard),
+      "hw_usb_device_protocol_keyboard");
+  test_assert_strequal(
+      hw_usb_device_protocol_to_string(hw_usb_device_protocol_mouse),
+      "hw_usb_device_protocol_mouse");
+#endif
+  // 0x03 isn't a named protocol - always the hex fallback.
+  test_assert_strequal(
+      hw_usb_device_protocol_to_string((hw_usb_device_protocol_t)0x03),
+      "0x03");
+}
+
 // hw_usb_* NULL-safety, plus the init/enumerate/deinit lifecycle on
 // whatever backend this build actually has - the stub by default
 // (PICOFUSE_USB is off), or a real one if PICOFUSE_USB=ON: libusb on
@@ -62,6 +84,7 @@ static void _test_class_to_string(void) {
 // hw_011/hw_021's own "no hardware available" paths).
 test_main_hw(0) {
   _test_class_to_string();
+  _test_protocol_to_string();
 
   // NULL-safety: every operation must tolerate an invalid handle/argument.
   hw_usb_deinit(NULL);                      // must not crash

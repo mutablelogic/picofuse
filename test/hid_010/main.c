@@ -72,11 +72,12 @@ test_main_hw(0) {
                      "interface=n/a\n",
                      (unsigned)d->device_id, d->vid, d->pid);
         } else {
-          sys_printf("[hid_010] attached: device_id=%u vid=%04x pid=%04x "
-                     "interface=%u class=%s\n",
-                     (unsigned)d->device_id, d->vid, d->pid,
-                     d->interface_number,
-                     hw_usb_device_class_to_string(d->interface_class));
+          sys_printf(
+              "[hid_010] attached: device_id=%u vid=%04x pid=%04x "
+              "interface=%u class=%s protocol=%s\n",
+              (unsigned)d->device_id, d->vid, d->pid, d->interface_number,
+              hw_usb_device_class_to_string(d->interface_class),
+              hw_usb_device_protocol_to_string(d->interface_protocol));
         }
       }
       hid_event_free(event);

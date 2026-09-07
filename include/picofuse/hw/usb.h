@@ -159,10 +159,40 @@ typedef enum {
  * Protocol values are class-specific USB descriptor codes. Only the raw
  * descriptor value is standardized here; callers may still observe any 8-bit
  * value defined by the device's class.
+ *
+ * @ref hw_usb_device_protocol_keyboard and @ref hw_usb_device_protocol_mouse
+ * are only meaningful when the interface's subclass is
+ * @ref hw_usb_device_subclass_boot_interface - they're USB HID's own "boot
+ * protocol" codes, a simplified report format BIOS/bootloader-level code can
+ * read without parsing the device's actual HID report descriptor. Support
+ * for it is optional and only covers keyboards and mice: a non-boot HID
+ * interface (a keyboard's own media-key/consumer-control interface, a
+ * touchpad, a joystick, a gamepad, ...) reports
+ * @ref hw_usb_device_protocol_none here regardless of what it actually is -
+ * telling those apart needs the interface's HID report descriptor itself
+ * (Usage Page/Usage - Generic Desktop's Mouse/Joystick/Gamepad/Keyboard,
+ * Digitizers' Touch Pad, ...), which nothing in this module parses.
  */
 typedef enum {
   hw_usb_device_protocol_none = 0x00,
+  hw_usb_device_protocol_keyboard = 0x01,
+  hw_usb_device_protocol_mouse = 0x02,
 } hw_usb_device_protocol_t;
+
+/**
+ * @brief Convert a USB device protocol code to a display string.
+ * @ingroup USB
+ *
+ * In debug builds this returns a symbolic name such as
+ * "hw_usb_device_protocol_keyboard" when known; otherwise it returns a
+ * hexadecimal fallback formatted as "0x%02X". In non-debug builds this
+ * always returns the hexadecimal fallback.
+ *
+ * @param device_protocol USB device protocol code.
+ * @return Pointer to an internal string buffer.
+ */
+const char *
+hw_usb_device_protocol_to_string(hw_usb_device_protocol_t device_protocol);
 
 /**
  * @brief Describes one interface of a USB device observed by the host.
