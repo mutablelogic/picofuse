@@ -3,6 +3,23 @@
  * @brief Flash storage helpers.
  * @defgroup Flash Flash
  * @ingroup Block
+ *
+ * A @ref Block backend for the Pico's own on-chip flash - the same
+ * physical flash the running program itself is stored in, not an
+ * external SPI/QSPI flash chip. @ref hw_block_flash_init reserves whole
+ * erase sectors from whatever's left after the program image's own end
+ * (`__flash_binary_end`) and any regions already reserved by an earlier
+ * call, so it never overlaps the running program; @ref
+ * hw_block_flash_get_capacity reports how much of that remaining space
+ * is still available. Because it's the same flash the CPU executes from,
+ * erasing/programming it takes the whole system offline for the
+ * duration (see @ref hw_block_flash_init's own doc on the current core-0
+ * requirement for that reason) - reading is unaffected.
+ *
+ * Pico-only. On every other platform, @ref hw_block_flash_init always
+ * returns `NULL` and @ref hw_block_flash_get_capacity always returns `0`
+ * - there's no equivalent concept of "the program's own on-chip flash"
+ * on a host OS.
  */
 #pragma once
 #include "block.h"
