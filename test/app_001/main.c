@@ -13,7 +13,4 @@ test_main_app(app_flag_signal | app_flag_user_button | app_flag_temperature) {
   // Not asserted non-NULL: whether this platform/build has a default
   // on-board LED at all is unrelated to what this test is checking.
   (void)app_led(app);
-
-  // app_flag_wifi was not passed, so there's nothing to observe yet.
-  test_assert(app_wifi(app) == NULL);
 }

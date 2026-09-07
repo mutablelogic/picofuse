@@ -20,7 +20,9 @@ picofuse_library(
         # @todo No real Linux hw_wifi_* backend yet (wpa_supplicant control
         # socket - see hw_wifi_init_device()'s doc) to gate behind
         # PICOFUSE_WIFI, unlike darwin/CMakeLists.txt's wifi.m. Always the
-        # stub for now.
+        # stub for now. When it's written, add ../posix/address.c (see
+        # its own private.h) to implement hw_wifi_get_address() the same
+        # way darwin/wifi.m does.
         ../stub/wifi.c
 )
 

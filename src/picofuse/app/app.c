@@ -3,6 +3,11 @@
 #include <picofuse/hw.h>
 #include <picofuse/sys.h>
 
+#if defined(SYSTEM_NAME_PICO)
+// Defined in hw/pico/init.c - internal, not part of the public hw API.
+extern bool _hw_requires_single_core(void);
+#endif
+
 /**
  * @def APP_QUEUE_CAPACITY
  * @brief Maximum number of events retained by an app's event queue.
@@ -17,7 +22,6 @@
 struct app_t {
   sys_event_queue_t *queue;
   hid_t *hid;
-  hw_wifi_t *wifi;
   hw_led_t *led;
   app_flag_t flags;
   app_callback_start_t on_start;
@@ -36,11 +40,14 @@ static void _app_on_init(uint8_t worker) {
     return;
   }
 
+  sys_debugf("app", "%s version=%s (system=%s serial=%s)", sys_env_name(),
+             sys_env_version(), sys_env_system(), sys_env_serial());
+
   // Initialize the hardware and HID subsystems.
   hw_init();
   _app->hid = hid_init(_app->queue);
   if (_app->hid) {
-    sys_debugf("app", "app_flag_hid");
+    sys_debugf("app", "app_flag_hid enabled");
   }
 
   // hw_led_init_default()
@@ -48,41 +55,37 @@ static void _app_on_init(uint8_t worker) {
     _app->led = hw_led_init_default();
   }
   if (_app->led) {
-    sys_debugf("app", "app_flag_led");
+    sys_debugf("app", "app_flag_led enabled");
+    hw_led_clear(_app->led);
+  } else if (_app->flags & app_flag_led) {
+    sys_debugf("app", "app_flag_led not enabled");
   }
 
   // signals
   if (_app->hid != NULL && (_app->flags & app_flag_signal)) {
     if (hid_register_signal(_app->hid, NULL)) {
-      sys_debugf("app", "app_flag_signal");
+      sys_debugf("app", "app_flag_signal enabled");
+    } else {
+      sys_debugf("app", "app_flag_signal not enabled");
     }
   }
 
   // user button
   if (_app->hid != NULL && (_app->flags & app_flag_user_button)) {
     if (hid_register_user_button(_app->hid, KEYCODE_BUTTON_USER, NULL)) {
-      sys_debugf("app", "app_flag_user_button");
+      sys_debugf("app", "app_flag_user_button enabled");
+    } else {
+      sys_debugf("app", "app_flag_user_button not enabled");
     }
   }
 
   // internal temperature sensor
   if (_app->hid != NULL && (_app->flags & app_flag_temperature)) {
     if (hid_register_temperature(_app->hid, 0u, NULL)) {
-      sys_debugf("app", "app_flag_temperature");
+      sys_debugf("app", "app_flag_temperature enabled");
+    } else {
+      sys_debugf("app", "app_flag_temperature not enabled");
     }
-  }
-
-  // wifi
-  if (_app->hid != NULL && (_app->flags & app_flag_wifi)) {
-    _app->wifi = hw_wifi_init_client("XX");
-    if (_app->wifi != NULL &&
-        hid_register_wifi(_app->hid, _app->wifi, NULL) == NULL) {
-      hw_wifi_deinit(_app->wifi);
-      _app->wifi = NULL;
-    }
-  }
-  if (_app->wifi) {
-    sys_debugf("app", "app_flag_wifi");
   }
 
   // callback for app start
@@ -109,22 +112,33 @@ static void _app_on_exit(uint8_t worker) {
     return;
   }
 
-  // hid_deinit() only detaches the callback it attached to _app->wifi (see
-  // hid_register_wifi()'s own doc) - it does not bring the radio down, so
-  // that's still this app's own responsibility below, mirroring who
-  // brought it up in _app_on_init().
   hid_deinit(_app->hid);
   _app->hid = NULL;
-
-  if (_app->wifi != NULL) {
-    hw_wifi_deinit(_app->wifi);
-    _app->wifi = NULL;
-  }
 
   hw_led_deinit(_app->led);
   _app->led = NULL;
 
   hw_exit();
+}
+
+// True if app_flag_multicore was requested but isn't actually safe to
+// honor on this platform - logs why when it overrides the caller. Only
+// Pico's CYW43 driver has this constraint today (see
+// _hw_requires_single_core()'s own doc in hw/pico/init.c), so this is a
+// no-op everywhere else.
+static bool _app_single_core_required(app_flag_t flags) {
+  if ((flags & app_flag_multicore) == 0) {
+    return false;
+  }
+#if defined(SYSTEM_NAME_PICO)
+  if (_hw_requires_single_core()) {
+    sys_debugf("app", "app_flag_multicore requested but this platform's "
+                      "hardware backend requires single-core operation - "
+                      "falling back to a single core");
+    return true;
+  }
+#endif
+  return false;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -142,7 +156,6 @@ int app_main(int argc, char *argv[], app_flag_t flags,
   app_t app = {
       .queue = queue,
       .hid = NULL,
-      .wifi = NULL,
       .led = NULL,
       .flags = flags,
       .on_start = on_start,
@@ -152,8 +165,13 @@ int app_main(int argc, char *argv[], app_flag_t flags,
   _app = &app;
 
   // Run on all cores if app_flag_multicore is set, otherwise run on a
-  // single core.
-  uint8_t num_workers = (flags & app_flag_multicore) ? 0u : 1u;
+  // single core - unless _app_single_core_required() overrides that (see
+  // its own doc), in which case that always wins over what the caller
+  // asked for.
+  uint8_t num_workers =
+      (flags & app_flag_multicore) && !_app_single_core_required(flags)
+          ? 0u
+          : 1u;
 
   // Run the event loop until app_shutdown() is called, then exit with the
   // provided exit code.
@@ -170,10 +188,6 @@ int app_main(int argc, char *argv[], app_flag_t flags,
 // PROPERTIES
 
 hid_t *app_hid(const app_t *app) { return (app != NULL) ? app->hid : NULL; }
-
-hw_wifi_t *app_wifi(const app_t *app) {
-  return (app != NULL) ? app->wifi : NULL;
-}
 
 hw_led_t *app_led(const app_t *app) { return (app != NULL) ? app->led : NULL; }
 

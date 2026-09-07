@@ -13,3 +13,6 @@ add_subdirectory(hid)
 
 # app wraps the sys/hw/hid lifecycle behind a single app_main() entry point
 add_subdirectory(app)
+
+# net provides TCP/UDP sockets
+add_subdirectory(net/${SYSTEM_NAME_LOWER})

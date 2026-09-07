@@ -62,7 +62,7 @@ if(DEFINED PICO_BOARD)
 
     if(PICO_CYW43_SUPPORTED)
         if(PICOFUSE_WIFI)
-            list(APPEND _picosdk_targets pico_cyw43_arch_lwip_poll)
+            list(APPEND _picosdk_targets pico_cyw43_arch_lwip_threadsafe_background)
             # hw/pico/wifi.c (compiled instead of the stub only when both
             # PICOFUSE_WIFI and PICO_CYW43_SUPPORTED hold - see its own
             # CMakeLists.txt) exposes _hw_wifi_poll() for init.c's
@@ -145,6 +145,13 @@ add_subdirectory(examples/flags)
 add_subdirectory(examples/stdin)
 add_subdirectory(examples/pitft)
 add_subdirectory(examples/wifi)
+add_subdirectory(examples/echo/server)
+if(NOT DEFINED PICO_BOARD)
+    # A --server command-line argument doesn't fit Pico (no argv, no
+    # interactive terminal) - host-only, like test/CMakeLists.txt's own
+    # hw_020.
+    add_subdirectory(examples/echo/client)
+endif()
 
 # Hardware test runner
 add_subdirectory(src/test)

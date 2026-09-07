@@ -305,3 +305,65 @@ int64_t sys_date_compare_ns(const sys_date_t *start, const sys_date_t *end) {
   ns_diff += (int64_t)end->nanoseconds - (int64_t)start->nanoseconds;
   return ns_diff;
 }
+
+static const char *const _sys_date_weekday_names[7] = {"Sun", "Mon", "Tue",
+                                                        "Wed", "Thu", "Fri",
+                                                        "Sat"};
+static const char *const _sys_date_month_names[12] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+size_t sys_date_to_string(const sys_date_t *date, sys_date_format_t format,
+                          char *buf, size_t buf_size) {
+  sys_date_t now;
+  if (date == NULL) {
+    if (!sys_date_get_now(&now)) {
+      if (buf != NULL && buf_size > 0) {
+        buf[0] = '\0';
+      }
+      return 0;
+    }
+    date = &now;
+  }
+
+  uint8_t hours, minutes, seconds, month, day, weekday;
+  uint16_t year;
+
+  if (format == sys_date_format_rfc2822) {
+    // Always GMT, regardless of date->tzoffset - see sys_date_format_t's
+    // own doc (RFC 7231 mandates it).
+    _sys_date_extract(date->seconds, &hours, &minutes, &seconds, &year,
+                      &month, &day, &weekday);
+    return sys_sprintf(buf, buf_size, "%s, %02u %s %04u %02u:%02u:%02u GMT",
+                       _sys_date_weekday_names[weekday], (unsigned)day,
+                       _sys_date_month_names[month - 1u], (unsigned)year,
+                       (unsigned)hours, (unsigned)minutes, (unsigned)seconds);
+  }
+
+  // iso8601/log both render in whatever timezone tzoffset represents.
+  _sys_date_extract(date->seconds + date->tzoffset, &hours, &minutes,
+                    &seconds, &year, &month, &day, &weekday);
+
+  if (format == sys_date_format_log) {
+    return sys_sprintf(buf, buf_size, "%04u-%02u-%02u %02u:%02u:%02u",
+                       (unsigned)year, (unsigned)month, (unsigned)day,
+                       (unsigned)hours, (unsigned)minutes, (unsigned)seconds);
+  }
+
+  // sys_date_format_iso8601 (also the default for any unrecognized value).
+  if (date->tzoffset == 0) {
+    return sys_sprintf(buf, buf_size, "%04u-%02u-%02uT%02u:%02u:%02uZ",
+                       (unsigned)year, (unsigned)month, (unsigned)day,
+                       (unsigned)hours, (unsigned)minutes, (unsigned)seconds);
+  }
+
+  int32_t off = date->tzoffset;
+  char sign = (off < 0) ? '-' : '+';
+  if (off < 0) {
+    off = -off;
+  }
+  return sys_sprintf(buf, buf_size, "%04u-%02u-%02uT%02u:%02u:%02u%c%02u:%02u",
+                     (unsigned)year, (unsigned)month, (unsigned)day,
+                     (unsigned)hours, (unsigned)minutes, (unsigned)seconds,
+                     sign, (unsigned)(off / 3600), (unsigned)((off % 3600) / 60));
+}

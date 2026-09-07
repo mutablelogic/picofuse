@@ -61,3 +61,12 @@ bool hw_wifi_disconnect(hw_wifi_t *wifi) {
   (void)wifi;
   return false;
 }
+
+/** Stub implementation: no Wi-Fi hardware on this platform. */
+bool hw_wifi_get_address(hw_wifi_t *wifi, net_addr_family_t family,
+                         net_addr_t *addr) {
+  (void)wifi;
+  (void)family;
+  (void)addr;
+  return false;
+}

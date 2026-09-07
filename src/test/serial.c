@@ -5,7 +5,9 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <poll.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <termios.h>
@@ -131,14 +133,30 @@ bool serial_wait_for_marker(int fd, uint64_t deadline_ms,
 
   for (;;) {
     uint64_t now_ms = sys_timestamp_ms();
-    if (now_ms >= deadline_ms) {
+    if (deadline_ms != UINT64_MAX && now_ms >= deadline_ms) {
       sys_puts("Error: timed out waiting for a \"[TEST] [EXIT] \" or "
                "\"[PANIC] \" line on the serial port\n");
       return false;
     }
 
+    // UINT64_MAX (opts->timeout == 0, see exec_openocd()'s own doc) means
+    // "no deadline" - poll() needs its own -1 sentinel for that rather
+    // than the literal (deadline_ms - now_ms), which would be a huge
+    // uint64_t that truncates to something meaningless once cast to int.
+    // A finite deadline can still overflow int once cast (--timeout is a
+    // uint32_t of seconds, so the delta can exceed INT_MAX ms - about 24.8
+    // days) - clamp it first rather than let the cast silently wrap into
+    // a negative (and so, to poll(), infinite) timeout.
     struct pollfd pfd = {.fd = fd, .events = POLLIN};
-    int rc = poll(&pfd, 1, (int)(deadline_ms - now_ms));
+    int poll_timeout_ms;
+    if (deadline_ms == UINT64_MAX) {
+      poll_timeout_ms = -1;
+    } else {
+      uint64_t remaining_ms = deadline_ms - now_ms;
+      poll_timeout_ms =
+          (remaining_ms > (uint64_t)INT_MAX) ? INT_MAX : (int)remaining_ms;
+    }
+    int rc = poll(&pfd, 1, poll_timeout_ms);
     if (rc < 0) {
       if (errno == EINTR) {
         continue;

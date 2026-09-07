@@ -45,6 +45,7 @@
  * with a NULL network pointer.
  */
 #pragma once
+#include <picofuse/net/types.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -337,5 +338,23 @@ bool hw_wifi_connect(hw_wifi_t *wifi, const hw_wifi_network_t *network,
  * stop broadcasting instead.
  */
 bool hw_wifi_disconnect(hw_wifi_t *wifi);
+
+/**
+ * @brief Return the address currently bound to the Wi-Fi interface.
+ * @ingroup WiFi
+ * @param wifi Wi-Fi handle.
+ * @param family Which address family to look up. An interface can hold an
+ * IPv4 and an IPv6 address at the same time; ask for each separately.
+ * @param addr Set to the bound address on success, left untouched on
+ * failure.
+ * @retval true @p addr was filled in - the DHCP-leased address in station
+ * mode, or the access point's own address in access-point mode.
+ * @retval false Handle is invalid, or no address of the requested family
+ * is currently bound (for example, station mode but not yet connected, or
+ * this platform/build's own network backend doesn't support that
+ * family).
+ */
+bool hw_wifi_get_address(hw_wifi_t *wifi, net_addr_family_t family,
+                         net_addr_t *addr);
 
 /** @} */

@@ -28,6 +28,7 @@
 #include "keycode.h"
 #include <picofuse/hw/wifi.h>
 #include <picofuse/pix/types.h>
+#include <picofuse/sys/date.h>
 #include <picofuse/sys/io.h>
 #include <stdbool.h>
 
@@ -58,6 +59,7 @@ typedef enum {
   hid_event_type_signal = 5,
   hid_event_type_wifi = 6,
   hid_event_type_iostream = 7,
+  hid_event_type_time = 8,
 } hid_event_type_t;
 
 /**
@@ -136,6 +138,14 @@ typedef struct {
 } hid_iostream_t;
 
 /**
+ * @brief Time-oriented HID event payload.
+ * @ingroup HIDEvents
+ */
+typedef struct {
+  sys_date_t date; ///< Reported date/time (UTC - tzoffset is always 0).
+} hid_time_t;
+
+/**
  * @brief Represents a single HID input event.
  * @ingroup HIDEvents
  */
@@ -150,6 +160,7 @@ typedef struct {
     hid_signal_t signal;
     hid_wifi_t wifi;
     hid_iostream_t iostream;
+    hid_time_t time;
   } data; ///< Payload selected by type.
 } hid_event_t;
 
@@ -237,6 +248,17 @@ bool hid_event_queue_wifi(hid_device_t *device, hw_wifi_event_t event,
  */
 bool hid_event_queue_iostream(hid_device_t *device,
                               sys_iostream_event_t events);
+
+/**
+ * @brief Queue a time HID event to the owning HID instance queue.
+ * @ingroup HIDEvents
+ * @param device HID device associated with the event.
+ * @param date Date/time to publish. Copied by value into the queued
+ * event - see hid_time_t.
+ * @retval true Event queued successfully.
+ * @retval false Queueing failed.
+ */
+bool hid_event_queue_time(hid_device_t *device, const sys_date_t *date);
 
 /**
  * @brief Free a HID event allocated internally by HID queue helpers.

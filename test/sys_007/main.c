@@ -112,6 +112,40 @@ test_main_sys(0) {
   test_assert_strequal(buf, "-9223372036854775808");
 
   ///////////////////////////////////////////////////////////////////////////
+  // %hu/%hhu/%hd/%hhd/%hx - 'h'/'hh' (short/char) length modifiers. A short
+  // or char vararg is already promoted to int before it ever reaches
+  // va_arg() (C's own default argument promotion), so these read exactly
+  // like their unmodified %u/%d/%x counterparts - what matters here is
+  // just that 'h'/'hh' get consumed as modifiers rather than misparsed as
+  // the conversion specifier itself (see vprintf.c's own comment). This is
+  // exactly what PRIu16/PRIx16/PRId16 (as lwIP's own debug builds format
+  // addresses/ports with, via U16_F/X16_F/S16_F) expand to on this
+  // toolchain.
+
+  sys_sprintf(buf, sizeof(buf), "%hu", (unsigned short)42);
+  test_assert_strequal(buf, "42");
+
+  sys_sprintf(buf, sizeof(buf), "%hhu", (unsigned char)200);
+  test_assert_strequal(buf, "200");
+
+  sys_sprintf(buf, sizeof(buf), "%hd", (short)-42);
+  test_assert_strequal(buf, "-42");
+
+  sys_sprintf(buf, sizeof(buf), "%hhd", (signed char)-42);
+  test_assert_strequal(buf, "-42");
+
+  sys_sprintf(buf, sizeof(buf), "%hx", (unsigned short)255);
+  test_assert_strequal(buf, "ff");
+
+  // A format string with several %h-modified conversions in one call would
+  // desync every argument after the first misparsed one if 'h' weren't
+  // consumed correctly - matching lwIP's own
+  // "%hu.%hu.%hu.%hu"-shaped IP address debug print.
+  sys_sprintf(buf, sizeof(buf), "%hu.%hu.%hu.%hu", (unsigned short)192,
+              (unsigned short)168, (unsigned short)1, (unsigned short)1);
+  test_assert_strequal(buf, "192.168.1.1");
+
+  ///////////////////////////////////////////////////////////////////////////
   // Return value and the console putch path.
 
   size_t n = sys_sprintf(buf, sizeof(buf), "%3d", 7);

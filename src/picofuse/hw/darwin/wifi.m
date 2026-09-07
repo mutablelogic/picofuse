@@ -1,3 +1,4 @@
+#include "../posix/private.h"
 #include <picofuse/hw.h>
 #include <picofuse/sys.h>
 #include <stdio.h>
@@ -424,4 +425,24 @@ bool hw_wifi_disconnect(hw_wifi_t *wifi) {
   }
   _hw_wifi_notify(wifi, hw_wifi_event_disconnected, NULL);
   return true;
+}
+
+bool hw_wifi_get_address(hw_wifi_t *wifi, net_addr_family_t family,
+                         net_addr_t *addr) {
+  if (wifi == NULL || wifi != &_hw_wifi_adaptor || addr == NULL) {
+    return false;
+  }
+
+  bool ok = false;
+  @autoreleasepool {
+    sys_mutex_lock(_hw_wifi_mutex);
+    if (wifi->active) {
+      NSString *ifname = wifi->iface.interfaceName;
+      if (ifname != nil) {
+        ok = _hw_wifi_get_ifaddr(ifname.UTF8String, family, addr);
+      }
+    }
+    sys_mutex_unlock(_hw_wifi_mutex);
+  }
+  return ok;
 }

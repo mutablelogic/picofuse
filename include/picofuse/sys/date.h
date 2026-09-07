@@ -7,6 +7,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -26,6 +27,23 @@ typedef struct sys_date_t {
   int32_t nanoseconds; ///< Fractional seconds in nanoseconds.
   int32_t tzoffset;    ///< Timezone offset in seconds east of UTC.
 } sys_date_t;
+
+/**
+ * @brief Common human-readable date/time string formats.
+ * @ingroup SystemTime
+ */
+typedef enum {
+  sys_date_format_iso8601 = 0, ///< "2026-09-06T11:37:05Z" - or, when
+                               ///< tzoffset is non-zero, an explicit
+                               ///< "+HH:MM"/"-HH:MM" offset instead of "Z".
+  sys_date_format_rfc2822 = 1, ///< "Sun, 06 Sep 2026 11:37:05 GMT" - the
+                               ///< HTTP-date format (RFC 7231 7.1.1.1),
+                               ///< always rendered in UTC regardless of
+                               ///< the date's own tzoffset.
+  sys_date_format_log = 2,     ///< "2026-09-06 11:37:05" - a plain,
+                               ///< sortable form for logs/debug output, in
+                               ///< whatever timezone tzoffset represents.
+} sys_date_format_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
@@ -133,6 +151,21 @@ bool sys_date_set_date_utc(sys_date_t *date, uint16_t year, uint8_t month,
  * `end` is `NULL`.
  */
 int64_t sys_date_compare_ns(const sys_date_t *start, const sys_date_t *end);
+
+/**
+ * @brief Format a date as a human-readable string.
+ * @ingroup SystemTime
+ * @param date Date to format, or `NULL` to use the current system time.
+ * @param format Which format to render - see sys_date_format_t.
+ * @param buf Destination buffer.
+ * @param buf_size Size of @p buf in bytes.
+ * @return Number of characters that would have been written to @p buf, not
+ * counting the null terminator, same truncation semantics as
+ * `sys_sprintf()` - or 0 if @p date was `NULL` and the current time
+ * couldn't be read.
+ */
+size_t sys_date_to_string(const sys_date_t *date, sys_date_format_t format,
+                          char *buf, size_t buf_size);
 
 /** @} */
 

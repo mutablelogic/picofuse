@@ -51,6 +51,11 @@ struct sys_iostream_t {
       sys_iostream_callback_t callback;
       void *userdata;
     } uart;
+    struct {
+      void *instance;
+      sys_iostream_callback_t callback;
+      void *userdata;
+    } net;
   } backend;
 };
 

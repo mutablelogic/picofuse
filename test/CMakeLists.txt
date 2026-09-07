@@ -583,6 +583,12 @@ picofuse_test(sys_107
 	sys_107/main.c
 )
 
+# sys_date_to_string()'s three formats (iso8601/rfc2822/log), tzoffset
+# handling, NULL-uses-current-time, and truncation semantics.
+picofuse_test(sys_108
+	sys_108/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
@@ -712,7 +718,7 @@ picofuse_test(hw_015
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_016
 		hw_016/main.c
-		LIBRARIES picofuse-hw
+		LIBRARIES picofuse-hw picofuse-net
 		TESTRUNNER_TIMEOUT 30
 	)
 endif()
@@ -722,7 +728,7 @@ endif()
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_017
 		hw_017/main.c
-		LIBRARIES picofuse-hw
+		LIBRARIES picofuse-hw picofuse-net
 		TESTRUNNER_TIMEOUT 60
 	)
 
@@ -742,7 +748,7 @@ endif()
 if(DEFINED PICO_BOARD)
 	picofuse_test(hw_018
 		hw_018/main.c
-		LIBRARIES picofuse-hw
+		LIBRARIES picofuse-hw picofuse-net
 	)
 endif()
 
@@ -756,9 +762,7 @@ if(DEFINED PICO_BOARD)
 	target_link_libraries(hw_019 PRIVATE hardware_uart_headers)
 endif()
 
-# hw_uart_init_device() lifecycle plus a real write/flush/callback smoke
-# test against a real serial device - skips if HW_UART_TEST_DEVICE isn't
-# set, see hw_020/main.c. Darwin/Linux only - Pico has no device-path UART.
+# hw_uart_init_device() lifecycle 
 if(NOT DEFINED PICO_BOARD)
 	picofuse_test(hw_020
 		hw_020/main.c
@@ -780,10 +784,7 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
-# hid_init/_deinit singleton lifecycle (including rejecting a second
-# hid_init()) and the generic hid_register/_deregister path against a
-# fake device with caller-supplied callbacks - no real backends
-# (gpio/timer/signal/wifi/...) are wired up yet.
+# hid_init/_deinit singleton lifecycle 
 picofuse_test(hid_001
 	hid_001/main.c
 	LIBRARIES picofuse-hw picofuse-hid
@@ -870,4 +871,83 @@ endif()
 picofuse_test(app_001
 	app_001/main.c
 	LIBRARIES picofuse-app picofuse-hw picofuse-hid
+)
+
+# net_addr_v4()/_v4_any()/_v6()/_v6_any()/_to_string() - pure logic, no
+# sockets, so this runs (and is expected to fully pass) on every platform.
+picofuse_test(net_001
+	net_001/main.c
+	LIBRARIES picofuse-net
+)
+
+# net_open()/net_listener_init(net_proto_tcp, ...) round trip over
+# loopback. Skips gracefully wherever there's no real backend yet (Pico's
+# net/pico/socket.c is a stub - see its own @todo), same pattern hw_016
+# uses for missing Wi-Fi hardware.
+picofuse_test(net_002
+	net_002/main.c
+	LIBRARIES picofuse-net
+)
+
+# Same as net_002, but net_proto_udp - the single-shot stream contract
+# (one read, one reply write, then closed).
+picofuse_test(net_003
+	net_003/main.c
+	LIBRARIES picofuse-net
+)
+
+# NULL-safety, NET_LISTENER_CAPACITY exhaustion, address/port already in
+# use, and connection-refused - see net_002's own comment on skipping.
+picofuse_test(net_004
+	net_004/main.c
+	LIBRARIES picofuse-net
+)
+
+# net_ntp_init()/_read()/_deinit() against a real NTP server over the
+# network - skips (not asserted) if no reply arrives, since that needs
+# actual internet access - see net_005/main.c's own comment.
+picofuse_test(net_005
+	net_005/main.c
+	LIBRARIES picofuse-net
+)
+
+# net_ntp_register_hid() against a real NTP server, via a real hid_t
+# instance - see net_006/main.c's own comment on why a real reply is
+# skipped rather than asserted.
+picofuse_test(net_006
+	net_006/main.c
+	LIBRARIES picofuse-net picofuse-hid
+)
+
+# net_open() over IPv6 against a real Wi-Fi network - skips if WIFI_SSID
+# isn't set, or if the network has no real IPv6 route, see net_007/main.c's
+# own comment. Pico-only for now, mirrors hw_017's own scan/connect
+# scaffolding (needs an actual join, unlike net_005/net_006).
+if(DEFINED PICO_BOARD)
+	picofuse_test(net_007
+		net_007/main.c
+		LIBRARIES picofuse-hw picofuse-net
+		TESTRUNNER_TIMEOUT 60
+	)
+
+	# Wi-Fi credentials from environment (export WIFI_SSID and WIFI_PASSWORD)
+	set(WIFI_SSID "$ENV{WIFI_SSID}")
+	set(WIFI_PASSWORD "$ENV{WIFI_PASSWORD}")
+
+	# Add Wi-Fi credentials as compile definitions
+	target_compile_definitions(net_007 PRIVATE
+		WIFI_SSID="${WIFI_SSID}"
+		WIFI_PASSWORD="${WIFI_PASSWORD}"
+	)
+endif()
+
+# TCP backpressure: a payload bigger than the POSIX backend's own RX ring
+# buffer arrives byte-for-byte even when the reader doesn't drain it
+# until well after the writer has finished - see net_008/main.c's own
+# comment. Skips gracefully wherever there's no real backend yet, same as
+# net_002.
+picofuse_test(net_008
+	net_008/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 30
 )
