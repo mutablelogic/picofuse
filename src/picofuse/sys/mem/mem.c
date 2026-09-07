@@ -126,8 +126,8 @@ static void *_sys_mem_default_alloc(sys_mem_arena_t *head, size_t size) {
       continue;
     }
 
-    sys_debugf("mem", "default arena grew: +%zu bytes (needed %zu)",
-               arena_size, size);
+    sys_debugf("mem", "default arena grew: +%zu bytes (needed %zu)", arena_size,
+               size);
     void *ptr = sys_mem_arena_alloc(next, size);
     if (ptr != NULL) {
       return ptr;
@@ -142,8 +142,8 @@ static void *_sys_mem_default_alloc(sys_mem_arena_t *head, size_t size) {
  * @param size Optional allocation size populated for the owning arena.
  * @return Arena that owns `ptr`, or `NULL` when not found.
  */
-static sys_mem_arena_t *_sys_mem_default_owner(sys_mem_arena_t *head,
-                                               void *ptr, size_t *size) {
+static sys_mem_arena_t *_sys_mem_default_owner(sys_mem_arena_t *head, void *ptr,
+                                               size_t *size) {
   for (sys_mem_arena_t *current = _sys_mem_default_tail(head, NULL);
        current != NULL; current = _sys_mem_arena_prev(current, NULL)) {
     size_t alloc_size = _sys_mem_arena_alloc_size(current, ptr);
@@ -212,8 +212,9 @@ void _sys_mem_module_exit(void) {
   while (tail != NULL) {
     sys_mem_stats_t stats = {0};
     sys_mem_arena_t *prev = _sys_mem_arena_prev(tail, &stats);
-    sys_debugf("mem", "default arena %p torn down: size=%zu used=%zu "
-                      "allocations=%zu",
+    sys_debugf("mem",
+               "default arena %p torn down: size=%zu used=%zu "
+               "allocations=%zu",
                (void *)tail, stats.size_bytes, stats.used_bytes,
                stats.allocations);
     sys_mem_arena_delete(tail);
@@ -268,10 +269,6 @@ void *sys_realloc(void *ptr, size_t size) {
 
   size_t current_size = 0;
   sys_mem_arena_t *owner = _sys_mem_default_owner(head, ptr, &current_size);
-  // Once a default arena is configured, every pointer passed here must
-  // belong to it - mixing in one allocated before configuration (or by
-  // some other allocator entirely) is a caller bug, not a case to paper
-  // over silently.
   sys_assert(owner != NULL);
 
   void *resized = sys_mem_arena_realloc(owner, ptr, size);
@@ -303,8 +300,6 @@ void sys_free(void *ptr) {
   }
 
   sys_mem_arena_t *owner = _sys_mem_default_owner(head, ptr, NULL);
-  // See sys_realloc()'s comment above - this must never be NULL once a
-  // default arena is configured.
   sys_assert(owner != NULL);
   sys_mem_arena_free(owner, ptr);
 }

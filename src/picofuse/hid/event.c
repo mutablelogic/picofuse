@@ -223,6 +223,29 @@ bool hid_event_queue_wifi(hid_device_t *device, hw_wifi_event_t event_type,
   return _hid_event_push(event);
 }
 
+bool hid_event_queue_usb(hid_device_t *device, hw_usb_event_t event_type,
+                         const hw_usb_device_t *usb_device) {
+  if (device == NULL) {
+    return false;
+  }
+
+  hid_event_t *event = _hid_event_retain(device->instance, hid_event_type_usb);
+  if (event == NULL) {
+    return false;
+  }
+
+  // Copied by value rather than stored as a pointer
+  event->device = device;
+  event->data.usb.event = event_type;
+  if (usb_device != NULL) {
+    event->data.usb.device = *usb_device;
+    event->data.usb.has_device = true;
+  } else {
+    event->data.usb.has_device = false;
+  }
+  return _hid_event_push(event);
+}
+
 bool hid_event_queue_iostream(hid_device_t *device,
                               sys_iostream_event_t events) {
   if (device == NULL || events == sys_iostream_event_none) {

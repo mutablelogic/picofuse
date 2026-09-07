@@ -71,6 +71,17 @@ typedef enum {
                                    ///< it from there. Has no effect when
                                    ///< the platform has no watchdog
                                    ///< backend.
+  app_flag_usb = (1 << 8),         ///< Initialize the USB host subsystem
+                                   ///< and register it with HID (see
+                                   ///< @ref app_usb and @ref app_hid) -
+                                   ///< hotplug activity flows in as
+                                   ///< hid_event_type_usb events
+                                   ///< automatically. Call
+                                   ///< hw_usb_set_callback() directly on
+                                   ///< the returned handle to replace that
+                                   ///< with your own callback instead. Has
+                                   ///< no effect when the platform has no
+                                   ///< USB host backend.
 } app_flag_t;
 
 /**
@@ -133,13 +144,15 @@ typedef void (*app_callback_event_t)(app_t *app, sys_event_t event,
  * internal temperature sensor as a HID metric source if
  * @ref app_flag_temperature is set, enables the watchdog if
  * @ref app_flag_watchdog is set and available (see @ref app_watchdog),
- * then runs the event loop across every available core if
- * @ref app_flag_multicore is set, or on the calling thread alone
- * otherwise. Every run loop tick calls `hw_poll()`, which feeds the
- * watchdog when enabled (see `hw_watchdog_enable()`). Blocks until
- * @ref app_shutdown is called from within a callback (or from another
- * thread), then tears down (`hid_deinit()`, `hw_led_deinit()`,
- * `hw_watchdog_deinit()`, `hw_exit()`, `sys_exit()`).
+ * initializes the USB host subsystem and registers it with HID if
+ * @ref app_flag_usb is set and available (see @ref app_usb and
+ * hw_usb_register_hid()), then runs the event loop across every
+ * available core if @ref app_flag_multicore is set, or on the calling
+ * thread alone otherwise. Every run loop tick calls `hw_poll()`, which
+ * feeds the watchdog when enabled (see `hw_watchdog_enable()`). Blocks
+ * until @ref app_shutdown is called from within a callback (or from
+ * another thread), then tears down (`hid_deinit()`, `hw_led_deinit()`,
+ * `hw_watchdog_deinit()`, `hw_usb_deinit()`, `hw_exit()`, `sys_exit()`).
  */
 int app_main(int argc, char *argv[], app_flag_t flags,
              app_callback_start_t on_start, app_callback_event_t on_event,
@@ -187,6 +200,20 @@ hw_led_t *app_led(const app_t *app);
  * force an earlier reset, or hw_watchdog_enable() to stop feeding it.
  */
 hw_watchdog_t *app_watchdog(const app_t *app);
+
+/**
+ * @brief Get the USB host handle initialized for this app.
+ * @ingroup Application
+ * @param app Application instance.
+ * @return USB host handle, or NULL if @ref app_flag_usb was not passed to
+ * app_main(), or the platform has no USB host backend (see hw_usb_init()).
+ *
+ * Already registered with HID (see @ref app_hid) via hw_usb_register_hid()
+ * - hotplug activity flows in as hid_event_type_usb events. Call
+ * hw_usb_set_callback() directly on this handle to replace that with your
+ * own callback instead.
+ */
+hw_usb_t *app_usb(const app_t *app);
 
 /** @} */
 

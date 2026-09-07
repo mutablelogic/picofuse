@@ -17,9 +17,15 @@ test_main_hw(0) {
   test_assert(instance != NULL);
 
   int userdata_sentinel = 0;
-  hid_device_t *device = hid_register_user_button(instance, KEYCODE_ENTER,
-                                                  &userdata_sentinel);
-  test_assert(device != NULL);
+  hid_device_t *device =
+      hid_register_user_button(instance, KEYCODE_ENTER, &userdata_sentinel);
+  if (device == NULL) {
+    // Pico W exposes no GPIO-mappable user button. Other Pico board headers
+    // may define PICO_USER_SW_PIN, in which case the lifecycle below runs.
+    hid_deinit(instance);
+    sys_event_queue_deinit(queue);
+    return;
+  }
 
   const char *name = NULL;
   uint32_t id = 0;

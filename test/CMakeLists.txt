@@ -798,6 +798,14 @@ if(NOT DEFINED PICO_BOARD)
 	target_include_directories(hw_022 PRIVATE ${CMAKE_SOURCE_DIR}/include)
 endif()
 
+# hw_usb_device_class_to_string() (always available), plus hw_usb_* init/
+# enumerate/deinit lifecycle - stub (always NULL) by default, real libusb
+# backend if PICOFUSE_USB=ON and libusb-1.0 was found - see hw_023/main.c.
+picofuse_test(hw_023
+	hw_023/main.c
+	LIBRARIES picofuse-hw
+)
+
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
 # or SPI - see the detection order/reasoning in dev_bme680/main.c.
 if(DEFINED PICO_BOARD)
@@ -886,6 +894,17 @@ if(DEFINED PICO_BOARD)
 	target_link_libraries(hid_009 PRIVATE hardware_uart_headers)
 endif()
 
+# hw_usb_register_hid(): attaches to an already hw_usb_init()'d handle and
+# forwards real hotplug activity as hid_event_type_usb events, up to and
+# including the enumeration-complete marker. Unconditional, same
+# cross-platform gating as hw_023 (stub by default, real libusb/TinyUSB
+# backend only with PICOFUSE_USB=ON) - unlike hid_008's Wi-Fi client, which
+# only has a real backend on Pico.
+picofuse_test(hid_010
+	hid_010/main.c
+	LIBRARIES picofuse-hw picofuse-hid
+)
+
 # app_main()'s lifecycle: sys/hw/hid wired up automatically, app_hid()/
 # app_led()/app_wifi() accessors, APP_FLAG_SIGNAL/_USER_BUTTON/_TEMPERATURE
 # registration, userdata passed through to on_start(), and a clean
@@ -893,6 +912,17 @@ endif()
 # test_main_sys()/test_main_hw() - see app_001/main.c's own comment.
 picofuse_test(app_001
 	app_001/main.c
+	LIBRARIES picofuse-app picofuse-hw picofuse-hid
+)
+
+# app_flag_usb: hid_event_type_usb events registered by app_main() itself
+# (see app.h's own doc) actually reach on_event() once the run loop is
+# ticking. Unconditional, same cross-platform gating as hw_023/hid_010 -
+# skips cleanly with no USB host backend (stub by default, real
+# libusb/TinyUSB backend only with PICOFUSE_USB=ON). Passes a real
+# on_event to test_main_app() - see test/test.h's own doc.
+picofuse_test(app_002
+	app_002/main.c
 	LIBRARIES picofuse-app picofuse-hw picofuse-hid
 )
 

@@ -75,6 +75,16 @@ if(DEFINED PICO_BOARD)
         add_compile_definitions(PICO_CYW43_SUPPORTED=1)
     endif()
 
+    if(PICOFUSE_USB)
+        # Every RP2040/RP2350 board has the same on-chip dual-role USB
+        # controller (unlike CYW43 above, nothing board-specific to check).
+        # hw/pico/usb.c (compiled instead of the stub only when PICOFUSE_USB
+        # holds - see its own CMakeLists.txt) needs the TinyUSB host stack;
+        # tusb_config.h (include/runtime/pico) configures it for host-only,
+        # no interface class drivers - see that file's own doc.
+        list(APPEND _picosdk_targets tinyusb_host)
+    endif()
+
     # Generate the combined Pico SDK bundle
     set(_pico_clib_interface_dir ${PICO_SDK_PATH}/src/rp2_common/pico_clib_interface)
     set(_pico_runtime_dir ${PICO_SDK_PATH}/src/rp2_common/pico_runtime)

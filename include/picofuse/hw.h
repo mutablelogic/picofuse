@@ -17,5 +17,6 @@
 #include "hw/pwm.h"
 #include "hw/spi.h"
 #include "hw/uart.h"
+#include "hw/usb.h"
 #include "hw/watchdog.h"
 #include "hw/wifi.h"
