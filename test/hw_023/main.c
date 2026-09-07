@@ -38,13 +38,13 @@ static void _test_class_to_string(void) {
 }
 
 // hw_usb_* NULL-safety, plus the init/enumerate/deinit lifecycle on
-// whatever backend this build actually has - the stub on Darwin/Linux by
-// default (PICOFUSE_USB is off), a real libusb backend if PICOFUSE_USB=ON
-// and libusb-1.0 was found (see hw/{linux,darwin}/CMakeLists.txt), or
-// eventually TinyUSB on Pico. Exits cleanly rather than failing if no USB
-// host backend is available - there's nothing to exercise, not a test
-// failure (same tolerance as hw_011/hw_021's own "no hardware available"
-// paths).
+// whatever backend this build actually has - the stub by default
+// (PICOFUSE_USB is off), or a real one if PICOFUSE_USB=ON: libusb on
+// Linux/Darwin (if libusb-1.0 was found - see hw/{linux,darwin}/
+// CMakeLists.txt), TinyUSB host on Pico (see hw/pico/CMakeLists.txt).
+// Exits cleanly rather than failing if no USB host backend is available -
+// there's nothing to exercise, not a test failure (same tolerance as
+// hw_011/hw_021's own "no hardware available" paths).
 test_main_hw(0) {
   _test_class_to_string();
 

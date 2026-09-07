@@ -24,6 +24,7 @@ struct app_t {
   hid_t *hid;
   hw_led_t *led;
   hw_watchdog_t *watchdog;
+  hw_usb_t *usb;
   app_flag_t flags;
   app_callback_start_t on_start;
   app_callback_event_t on_event;
@@ -62,9 +63,6 @@ static void _app_on_init(uint8_t worker) {
     sys_debugf("app", "app_flag_led not supported");
   }
 
-  // hw_watchdog_init() - once enabled, hw_poll() (called from _app_poll()
-  // on every run loop tick) feeds it via its own built-in ping-interval
-  // logic (see _hw_watchdog_poll()).
   if (_app->flags & app_flag_watchdog) {
     _app->watchdog = hw_watchdog_init();
   }
@@ -76,6 +74,20 @@ static void _app_on_init(uint8_t worker) {
     }
   } else if (_app->flags & app_flag_watchdog) {
     sys_debugf("app", "app_flag_watchdog not supported");
+  }
+
+  if (_app->flags & app_flag_usb) {
+    _app->usb = hw_usb_init();
+  }
+
+  // usb -> HID bridge
+  if (_app->hid != NULL && (_app->flags & app_flag_usb)) {
+    if (_app->usb != NULL &&
+        hw_usb_register_hid(_app->hid, _app->usb) != NULL) {
+      sys_debugf("app", "app_flag_usb enabled");
+    } else {
+      sys_debugf("app", "app_flag_usb not supported");
+    }
   }
 
   // signals
@@ -138,6 +150,9 @@ static void _app_on_exit(uint8_t worker) {
   hw_watchdog_deinit(_app->watchdog);
   _app->watchdog = NULL;
 
+  hw_usb_deinit(_app->usb);
+  _app->usb = NULL;
+
   hw_exit();
 }
 
@@ -178,6 +193,7 @@ int app_main(int argc, char *argv[], app_flag_t flags,
       .hid = NULL,
       .led = NULL,
       .watchdog = NULL,
+      .usb = NULL,
       .flags = flags,
       .on_start = on_start,
       .on_event = on_event,
@@ -214,6 +230,8 @@ hw_led_t *app_led(const app_t *app) { return (app != NULL) ? app->led : NULL; }
 hw_watchdog_t *app_watchdog(const app_t *app) {
   return (app != NULL) ? app->watchdog : NULL;
 }
+
+hw_usb_t *app_usb(const app_t *app) { return (app != NULL) ? app->usb : NULL; }
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS

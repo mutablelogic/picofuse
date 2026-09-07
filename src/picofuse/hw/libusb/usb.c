@@ -18,6 +18,11 @@ struct hw_usb_t {
   pthread_t thread;
   bool hotplug_registered;
   bool thread_started;
+  // Set by hw_usb_set_callback() on a NULL->non-NULL transition, cleared by
+  // _hw_usb_event_thread() once it's replayed the currently-known device
+  // list to whatever callback is attached at that point - see
+  // hw_usb_set_callback()'s own doc ("once attached...").
+  bool replay_requested;
   atomic_bool running;
   atomic_bool cleanup_in_thread;
   bool init;
@@ -241,36 +246,48 @@ static void *_hw_usb_event_thread(void *arg) {
   // defer the initial device callbacks until the next host poll cycle").
   (void)_hw_usb_emit_attached_devices(usb);
 
-  _HW_USB_LOCK();
-  bool hotplug_registered = usb->hotplug_registered;
-  _HW_USB_UNLOCK();
-
-  // Without hotplug support there's nothing left for this thread to do -
-  // the one-shot enumeration above is all this platform/libusb build can
-  // ever offer (see hw_usb_init()'s own handling of
-  // LIBUSB_CAP_HAS_HOTPLUG).
-  while (hotplug_registered &&
-         atomic_load_explicit(&usb->running, memory_order_acquire)) {
+  // Keeps looping even without hotplug support (unlike before) - besides
+  // libusb_handle_events_timeout()'s own event delivery when hotplug is
+  // available, this loop is now also what serves replay_requested: a
+  // NULL->non-NULL callback attach that happens after this thread's own
+  // first pass above (the common case - hw_usb_init() never takes a
+  // callback) would otherwise never see it, since _hw_usb_emit_event() and
+  // _hw_usb_emit_attached_devices() only ever fire to whatever callback is
+  // attached at the exact instant they run. Bounded latency either way:
+  // ~200ms, from this loop's own polling/timeout interval.
+  while (atomic_load_explicit(&usb->running, memory_order_acquire)) {
     _HW_USB_LOCK();
     libusb_context *context = usb->context;
+    bool hotplug_registered = usb->hotplug_registered;
     _HW_USB_UNLOCK();
 
-    struct timeval timeout = {
-        .tv_sec = 0,
-        .tv_usec = 200000,
-    };
-
-    int rc = libusb_handle_events_timeout(context, &timeout);
-    if (rc == LIBUSB_ERROR_INTERRUPTED) {
-      continue;
-    }
-
-    if (rc < 0) {
+    if (hotplug_registered) {
+      struct timeval timeout = {
+          .tv_sec = 0,
+          .tv_usec = 200000,
+      };
+      int rc = libusb_handle_events_timeout(context, &timeout);
+      if (rc < 0 && rc != LIBUSB_ERROR_INTERRUPTED) {
+        struct timespec ts = {
+            .tv_sec = 0,
+            .tv_nsec = 100000000,
+        };
+        nanosleep(&ts, NULL);
+      }
+    } else {
       struct timespec ts = {
           .tv_sec = 0,
-          .tv_nsec = 100000000,
+          .tv_nsec = 200000000,
       };
       nanosleep(&ts, NULL);
+    }
+
+    _HW_USB_LOCK();
+    bool replay = usb->replay_requested;
+    usb->replay_requested = false;
+    _HW_USB_UNLOCK();
+    if (replay) {
+      (void)_hw_usb_emit_attached_devices(usb);
     }
   }
 
@@ -362,6 +379,9 @@ void hw_usb_set_callback(hw_usb_t *usb, hw_usb_callback_t callback,
 
   _HW_USB_LOCK();
   if (_hw_usb_valid(usb)) {
+    if (usb->callback == NULL && callback != NULL) {
+      usb->replay_requested = true;
+    }
     usb->callback = callback;
     usb->userdata = userdata;
   }

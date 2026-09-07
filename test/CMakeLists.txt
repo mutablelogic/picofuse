@@ -894,6 +894,17 @@ if(DEFINED PICO_BOARD)
 	target_link_libraries(hid_009 PRIVATE hardware_uart_headers)
 endif()
 
+# hw_usb_register_hid(): attaches to an already hw_usb_init()'d handle and
+# forwards real hotplug activity as hid_event_type_usb events, up to and
+# including the enumeration-complete marker. Unconditional, same
+# cross-platform gating as hw_023 (stub by default, real libusb/TinyUSB
+# backend only with PICOFUSE_USB=ON) - unlike hid_008's Wi-Fi client, which
+# only has a real backend on Pico.
+picofuse_test(hid_010
+	hid_010/main.c
+	LIBRARIES picofuse-hw picofuse-hid
+)
+
 # app_main()'s lifecycle: sys/hw/hid wired up automatically, app_hid()/
 # app_led()/app_wifi() accessors, APP_FLAG_SIGNAL/_USER_BUTTON/_TEMPERATURE
 # registration, userdata passed through to on_start(), and a clean

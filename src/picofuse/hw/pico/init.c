@@ -11,6 +11,11 @@
 extern void _hw_wifi_poll(void);
 #endif
 
+#ifdef PICOFUSE_USB
+// Defined in usb.c.
+extern void _hw_usb_poll(void);
+#endif
+
 // Defined in ../led/blink.c.
 extern void _hw_led_poll(void);
 
@@ -56,6 +61,9 @@ void hw_poll(void) {
 #endif
 #ifdef PICOFUSE_WIFI
   _hw_wifi_poll();
+#endif
+#ifdef PICOFUSE_USB
+  _hw_usb_poll();
 #endif
   _hw_led_poll();
   _hw_watchdog_poll();
