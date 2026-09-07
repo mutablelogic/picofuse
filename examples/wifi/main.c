@@ -23,10 +23,21 @@ static hw_wifi_t *g_wifi = NULL;
 static net_ntp_t *g_ntp = NULL;
 static hid_device_t *g_ntp_device = NULL;
 
+// Fires once a minute regardless of Wi-Fi/NTP state, just to print
+// whatever the system clock currently reads.
+#define WIFI_CLOCK_PRINT_INTERVAL_MS (60u * 1000u)
+static hid_device_t *g_clock_timer = NULL;
+
 static void _on_start(app_t *app, void *userdata) {
   (void)userdata;
   sys_debugf("wifi", "on_start: running on core %u of %u", sys_thread_core(),
              sys_thread_numcores());
+
+  g_clock_timer = hid_register_timer(app_hid(app), 0,
+                                     WIFI_CLOCK_PRINT_INTERVAL_MS, true, NULL);
+  if (g_clock_timer == NULL) {
+    sys_debugf("wifi", "on_start: hid_register_timer failed");
+  }
 
   g_wifi = hw_wifi_init_client("XX");
   if (g_wifi == NULL) {
@@ -165,10 +176,27 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
     }
     break;
   }
+  case hid_event_type_timer: {
+    // Fires once a minute regardless of Wi-Fi/NTP state - just a
+    // heartbeat showing whatever the system clock currently reads,
+    // synced or not.
+    sys_date_t now = {0};
+    char date_buf[32];
+    if (sys_date_get_now(&now) &&
+        sys_date_to_string(&now, sys_date_format_iso8601, date_buf,
+                           sizeof(date_buf)) > 0) {
+      sys_printf("[wifi] clock: %s\n", date_buf);
+    }
+    break;
+  }
   case hid_event_type_signal:
     // Ctrl-C/SIGTERM on a host build - a Pico board has no such signals.
     sys_debugf("wifi", "on_event: received signal, shutting down (core=%u)",
                sys_thread_core());
+    if (g_clock_timer != NULL) {
+      hid_deregister(app_hid(app), g_clock_timer);
+      g_clock_timer = NULL;
+    }
     if (g_ntp_device != NULL) {
       hid_deregister(app_hid(app), g_ntp_device);
       g_ntp_device = NULL;
