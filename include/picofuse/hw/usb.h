@@ -47,6 +47,39 @@
  * storage) is handled by separate modules that consume the device information
  * provided here.
  *
+ * @todo No module actually reads HID *input* (keystrokes, mouse movement)
+ * yet - something like `hw_usb_register_hid_device()` (working name only;
+ * needs a better one, and a real signature - presumably taking a
+ * `hw_usb_device_t` identifying which interface to read) for keyboard and
+ * mouse to start with, scoped to boot-protocol interfaces (@ref
+ * hw_usb_device_subclass_boot_interface, `interface_protocol` ==
+ * @ref hw_usb_device_protocol_keyboard / @ref hw_usb_device_protocol_mouse)
+ * so a fixed, known report shape (8 bytes keyboard, 3-4 bytes mouse) can be
+ * assumed without a general HID report-descriptor parser. This is NOT a
+ * single cross-platform implementation on top of this module - the three
+ * platforms need three genuinely different backends:
+ *   - Pico: safe to do directly through TinyUSB's own HID class driver
+ *     (`CFG_TUH_HID`, currently left at 0 in `tusb_config.h`, plus
+ *     `tuh_hid_report_received_cb()`) - this process's USB stack is the
+ *     only consumer of the bus, so there's nothing else to conflict with.
+ *   - Linux: NOT through libusb/this module at all - the kernel's own
+ *     `usbhid` driver already owns the interface the instant it's plugged
+ *     in (confirmed via `lsusb -t` showing `Driver=usbhid`), so reading it
+ *     via libusb would need `libusb_detach_kernel_driver()`, which steals
+ *     the device from the rest of the running system (e.g. the real
+ *     keyboard stops working for the OS itself). The correct mechanism is
+ *     evdev (`/dev/input/eventN`), read alongside the OS rather than
+ *     instead of it - see the already-reserved but unimplemented
+ *     @ref hid_type_evdev.
+ *   - Darwin: same reasoning as Linux, different API - `IOHIDManager`/
+ *     `IOHIDDeviceClient` (IOKit's HID Manager) taps into HID collections
+ *     the kernel's own driver already parsed, without taking exclusive
+ *     ownership. Needs the user to grant Input Monitoring permission on
+ *     modern macOS.
+ * The Linux/Darwin backends don't need @ref hw_usb_init/`PICOFUSE_USB`
+ * engaged at all, since they observe at the kernel-input layer rather than
+ * the raw USB layer this module provides.
+ *
  * On the Pico platform, the USB peripheral is fixed hardware and operates in
  * host mode exclusively. On Linux and macOS, the host controller is managed
  * via libusb. In both cases, @ref hw_usb_init takes no platform-specific
@@ -58,9 +91,18 @@
  * Use a debug probe if you need simultaneous debug output.
  */
 #pragma once
-#include <picofuse/hid/device.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+// Forward-declared rather than #include <picofuse/hid/device.h> - only
+// used as opaque pointers below (hw_usb_register_hid()'s own parameter/
+// return type), and pulling in the whole header would add a hw->hid
+// header dependency this module doesn't otherwise have (hid already
+// depends on hw, not the other way around - see hw_usb_register_hid()'s
+// own doc on why the bridge itself still has to be compiled into
+// picofuse-hid rather than picofuse-hw).
+typedef struct hid_t hid_t;
+typedef struct hid_device_t hid_device_t;
 
 /**
  * @def HW_USB_STRING_MAX_LENGTH
@@ -254,7 +296,7 @@ typedef struct hw_usb_t hw_usb_t;
  *               once with @ref hw_usb_event_attached and @p device set to
  *               NULL as an "enumeration complete" marker.
  *               String fields may be empty on detach.
- * @param userdata Opaque user pointer supplied to @ref hw_usb_init.
+ * @param userdata Opaque user pointer supplied to @ref hw_usb_set_callback.
  */
 typedef void (*hw_usb_callback_t)(hw_usb_t *usb, hw_usb_event_t event,
                                   const hw_usb_device_t *device,
