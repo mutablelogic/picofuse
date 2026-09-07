@@ -35,6 +35,19 @@ struct hw_watchdog_t {
 
 static struct hw_watchdog_t _hw_watchdog = {0};
 
+// Lets _hw_watchdog_poll() skip _HW_WATCHDOG_LOCK() entirely while feeding
+// isn't active - hw_poll() calls it on every single run loop tick,
+// regardless of whether app_flag_watchdog (or hw_watchdog_enable() at all)
+// is in use, and _HW_WATCHDOG_LOCK() is the same shared critical section
+// every other hw/pico/*.c backend and sys/pico/*.c primitive also
+// contends on (see sys/pico/sync.c) - not just wasted cycles on an idle
+// watchdog, but avoidable contention against unrelated subsystems on the
+// other core. Mirrors _hw_led_active_blinks's own fast path in
+// hw/led/blink.c. Kept in sync with `disable` (see hw_watchdog_enable(),
+// hw_watchdog_reset(), hw_watchdog_init(), hw_watchdog_deinit()) - true
+// whenever a poll tick might actually have a feed to do.
+static sys_atomic_t _hw_watchdog_active;
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE
 

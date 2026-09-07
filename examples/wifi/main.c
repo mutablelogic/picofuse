@@ -113,10 +113,9 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
       // doc). CYW43_LINK_JOIN only ever fires once per connection
       // attempt in practice, so this doesn't visibly matter here.
       (void)hw_led_blink(app_led(app), 0, 250, true);
-    } else if (wifi_event & (hw_wifi_event_disconnected |
-                             hw_wifi_event_badauth |
-                             hw_wifi_event_notfound |
-                             hw_wifi_event_error)) {
+    } else if (wifi_event &
+               (hw_wifi_event_disconnected | hw_wifi_event_badauth |
+                hw_wifi_event_notfound | hw_wifi_event_error)) {
       // Any definitive non-connected outcome - hw_led_set() cancels
       // whatever blink hw_wifi_event_joining above started, same as
       // hw_led_clear() would (see hw_led_blink()'s own doc).
@@ -222,6 +221,7 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
 
 int main(int argc, char *argv[]) {
   return app_main(argc, argv,
-                  app_flag_signal | app_flag_led | app_flag_stdio_rtt,
+                  app_flag_signal | app_flag_led | app_flag_watchdog |
+                      app_flag_stdio_rtt,
                   _on_start, _on_event, NULL);
 }
