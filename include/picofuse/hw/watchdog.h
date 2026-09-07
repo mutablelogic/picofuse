@@ -14,16 +14,6 @@
  * `hw_watchdog_reset()` arms a delayed device reset (a reboot) without
  * requiring additional polling. The pending reset can be cancelled by
  * calling `hw_watchdog_enable()`.
- *
- * Backends may provide internal synchronization so watchdog control calls can
- * be made safely from multiple threads. The Pico backend serializes watchdog
- * state and hardware access with a critical section.
- *
- * Watchdog APIs should not be called from IRQ handlers unless a backend
- * explicitly documents IRQ-safe usage.
- *
- * Backends may map the reset action to native watchdog hardware or to a
- * host-side termination path when no hardware watchdog is available.
  */
 #pragma once
 

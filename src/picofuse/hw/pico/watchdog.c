@@ -167,7 +167,6 @@ void hw_watchdog_reset(hw_watchdog_t *watchdog, uint32_t delay_ms) {
   uint32_t max_timeout_ms;
 
   _HW_WATCHDOG_LOCK();
-
   if (!_hw_watchdog_is_valid(watchdog) || delay_ms == 0u) {
     _HW_WATCHDOG_UNLOCK();
     return;
