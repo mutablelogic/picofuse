@@ -17,6 +17,21 @@ static void _hw_023_callback(hw_usb_t *usb, hw_usb_event_t event,
   }
   if (event == hw_usb_event_attached) {
     _attach_count++;
+    // Enumeration happens at the interface level (see hw/usb.h's own
+    // top-level doc) - a device with N interfaces fires this callback N
+    // times, sharing device_id/vid/pid but each with its own
+    // interface_number/interface_class.
+    if (device->interface_number == 0xFF) {
+      sys_printf("[hw_023] attached: device_id=%u vid=%04x pid=%04x "
+                 "interface=n/a\n",
+                 (unsigned)device->device_id, device->vid, device->pid);
+    } else {
+      sys_printf("[hw_023] attached: device_id=%u vid=%04x pid=%04x "
+                 "interface=%u class=%s\n",
+                 (unsigned)device->device_id, device->vid, device->pid,
+                 device->interface_number,
+                 hw_usb_device_class_to_string(device->interface_class));
+    }
   }
 }
 

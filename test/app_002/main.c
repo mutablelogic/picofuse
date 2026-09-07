@@ -40,16 +40,29 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
   if (hid_event->data.usb.has_device) {
     if (hid_event->data.usb.event == hw_usb_event_attached) {
       _attach_count++;
-      sys_printf("[app_002] attached: vid=%04x pid=%04x\n",
-                 hid_event->data.usb.device.vid,
-                 hid_event->data.usb.device.pid);
+      // Enumeration happens at the interface level (see hw/usb.h's own
+      // top-level doc) - a device with N interfaces fires this event N
+      // times, sharing device_id/vid/pid but each with its own
+      // interface_number/interface_class.
+      const hw_usb_device_t *d = &hid_event->data.usb.device;
+      if (d->interface_number == 0xFF) {
+        sys_printf("[app_002] attached: device_id=%u vid=%04x pid=%04x "
+                   "interface=n/a\n",
+                   (unsigned)d->device_id, d->vid, d->pid);
+      } else {
+        sys_printf("[app_002] attached: device_id=%u vid=%04x pid=%04x "
+                   "interface=%u class=%s\n",
+                   (unsigned)d->device_id, d->vid, d->pid,
+                   d->interface_number,
+                   hw_usb_device_class_to_string(d->interface_class));
+      }
     }
     hid_event_free(hid_event);
     return;
   }
 
   // Enumeration complete.
-  sys_printf("[app_002] enumeration complete: %d device(s) attached\n",
+  sys_printf("[app_002] enumeration complete: %d interface event(s)\n",
              _attach_count);
   sys_printf("[TEST] [EXIT] %s\n", sys_env_name());
   hid_event_free(hid_event);

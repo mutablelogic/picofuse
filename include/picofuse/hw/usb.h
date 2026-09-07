@@ -17,12 +17,31 @@
  * host, with the @ref hw_usb_event_attached event, then again whenever a
  * device is physically attached or detached from then on.
  *
- * The @ref hw_usb_device_t structure describes a connected device. It carries
- * the USB vendor/product identifiers, the device class metadata, and the
- * string descriptors that are available from the backend. On detach, the
- * @p manufacturer, @p product and @p serial string fields may be empty, and
- * some backends may only be able to provide zeroed identifier fields on a
- * fallback detach path.
+ * Enumeration happens at the *interface* level, not the device level: a
+ * composite device (a keyboard+mouse combo, any multi-function gadget)
+ * fires the callback once per interface it exposes, not once for the whole
+ * device - the same shape the host OS itself typically uses (one
+ * `/dev/input/eventN` per interface on Linux, for example). Every one of
+ * those events shares the same @ref hw_usb_device_t::device_id,
+ * @ref hw_usb_device_t::vid, @ref hw_usb_device_t::pid and string fields,
+ * but carries that interface's own @ref hw_usb_device_t::interface_number
+ * and interface class/subclass/protocol - which is where the *useful*
+ * classification actually lives for a composite device, since its
+ * device-level class is conventionally `0x00` ("per-interface",
+ * @ref hw_usb_device_class_per_interface) and tells you nothing on its
+ * own. Only interface alternate setting 0 (the default/active one) is
+ * considered.
+ *
+ * The @ref hw_usb_device_t structure describes one interface of a connected
+ * device. It carries the USB vendor/product identifiers, the device and
+ * interface class metadata, and the string descriptors that are available
+ * from the backend. On detach, the @p manufacturer, @p product and @p
+ * serial string fields may be empty, and some backends may only be able to
+ * provide zeroed identifier fields on a fallback detach path. If interface
+ * information couldn't be determined (the configuration descriptor wasn't
+ * readable, or declared no interfaces), a single fallback event fires with
+ * @ref hw_usb_device_t::interface_number set to `0xFF` and the interface
+ * class/subclass/protocol fields copied from the device-level ones.
  *
  * Class-specific functionality (HID input, CDC-ACM serial streams, mass
  * storage) is handled by separate modules that consume the device information
@@ -51,6 +70,17 @@
  */
 #ifndef HW_USB_STRING_MAX_LENGTH
 #define HW_USB_STRING_MAX_LENGTH 63
+#endif
+
+/**
+ * @def HW_USB_INTERFACE_MAX_COUNT
+ * @ingroup USB
+ * @brief Maximum number of interfaces a backend will report attach/detach
+ * events for on any single device - internal to each backend's own
+ * per-device interface cache, not a limit on any public array.
+ */
+#ifndef HW_USB_INTERFACE_MAX_COUNT
+#define HW_USB_INTERFACE_MAX_COUNT 8
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -135,21 +165,37 @@ typedef enum {
 } hw_usb_device_protocol_t;
 
 /**
- * @brief Describes a USB device observed by the host.
+ * @brief Describes one interface of a USB device observed by the host.
  * @ingroup USB
  *
- * This structure is populated when a device is attached or detached.
+ * This structure is populated when an interface is attached or detached -
+ * see this file's own top-level doc on why enumeration happens at the
+ * interface level, not the device level.
  *
  * @note On detach, @p manufacturer, @p product and @p serial may be empty
  * strings. Callers should not rely on them being populated for
  * @ref hw_usb_event_detached.
  */
 typedef struct {
-  uint16_t vid;                                    ///< USB Vendor ID
-  uint16_t pid;                                    ///< USB Product ID
-  hw_usb_device_class_t device_class;              ///< USB device class code
-  hw_usb_device_subclass_t device_subclass;        ///< USB device subclass code
-  hw_usb_device_protocol_t device_protocol;        ///< USB device protocol code
+  uint32_t device_id; ///< Opaque identifier, stable across every interface
+                      ///< event belonging to one physical attach/detach -
+                      ///< disambiguates two simultaneously-attached
+                      ///< devices that happen to share the same vid/pid.
+                      ///< Not stable across a replug of the same device.
+  uint16_t vid;                             ///< USB Vendor ID
+  uint16_t pid;                             ///< USB Product ID
+  hw_usb_device_class_t device_class;       ///< USB device class code
+  hw_usb_device_subclass_t device_subclass; ///< USB device subclass code
+  hw_usb_device_protocol_t device_protocol; ///< USB device protocol code
+  uint8_t interface_number; ///< This interface's number, or `0xFF` if
+                            ///< interface information wasn't available (see
+                            ///< this file's own top-level doc) - in that
+                            ///< case @p interface_class/_subclass/_protocol
+                            ///< below are just copies of @p device_class/
+                            ///< _subclass/_protocol above.
+  hw_usb_device_class_t interface_class;       ///< USB interface class code
+  hw_usb_device_subclass_t interface_subclass; ///< USB interface subclass
+  hw_usb_device_protocol_t interface_protocol; ///< USB interface protocol
   char manufacturer[HW_USB_STRING_MAX_LENGTH + 1]; ///< Manufacturer string
   char product[HW_USB_STRING_MAX_LENGTH + 1];      ///< Product string
   char serial[HW_USB_STRING_MAX_LENGTH + 1];       ///< Serial number string
@@ -167,8 +213,13 @@ typedef struct hw_usb_t hw_usb_t;
  *
  * @param usb    The USB host handle.
  * @param event  The hotplug event type (attached or detached).
- * @param device Descriptor of the device that was attached or detached.
- *               For normal attach/detach callbacks this is non-NULL.
+ * @param device Descriptor of the interface that was attached or detached.
+ *               For normal attach/detach callbacks this is non-NULL. A
+ *               device with multiple interfaces fires this callback once
+ *               per interface (see this file's own top-level doc) - each
+ *               of those calls shares the same @p device's device_id/vid/
+ *               pid/strings, but carries that interface's own
+ *               interface_number/interface_class/_subclass/_protocol.
  *               After initial enumeration completes, the callback is invoked
  *               once with @ref hw_usb_event_attached and @p device set to
  *               NULL as an "enumeration complete" marker.

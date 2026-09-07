@@ -28,10 +28,44 @@ struct hw_usb_t {
   bool init;
 };
 
+// Per-interface details for one already-attached device, compact enough to
+// cache many of without the ~200-byte string-carrying hw_usb_device_t cost
+// per interface - see hw_usb_device_cache_t's own doc.
+typedef struct {
+  uint8_t interface_number;
+  hw_usb_device_class_t interface_class;
+  hw_usb_device_subclass_t interface_subclass;
+  hw_usb_device_protocol_t interface_protocol;
+} hw_usb_interface_entry_t;
+
+// What a device attach was actually built from - needed again at detach,
+// since enumeration happens at the interface level (see hw/usb.h's own
+// top-level doc): a departed libusb_device* may not reliably answer a
+// fresh libusb_get_active_config_descriptor() call, so the interface list
+// has to be remembered from attach time rather than re-derived at detach
+// time. `dev` is a safe cache key across one connect/disconnect cycle -
+// libusb's own hotplug API guarantees the same libusb_device* is used for
+// both the ARRIVED and LEFT callbacks, and keeps it valid (refcounted)
+// for that whole window.
+typedef struct {
+  bool used;
+  libusb_device *dev;
+  hw_usb_device_t base; // shared fields - interface_* left unset
+  uint8_t count;
+  hw_usb_interface_entry_t interfaces[HW_USB_INTERFACE_MAX_COUNT];
+} hw_usb_device_cache_t;
+
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 static struct hw_usb_t _hw_usb_instance = {0};
+
+// Only ever touched from the event thread - the hotplug callback runs on
+// it (from inside libusb_handle_events_timeout()), and so does the
+// one-shot/replay enumeration pass (_hw_usb_emit_attached_devices()) -
+// see _hw_usb_event_thread()'s own doc. No lock needed for it as a
+// result, unlike the rest of this file's state.
+static hw_usb_device_cache_t _hw_usb_cache[16] = {0};
 
 // Guards every field above except `running`/`cleanup_in_thread` (left as
 // plain atomics - they're polled in the event thread's own tight loop, and
@@ -53,6 +87,62 @@ static pthread_mutex_t _hw_usb_lock = PTHREAD_MUTEX_INITIALIZER;
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE
+
+static void _hw_usb_cache_clear(void) {
+  memset(_hw_usb_cache, 0, sizeof(_hw_usb_cache));
+}
+
+static hw_usb_device_cache_t *_hw_usb_cache_get(libusb_device *dev) {
+  for (size_t i = 0; i < (sizeof(_hw_usb_cache) / sizeof(_hw_usb_cache[0]));
+       ++i) {
+    if (_hw_usb_cache[i].used && _hw_usb_cache[i].dev == dev) {
+      return &_hw_usb_cache[i];
+    }
+  }
+
+  return NULL;
+}
+
+// `interfaces` is an array of `count` full hw_usb_device_t entries (as
+// built by _hw_usb_build_interfaces()) - only the compact interface_*
+// fields from each are retained.
+static void _hw_usb_cache_set(libusb_device *dev, const hw_usb_device_t *base,
+                              const hw_usb_device_t *interfaces,
+                              uint8_t count) {
+  hw_usb_device_cache_t *entry = _hw_usb_cache_get(dev);
+  if (entry == NULL) {
+    for (size_t i = 0; i < (sizeof(_hw_usb_cache) / sizeof(_hw_usb_cache[0]));
+         ++i) {
+      if (!_hw_usb_cache[i].used) {
+        entry = &_hw_usb_cache[i];
+        entry->used = true;
+        entry->dev = dev;
+        break;
+      }
+    }
+  }
+
+  if (entry == NULL) {
+    return;
+  }
+
+  entry->base = *base;
+  entry->count =
+      count > HW_USB_INTERFACE_MAX_COUNT ? HW_USB_INTERFACE_MAX_COUNT : count;
+  for (uint8_t i = 0; i < entry->count; i++) {
+    entry->interfaces[i].interface_number = interfaces[i].interface_number;
+    entry->interfaces[i].interface_class = interfaces[i].interface_class;
+    entry->interfaces[i].interface_subclass = interfaces[i].interface_subclass;
+    entry->interfaces[i].interface_protocol = interfaces[i].interface_protocol;
+  }
+}
+
+static void _hw_usb_cache_remove(libusb_device *dev) {
+  hw_usb_device_cache_t *entry = _hw_usb_cache_get(dev);
+  if (entry != NULL) {
+    memset(entry, 0, sizeof(*entry));
+  }
+}
 
 // Caller must already hold _HW_USB_LOCK(). Deliberately doesn't require
 // usb->callback != NULL - a handle with nothing attached yet (see
@@ -116,6 +206,8 @@ static bool _hw_usb_make_device(libusb_device *dev, hw_usb_device_t *out) {
   }
 
   memset(out, 0, sizeof(*out));
+  out->device_id =
+      ((uint32_t)libusb_get_bus_number(dev) << 8) | libusb_get_device_address(dev);
   out->vid = dd.idVendor;
   out->pid = dd.idProduct;
   out->device_class = dd.bDeviceClass;
@@ -131,10 +223,60 @@ static bool _hw_usb_make_device(libusb_device *dev, hw_usb_device_t *out) {
   return true;
 }
 
+// Walks dev's active configuration descriptor, writing one hw_usb_device_t
+// per interface (alternate setting 0 only - see hw/usb.h's own top-level
+// doc) into out[], each a copy of *base with its own interface_number/
+// interface_class/_subclass/_protocol filled in. Always writes at least
+// one entry - a single interface_number=0xFF fallback, copying
+// device_class/_subclass/_protocol into the interface_* fields, if the
+// configuration descriptor isn't readable or declares no interfaces.
+// Returns the number of entries written.
+static uint8_t _hw_usb_build_interfaces(libusb_device *dev,
+                                        const hw_usb_device_t *base,
+                                        hw_usb_device_t *out,
+                                        uint8_t out_cap) {
+  struct libusb_config_descriptor *config = NULL;
+  if (dev != NULL &&
+      libusb_get_active_config_descriptor(dev, &config) == 0 &&
+      config != NULL) {
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < config->bNumInterfaces && count < out_cap; i++) {
+      if (config->interface[i].num_altsetting <= 0) {
+        continue;
+      }
+      const struct libusb_interface_descriptor *alt =
+          &config->interface[i].altsetting[0];
+      out[count] = *base;
+      out[count].interface_number = alt->bInterfaceNumber;
+      out[count].interface_class = (hw_usb_device_class_t)alt->bInterfaceClass;
+      out[count].interface_subclass =
+          (hw_usb_device_subclass_t)alt->bInterfaceSubClass;
+      out[count].interface_protocol =
+          (hw_usb_device_protocol_t)alt->bInterfaceProtocol;
+      count++;
+    }
+    libusb_free_config_descriptor(config);
+    if (count > 0) {
+      return count;
+    }
+  }
+
+  out[0] = *base;
+  out[0].interface_number = 0xFF;
+  out[0].interface_class = base->device_class;
+  out[0].interface_subclass = base->device_subclass;
+  out[0].interface_protocol = base->device_protocol;
+  return 1;
+}
+
 // Captures whatever's needed under the lock, then calls the user's
 // callback (which may itself call hw_usb_deinit() - see _HW_USB_LOCK()'s
 // own doc on why that must never happen while this lock is held) outside
-// it.
+// it. Fans out to one callback invocation per interface (see hw/usb.h's
+// own top-level doc) - on attach, freshly built and cached for a later
+// detach to replay (a departed libusb_device* may not reliably answer a
+// fresh config-descriptor read); on detach, replayed from that cache
+// rather than re-derived.
 static void _hw_usb_emit_event(hw_usb_t *usb, hw_usb_event_t event,
                                libusb_device *dev) {
   if (usb == NULL || dev == NULL) {
@@ -147,12 +289,53 @@ static void _hw_usb_emit_event(hw_usb_t *usb, hw_usb_event_t event,
   void *userdata = valid ? usb->userdata : NULL;
   _HW_USB_UNLOCK();
 
-  if (callback == NULL) {
+  if (event == hw_usb_event_attached) {
+    hw_usb_device_t base = {0};
+    if (!_hw_usb_make_device(dev, &base)) {
+      return;
+    }
+
+    hw_usb_device_t interfaces[HW_USB_INTERFACE_MAX_COUNT];
+    uint8_t count = _hw_usb_build_interfaces(dev, &base, interfaces,
+                                             HW_USB_INTERFACE_MAX_COUNT);
+    _hw_usb_cache_set(dev, &base, interfaces, count);
+
+    if (callback == NULL) {
+      return;
+    }
+    for (uint8_t i = 0; i < count; i++) {
+      callback(usb, event, &interfaces[i], userdata);
+    }
     return;
   }
 
+  // Detached.
+  hw_usb_device_cache_t *entry = _hw_usb_cache_get(dev);
+  if (entry != NULL) {
+    if (callback != NULL) {
+      for (uint8_t i = 0; i < entry->count; i++) {
+        hw_usb_device_t device = entry->base;
+        device.interface_number = entry->interfaces[i].interface_number;
+        device.interface_class = entry->interfaces[i].interface_class;
+        device.interface_subclass = entry->interfaces[i].interface_subclass;
+        device.interface_protocol = entry->interfaces[i].interface_protocol;
+        callback(usb, event, &device, userdata);
+      }
+    }
+    _hw_usb_cache_remove(dev);
+    return;
+  }
+
+  // Fallback if never cached (shouldn't normally happen).
+  if (callback == NULL) {
+    return;
+  }
   hw_usb_device_t device = {0};
   if (_hw_usb_make_device(dev, &device)) {
+    device.interface_number = 0xFF;
+    device.interface_class = device.device_class;
+    device.interface_subclass = device.device_subclass;
+    device.interface_protocol = device.device_protocol;
     callback(usb, event, &device, userdata);
   }
 }
@@ -297,6 +480,7 @@ static void *_hw_usb_event_thread(void *arg) {
   // pthread_join() guarantees this thread has already exited.
   if (atomic_load_explicit(&usb->cleanup_in_thread, memory_order_acquire)) {
     _hw_usb_cleanup(usb);
+    _hw_usb_cache_clear();
     _HW_USB_LOCK();
     usb->thread_started = false;
     usb->init = false;
@@ -318,6 +502,7 @@ hw_usb_t *hw_usb_init(void) {
   _HW_USB_LOCK();
   memset(&_hw_usb_instance, 0, sizeof(_hw_usb_instance));
   _HW_USB_UNLOCK();
+  _hw_usb_cache_clear();
 
   libusb_context *context = NULL;
   if (libusb_init(&context) != 0 || context == NULL) {
@@ -426,6 +611,7 @@ void hw_usb_deinit(hw_usb_t *usb) {
     if (!pthread_equal(pthread_self(), thread)) {
       pthread_join(thread, NULL);
       _hw_usb_cleanup(usb);
+      _hw_usb_cache_clear();
       _HW_USB_LOCK();
       memset(usb, 0, sizeof(*usb));
       _HW_USB_UNLOCK();
@@ -440,6 +626,7 @@ void hw_usb_deinit(hw_usb_t *usb) {
   }
 
   _hw_usb_cleanup(usb);
+  _hw_usb_cache_clear();
   _HW_USB_LOCK();
   memset(usb, 0, sizeof(*usb));
   _HW_USB_UNLOCK();

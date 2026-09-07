@@ -14,10 +14,27 @@ struct hw_usb_t {
   uint64_t init_time_ms;
 };
 
+// Per-interface details for one already-attached device, compact enough to
+// cache many of without the ~200-byte string-carrying hw_usb_device_t cost
+// per interface - see hw_usb_device_cache_t's own doc.
+typedef struct {
+  uint8_t interface_number;
+  hw_usb_device_class_t interface_class;
+  hw_usb_device_subclass_t interface_subclass;
+  hw_usb_device_protocol_t interface_protocol;
+} hw_usb_interface_entry_t;
+
+// What a device attach was actually built from - needed again at detach,
+// since enumeration happens at the interface level (see hw/usb.h's own
+// top-level doc): tuh_umount_cb() only gets a daddr, with the device
+// already gone, so there's no way to re-derive its interface list at that
+// point - it has to be remembered from tuh_mount_cb() instead.
 typedef struct {
   bool used;
   uint8_t daddr;
-  hw_usb_device_t device;
+  hw_usb_device_t base; // shared fields - interface_* left unset
+  uint8_t count;
+  hw_usb_interface_entry_t interfaces[HW_USB_INTERFACE_MAX_COUNT];
 } hw_usb_device_cache_t;
 
 /**
@@ -62,7 +79,12 @@ static hw_usb_device_cache_t *_hw_usb_cache_get(uint8_t daddr) {
   return NULL;
 }
 
-static void _hw_usb_cache_set(uint8_t daddr, const hw_usb_device_t *device) {
+// `interfaces` is an array of `count` full hw_usb_device_t entries (as
+// built by _hw_usb_build_interfaces()) - only the compact interface_*
+// fields from each are retained.
+static void _hw_usb_cache_set(uint8_t daddr, const hw_usb_device_t *base,
+                              const hw_usb_device_t *interfaces,
+                              uint8_t count) {
   hw_usb_device_cache_t *entry = _hw_usb_cache_get(daddr);
   if (entry == NULL) {
     for (size_t i = 0; i < (sizeof(_hw_usb_cache) / sizeof(_hw_usb_cache[0]));
@@ -76,8 +98,18 @@ static void _hw_usb_cache_set(uint8_t daddr, const hw_usb_device_t *device) {
     }
   }
 
-  if (entry != NULL) {
-    entry->device = *device;
+  if (entry == NULL) {
+    return;
+  }
+
+  entry->base = *base;
+  entry->count =
+      count > HW_USB_INTERFACE_MAX_COUNT ? HW_USB_INTERFACE_MAX_COUNT : count;
+  for (uint8_t i = 0; i < entry->count; i++) {
+    entry->interfaces[i].interface_number = interfaces[i].interface_number;
+    entry->interfaces[i].interface_class = interfaces[i].interface_class;
+    entry->interfaces[i].interface_subclass = interfaces[i].interface_subclass;
+    entry->interfaces[i].interface_protocol = interfaces[i].interface_protocol;
   }
 }
 
@@ -150,6 +182,7 @@ static bool _hw_usb_build_device(uint8_t daddr, hw_usb_device_t *device) {
   }
 
   memset(device, 0, sizeof(*device));
+  device->device_id = daddr;
   device->vid = vid;
   device->pid = pid;
   device->device_class = desc.bDeviceClass;
@@ -158,6 +191,69 @@ static bool _hw_usb_build_device(uint8_t daddr, hw_usb_device_t *device) {
 
   _hw_usb_fill_strings(daddr, device);
   return true;
+}
+
+// Walks daddr's configuration descriptor, writing one hw_usb_device_t per
+// interface (alternate setting 0 only - see hw/usb.h's own top-level doc)
+// into out[], each a copy of *base with its own interface_number/
+// interface_class/_subclass/_protocol filled in. Always writes at least
+// one entry - a single interface_number=0xFF fallback, copying
+// device_class/_subclass/_protocol into the interface_* fields, if the
+// configuration descriptor isn't readable or declares no interfaces.
+// Returns the number of entries written.
+static uint8_t _hw_usb_build_interfaces(uint8_t daddr,
+                                        const hw_usb_device_t *base,
+                                        hw_usb_device_t *out,
+                                        uint8_t out_cap) {
+  // Same budget _hw_usb_fill_strings() uses via HW_USB_STRING_MAX_LENGTH -
+  // matches CFG_TUH_ENUMERATION_BUFSIZE (see tusb_config.h).
+  uint8_t buffer[256];
+  uint8_t count = 0;
+
+  if (tuh_descriptor_get_configuration_sync(daddr, 0, buffer,
+                                            sizeof(buffer)) ==
+      XFER_RESULT_SUCCESS) {
+    const tusb_desc_configuration_t *cfg =
+        (const tusb_desc_configuration_t *)buffer;
+    uint16_t total_len = cfg->wTotalLength;
+    if (total_len > sizeof(buffer)) {
+      total_len = sizeof(buffer);
+    }
+
+    const uint8_t *p = buffer;
+    const uint8_t *end = buffer + total_len;
+    while (p < end && count < out_cap) {
+      if (tu_desc_len(p) == 0) {
+        break; // malformed descriptor - stop rather than loop forever
+      }
+      if (tu_desc_type(p) == TUSB_DESC_INTERFACE) {
+        const tusb_desc_interface_t *itf = (const tusb_desc_interface_t *)p;
+        if (itf->bAlternateSetting == 0) {
+          out[count] = *base;
+          out[count].interface_number = itf->bInterfaceNumber;
+          out[count].interface_class =
+              (hw_usb_device_class_t)itf->bInterfaceClass;
+          out[count].interface_subclass =
+              (hw_usb_device_subclass_t)itf->bInterfaceSubClass;
+          out[count].interface_protocol =
+              (hw_usb_device_protocol_t)itf->bInterfaceProtocol;
+          count++;
+        }
+      }
+      p = tu_desc_next(p);
+    }
+  }
+
+  if (count > 0) {
+    return count;
+  }
+
+  out[0] = *base;
+  out[0].interface_number = 0xFF;
+  out[0].interface_class = base->device_class;
+  out[0].interface_subclass = base->device_subclass;
+  out[0].interface_protocol = base->device_protocol;
+  return 1;
 }
 
 static void _hw_usb_emit_enumeration_complete_if_ready(void) {
@@ -260,9 +356,21 @@ void hw_usb_set_callback(hw_usb_t *usb, hw_usb_callback_t callback,
     if (!usb->init) {
       return;
     }
-    if (_hw_usb_cache[i].used) {
-      callback(usb, hw_usb_event_attached, &_hw_usb_cache[i].device,
-               userdata);
+    if (!_hw_usb_cache[i].used) {
+      continue;
+    }
+    for (uint8_t j = 0; j < _hw_usb_cache[i].count; j++) {
+      if (!usb->init) {
+        return;
+      }
+      hw_usb_device_t device = _hw_usb_cache[i].base;
+      device.interface_number = _hw_usb_cache[i].interfaces[j].interface_number;
+      device.interface_class = _hw_usb_cache[i].interfaces[j].interface_class;
+      device.interface_subclass =
+          _hw_usb_cache[i].interfaces[j].interface_subclass;
+      device.interface_protocol =
+          _hw_usb_cache[i].interfaces[j].interface_protocol;
+      callback(usb, hw_usb_event_attached, &device, userdata);
     }
   }
 
@@ -292,15 +400,26 @@ void tuh_mount_cb(uint8_t daddr) {
     return;
   }
 
-  hw_usb_device_t device = {0};
-  if (!_hw_usb_build_device(daddr, &device)) {
+  hw_usb_device_t base = {0};
+  if (!_hw_usb_build_device(daddr, &base)) {
     return;
   }
 
-  _hw_usb_cache_set(daddr, &device);
-  if (_hw_usb_active->callback != NULL) {
-    _hw_usb_active->callback(_hw_usb_active, hw_usb_event_attached, &device,
-                             _hw_usb_active->userdata);
+  hw_usb_device_t interfaces[HW_USB_INTERFACE_MAX_COUNT];
+  uint8_t count = _hw_usb_build_interfaces(daddr, &base, interfaces,
+                                           HW_USB_INTERFACE_MAX_COUNT);
+  _hw_usb_cache_set(daddr, &base, interfaces, count);
+
+  // Re-check _hw_usb_active fresh before every call - the callback may
+  // reentrantly call hw_usb_deinit() (see hw_usb_set_callback()'s own doc
+  // on this same hazard).
+  for (uint8_t i = 0; i < count; i++) {
+    if (_hw_usb_active == NULL || !_hw_usb_active->init ||
+        _hw_usb_active->callback == NULL) {
+      return;
+    }
+    _hw_usb_active->callback(_hw_usb_active, hw_usb_event_attached,
+                             &interfaces[i], _hw_usb_active->userdata);
   }
 }
 
@@ -309,14 +428,35 @@ void tuh_umount_cb(uint8_t daddr) {
     return;
   }
 
-  hw_usb_device_t device = {0};
   hw_usb_device_cache_t *entry = _hw_usb_cache_get(daddr);
-  if (entry != NULL) {
-    device = entry->device;
-    _hw_usb_cache_remove(daddr);
+  if (entry == NULL) {
+    if (_hw_usb_active->callback != NULL) {
+      hw_usb_device_t device = {0};
+      device.interface_number = 0xFF;
+      _hw_usb_active->callback(_hw_usb_active, hw_usb_event_detached, &device,
+                               _hw_usb_active->userdata);
+    }
+    return;
   }
 
-  if (_hw_usb_active->callback != NULL) {
+  // Copy out of the cache before firing anything - the callback may
+  // reentrantly call hw_usb_deinit(), which clears the whole cache.
+  hw_usb_device_t base = entry->base;
+  uint8_t count = entry->count;
+  hw_usb_interface_entry_t interfaces[HW_USB_INTERFACE_MAX_COUNT];
+  memcpy(interfaces, entry->interfaces, sizeof(interfaces));
+  _hw_usb_cache_remove(daddr);
+
+  for (uint8_t i = 0; i < count; i++) {
+    if (_hw_usb_active == NULL || !_hw_usb_active->init ||
+        _hw_usb_active->callback == NULL) {
+      return;
+    }
+    hw_usb_device_t device = base;
+    device.interface_number = interfaces[i].interface_number;
+    device.interface_class = interfaces[i].interface_class;
+    device.interface_subclass = interfaces[i].interface_subclass;
+    device.interface_protocol = interfaces[i].interface_protocol;
     _hw_usb_active->callback(_hw_usb_active, hw_usb_event_detached, &device,
                              _hw_usb_active->userdata);
   }
