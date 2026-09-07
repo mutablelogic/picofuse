@@ -8,7 +8,7 @@ extern void _hw_gpio_module_exit(void);
 // Defined in ../led/blink.c.
 extern void _hw_led_poll(void);
 
-// Defined in ../stub/watchdog.c.
+// Defined in watchdog.c.
 extern void _hw_watchdog_module_exit(void);
 extern void _hw_watchdog_poll(void);
 

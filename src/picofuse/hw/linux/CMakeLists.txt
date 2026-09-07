@@ -18,7 +18,7 @@ picofuse_library(
         led_device.c
         ../stub/adc.c
         ../posix/uart.c
-        ../stub/watchdog.c
+        watchdog.c
         # @todo No real Linux hw_wifi_* backend yet (wpa_supplicant control
         # socket - see hw_wifi_init_device()'s doc) to gate behind
         # PICOFUSE_WIFI, unlike darwin/CMakeLists.txt's wifi.m. Always the

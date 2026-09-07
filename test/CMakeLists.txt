@@ -776,12 +776,27 @@ if(NOT DEFINED PICO_BOARD)
 	)
 endif()
 
-# hw_watchdog_* singleton lifecycle - real backend on Pico, stub (all
-# no-ops/NULL) on Linux/Darwin - see hw_021/main.c.
+# hw_watchdog_* singleton lifecycle - real backend on Pico and Linux, stub
+# (all no-ops/NULL) on Darwin - see hw_021/main.c.
 picofuse_test(hw_021
 	hw_021/main.c
 	LIBRARIES picofuse-hw
 )
+
+# hw_watchdog_reset()/hw_watchdog_did_reset() against a real device -
+# deliberately NOT picofuse_test()/ctest-registered, since running it
+# actually reboots the machine (see hw_022/main.c's own doc on why, and
+# how to run it by hand). Host-only (matches hw_020/hw_021's own gate) -
+# harmless/no-op on Darwin's stub backend, meaningful on Linux with real
+# hardware.
+if(NOT DEFINED PICO_BOARD)
+	picofuse_executable(
+		NAME hw_022
+		LIBRARIES picofuse-sys picofuse-hw
+		SOURCES hw_022/main.c
+	)
+	target_include_directories(hw_022 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+endif()
 
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
 # or SPI - see the detection order/reasoning in dev_bme680/main.c.
