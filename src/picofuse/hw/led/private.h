@@ -61,6 +61,13 @@ typedef struct {
                        // _hw_led_poll() has applied `desired`
   bool repeating;      // keep flipping until canceled, vs. stop after the
                        // first flip - see hw_led_blink()'s own doc
+  pix_color_t on_color; // captured once, at hw_led_blink() call time, via
+                        // ops->get_color and forced to full alpha - see
+                        // hw_led_blink()'s own doc. Only meaningful when
+                        // ops->set_color is non-NULL (NeoPixel); every
+                        // other backend's ops->set(..., true) is already
+                        // unconditionally full-on, so _hw_led_poll() never
+                        // even reads this for them.
 } hw_blink_state_t;
 
 /**

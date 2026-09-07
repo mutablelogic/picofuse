@@ -43,6 +43,13 @@ void *_hw_led_context(const hw_led_t *led) {
   return _hw_led_valid(led) ? (void *)led->context : NULL;
 }
 
+pix_color_t _hw_led_get_color(hw_led_t *led, uint8_t index) {
+  if (!_hw_led_valid(led) || led->ops->get_color == NULL) {
+    return PIX_COLOR_BLACK;
+  }
+  return led->ops->get_color(led, index);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 

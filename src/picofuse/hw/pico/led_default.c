@@ -106,6 +106,11 @@ static bool _hw_led_default_set_color(hw_led_t *led, uint8_t index,
   return hw_led_set_color(ctx->inner, index, color);
 }
 
+static pix_color_t _hw_led_default_get_color(hw_led_t *led, uint8_t index) {
+  _hw_led_default_ctx_t *ctx = _hw_led_context(led);
+  return _hw_led_get_color(ctx->inner, index);
+}
+
 static bool _hw_led_default_clear(hw_led_t *led) {
   _hw_led_default_ctx_t *ctx = _hw_led_context(led);
   return hw_led_clear(ctx->inner);
@@ -126,6 +131,7 @@ static const hw_led_ops_t _hw_led_default_ops = {
     .set = _hw_led_default_set,
     .set_brightness = _hw_led_default_set_brightness,
     .set_color = _hw_led_default_set_color,
+    .get_color = _hw_led_default_get_color,
     .clear = _hw_led_default_clear,
     .deinit = _hw_led_default_deinit,
 };

@@ -44,10 +44,14 @@ _Static_assert(sizeof(_hw_led_neopixel_ctx_t) <= HW_LED_CONTEXT_SIZE,
 
 // pix_color_t is 0xRRGGBBAA - WS2812 wants each pixel on the wire as GRB.
 // Alpha doubles as this pixel's own brightness scale (see
-// hw_led_set_brightness()) rather than the usual compositing alpha, since
-// there's no "background" to blend against on a physical LED.
+// hw_led_set_brightness()), not the usual compositing alpha.
+//
+// Squaring the linear fraction approximates gamma~2 correction - WS2812
+// has none of its own, and a linearly scaled duty cycle looks much
+// brighter than requested to the human eye.
 static inline uint8_t _hw_led_neopixel_scale(uint8_t channel, uint8_t alpha) {
-  return (uint8_t)(((uint16_t)channel * alpha) / 255u);
+  uint16_t linear = ((uint16_t)channel * alpha) / 255u;
+  return (uint8_t)((linear * linear) / 255u);
 }
 
 static inline uint32_t _hw_led_neopixel_pack_color(pix_color_t color) {
@@ -117,6 +121,20 @@ static bool _hw_led_neopixel_set_color(hw_led_t *led, uint8_t index,
   return _hw_led_neopixel_flush(ctx);
 }
 
+// Backs hw_led_blink()'s own capture of "whatever color this index is
+// currently showing" (see led/blink.c). Alpha is masked to full (0xFF)
+// rather than returned as-is - it doubles as this pixel's own brightness
+// scale (see _hw_led_neopixel_pack_color()'s own doc), not part of the
+// color hw_led_set_color() itself set, so a dimmed pixel (via
+// hw_led_set_brightness()) still reports its true, undimmed color here.
+static pix_color_t _hw_led_neopixel_get_color(hw_led_t *led, uint8_t index) {
+  _hw_led_neopixel_ctx_t *ctx = _hw_led_context(led);
+  if (index >= ctx->led_count) {
+    return PIX_COLOR_BLACK;
+  }
+  return (ctx->pixels[index] & 0xFFFFFF00u) | 0xFFu;
+}
+
 // Leaves R/G/B untouched and only replaces the alpha (brightness) byte, so
 // this composes with _set()'s color independently of whatever brightness
 // was last set for this index.
@@ -158,6 +176,7 @@ static const hw_led_ops_t _hw_led_neopixel_ops = {
     .set = _hw_led_neopixel_set,
     .set_brightness = _hw_led_neopixel_set_brightness,
     .set_color = _hw_led_neopixel_set_color,
+    .get_color = _hw_led_neopixel_get_color,
     .clear = _hw_led_neopixel_clear,
     .deinit = _hw_led_neopixel_deinit,
 };

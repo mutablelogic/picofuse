@@ -290,6 +290,15 @@ bool hw_led_clear(hw_led_t *led);
  * the moment this is called, and a timer takes over from there, flipping
  * it every @p period_ms.
  *
+ * For hw_led_type_neopixel, the "on" phase's color is captured right
+ * here, at call time - whatever @p index was last set to (@ref
+ * hw_led_set_color, or plain white if @ref hw_led_set is all that was
+ * ever used) - forced to full brightness (100% alpha) regardless of what
+ * @ref hw_led_set_brightness may have left it at.
+ * Change the color first, then call this, to blink a specific hue; every
+ * other LED type has no color concept and just toggles fully on/off, the
+ * same way @ref hw_led_set already does for them.
+ *
  * Only one blink can be active per handle at a time - a hard limitation
  * for NeoPixel, whose whole chain shares this one handle, so two indices
  * can't blink independently. Calling this again while a blink is already

@@ -57,14 +57,25 @@ void _hw_led_poll(void) {
     bool pending = _hw_led_valid(led) && led->blink.flip_pending;
     bool desired = led->blink.desired;
     uint8_t index = led->blink.index;
+    pix_color_t on_color = led->blink.on_color;
     bool finished = pending && led->blink.timer == NULL;
     if (pending) {
       led->blink.flip_pending = false;
     }
     _HW_LED_UNLOCK();
 
-    if (pending && led->ops->set != NULL) {
-      led->ops->set(led, index, desired);
+    if (pending) {
+      // On, with a real color backend (NeoPixel): apply the captured
+      // on_color rather than ops->set(true) - see hw_led_blink()'s own
+      // doc on why (ops->set(true) alone would fall back to whatever
+      // _hw_led_neopixel_set()'s own "already zeroed by the previous off
+      // phase" default is, i.e. plain white, discarding the color this
+      // index actually had before the blink started).
+      if (desired && led->ops->set_color != NULL) {
+        led->ops->set_color(led, index, on_color);
+      } else if (led->ops->set != NULL) {
+        led->ops->set(led, index, desired);
+      }
     }
     if (finished) {
       sys_atomic_dec(&_hw_led_active_blinks);
@@ -84,6 +95,20 @@ bool hw_led_blink(hw_led_t *led, uint8_t index, uint32_t period_ms,
   // Cancel any existing blink on this LED before starting a new one.
   _hw_led_blink_cancel(led);
 
+  // Capture this index's current color (already reported at full
+  // brightness - see ops->get_color's own doc, e.g.
+  // _hw_led_neopixel_get_color()) before resetting to off below wipes it -
+  // NeoPixel's own ops->set(false) zeroes the pixel outright. Black (no
+  // color ever set) falls back to white, matching ops->set(true)'s own
+  // default for an index that's never been given a real color.
+  pix_color_t on_color = PIX_COLOR_WHITE;
+  if (led->ops->get_color != NULL) {
+    pix_color_t current = led->ops->get_color(led, index);
+    if (current != PIX_COLOR_BLACK) {
+      on_color = current;
+    }
+  }
+
   // Reset the LED to a known-off state before starting the new blink.
   if (!led->ops->set(led, index, false)) {
     return false;
@@ -99,6 +124,7 @@ bool hw_led_blink(hw_led_t *led, uint8_t index, uint32_t period_ms,
   led->blink.desired = false;
   led->blink.flip_pending = false;
   led->blink.repeating = repeating;
+  led->blink.on_color = on_color;
   led->blink.timer = timer;
   _HW_LED_UNLOCK();
 
