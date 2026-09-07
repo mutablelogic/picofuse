@@ -100,13 +100,20 @@ static void _sys_runloop_worker(void *arg) {
   uint8_t worker_index = (uint8_t)worker->worker_number;
 
   sys_debugf("runloop", "worker %u starting", worker_index);
+
+#ifdef SYSTEM_NAME_PICO
+  // Before init_fn, not after - init_fn (an application on_start callback)
+  // may itself run for a while and, being ordinary flash-resident code,
+  // needs this worker already marked pausable for the whole duration a
+  // core-0 flash write could land during it (see _sys_pico_flash_pause_
+  // request()'s own doc) - not just once the run loop's own while() below
+  // starts.
+  _sys_pico_flash_pause_worker_enter();
+#endif
+
   if (runloop->init_fn != NULL) {
     runloop->init_fn(worker_index);
   }
-
-#ifdef SYSTEM_NAME_PICO
-  _sys_pico_flash_pause_worker_enter();
-#endif
 
   while (true) {
 #ifdef SYSTEM_NAME_PICO
@@ -129,13 +136,17 @@ static void _sys_runloop_worker(void *arg) {
     runloop->event_fn(event);
   }
 
-#ifdef SYSTEM_NAME_PICO
-  _sys_pico_flash_pause_worker_exit();
-#endif
-
   if (runloop->exit_fn != NULL) {
     runloop->exit_fn(worker_index);
   }
+
+#ifdef SYSTEM_NAME_PICO
+  // After exit_fn, not before - same reasoning as the enter() move above,
+  // symmetric on the way out: exit_fn is still ordinary flash-resident
+  // application code, so this worker needs to stay marked pausable for its
+  // whole duration too.
+  _sys_pico_flash_pause_worker_exit();
+#endif
 
   sys_debugf("runloop", "worker %u exiting", worker_index);
   sys_waitgroup_done(runloop->workers);
