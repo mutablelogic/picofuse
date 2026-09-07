@@ -115,16 +115,8 @@ static bool _hw_watchdog_read_bootstatus(const char *device) {
   const char *base = strrchr(device, '/');
   base = (base != NULL) ? base + 1 : device;
 
-  char class_name[32] = {0};
-  if (strcmp(base, "watchdog") == 0) {
-    (void)snprintf(class_name, sizeof(class_name), "watchdog0");
-  } else {
-    (void)snprintf(class_name, sizeof(class_name), "%s", base);
-  }
-
   char path[128] = {0};
-  (void)snprintf(path, sizeof(path), "/sys/class/watchdog/%s/bootstatus",
-                 class_name);
+  (void)snprintf(path, sizeof(path), "/sys/class/watchdog/%s/bootstatus", base);
 
   int fd = open(path, O_RDONLY | O_CLOEXEC);
   if (fd < 0) {
@@ -138,9 +130,7 @@ static bool _hw_watchdog_read_bootstatus(const char *device) {
     return false;
   }
 
-  char *endptr = NULL;
-  unsigned long status = strtoul(buffer, &endptr, 0);
-  (void)endptr;
+  unsigned long status = strtoul(buffer, NULL, 0);
   return (status & WDIOF_CARDRESET) != 0ul;
 }
 
