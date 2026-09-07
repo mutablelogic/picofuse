@@ -9,11 +9,14 @@
  */
 #pragma once
 #include "hw/adc.h"
+#include "hw/block.h"
 #include "hw/deviceio.h"
+#include "hw/flash.h"
 #include "hw/gpio.h"
 #include "hw/i2c.h"
 #include "hw/init.h"
 #include "hw/led.h"
+#include "hw/memory.h"
 #include "hw/pwm.h"
 #include "hw/spi.h"
 #include "hw/uart.h"

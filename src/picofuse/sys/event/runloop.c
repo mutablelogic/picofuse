@@ -3,6 +3,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef SYSTEM_NAME_PICO
+#include "../pico/flash_pause.h"
+#define _SYS_RUNLOOP_WORKER_WAIT_MS 10u
+#endif
+
 // How often worker 0 re-checks the queue while idle, so poll_fn (if any)
 // keeps firing at a steady cadence. Matches the granularity
 // sys_event_queue_timed_pop() already re-checks at internally, so this adds
@@ -99,13 +104,34 @@ static void _sys_runloop_worker(void *arg) {
     runloop->init_fn(worker_index);
   }
 
+#ifdef SYSTEM_NAME_PICO
+  _sys_pico_flash_pause_worker_enter();
+#endif
+
   while (true) {
+#ifdef SYSTEM_NAME_PICO
+    _sys_pico_flash_pause_point();
+    sys_event_t event =
+        sys_event_queue_timed_pop(runloop->queue, _SYS_RUNLOOP_WORKER_WAIT_MS);
+    if (event == NULL) {
+      if (sys_atomic_get(&runloop->shutdown_requested) &&
+          sys_event_queue_empty(runloop->queue)) {
+        break;
+      }
+      continue;
+    }
+#else
     sys_event_t event = sys_event_queue_pop(runloop->queue);
     if (event == NULL) {
       break;
     }
+#endif
     runloop->event_fn(event);
   }
+
+#ifdef SYSTEM_NAME_PICO
+  _sys_pico_flash_pause_worker_exit();
+#endif
 
   if (runloop->exit_fn != NULL) {
     runloop->exit_fn(worker_index);

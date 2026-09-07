@@ -25,13 +25,16 @@ picofuse_library(
     SOURCES
         adc.c
         dma.c
+        flash.c
         gpio.c
         i2c.c
         init.c
+        ../memory/memory.c
         pwm.c
         spi.c
         uart.c
         watchdog.c
+        ../block/block.c
         ../deviceio/deviceio.c
         ../led/led.c
         ../usb/usb.c

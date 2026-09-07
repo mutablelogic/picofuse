@@ -13,6 +13,7 @@ picofuse_library(
         cond.c
         waitgroup.c
         thread.c
+        flash_pause.c
         sync.c
         stdio.c
         stdio_uart.c

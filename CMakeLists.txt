@@ -31,6 +31,7 @@ if(DEFINED PICO_BOARD)
     set(_picosdk_targets
         hardware_adc
         hardware_dma
+        hardware_flash
         hardware_gpio
         hardware_i2c
         hardware_pio

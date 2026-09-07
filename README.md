@@ -21,9 +21,11 @@ block-beta
   net["<b>net</b><br/>Network"] fs["<b>fs</b><br/>Filesystem"] pix["<b>pix</b><br/>Graphics"] wav["<b>wav</b><br/>Audio"] hid["<b>hid</b><br/>Input devices"]
 
   block:middle:5
-    columns 2
+    columns 4
     hw["<b>hw</b><br/>Hardware"]
     dev["<b>dev</b><br/>Devices"]
+    blockio["<b>block</b><br/>Block I/O"]
+    flash["<b>flash</b><br/>Flash storage"]
   end
 
   block:bottom:5
@@ -38,6 +40,8 @@ block-beta
 
 * `sys`: [System-level functions.](https://mutablelogic.github.io/picofuse/group__System.html)
 * `hw` : [Hardware for peripherals such as GPIO, I2C, SPI, etc.](https://mutablelogic.github.io/picofuse/group__Hardware.html)
+* `block`: [Block I/O for fixed-size storage devices.](https://mutablelogic.github.io/picofuse/group__Block.html)
+* `flash`: [Flash-backed block storage.](https://mutablelogic.github.io/picofuse/group__Flash.html)
 * `dev` : [Device implementation for specific components.](<https://mutablelogic.github.io/picofuse/group__Device.html>)
 * `pix`: [Graphics library for drawing on displays.](https://mutablelogic.github.io/picofuse/group__Pixel.html)
 * `fs` : Filesystem abstraction for persistent storage.

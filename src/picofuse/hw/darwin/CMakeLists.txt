@@ -23,6 +23,8 @@ picofuse_library(
     NAME picofuse-hw
     SOURCES
         init.c
+        ../memory/memory.c
+        ../block/block.c
         ../deviceio/deviceio.c
         ../led/led.c
         ../usb/usb.c
@@ -34,6 +36,7 @@ picofuse_library(
         ../led/neopixel.c
         ../led/device.c
         ../stub/adc.c
+        ../stub/flash.c
         ../stub/gpio.c
         ../stub/i2c.c
         ../stub/pwm.c

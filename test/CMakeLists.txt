@@ -590,6 +590,15 @@ picofuse_test(sys_108
 	sys_108/main.c
 )
 
+# Core 1 reaches a RAM-resident pause point and resumes after worker 0
+# releases it for a flash mutation. Pico-only: the pause service is specific
+# to Pico's two-core execution model.
+if(DEFINED PICO_BOARD)
+	picofuse_test(sys_109
+		sys_109/main.c
+	)
+endif()
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
@@ -805,6 +814,37 @@ picofuse_test(hw_023
 	hw_023/main.c
 	LIBRARIES picofuse-hw
 )
+
+# hw_memory_get_usage() reports sys allocator use on every backend and marks
+# PSRAM, stack, and flash unavailable until their platform backends exist.
+picofuse_test(hw_024
+	hw_024/main.c
+	LIBRARIES picofuse-hw
+)
+
+# Generic block dispatch, private context storage, and fixed handle-pool
+# exhaustion/reuse across all platforms.
+picofuse_test(hw_025
+	hw_025/main.c
+	LIBRARIES picofuse-hw
+)
+
+# Flash blocks erase/program real reserved flash sectors, so this runs only
+# on a Pico target.
+if(DEFINED PICO_BOARD)
+	picofuse_test(hw_026
+		hw_026/main.c
+		LIBRARIES picofuse-hw
+	)
+
+	# Saturate the block pool, exercise a released reservation, then repeatedly
+	# erase/program/read while the core-1 runloop worker is actively paused.
+	picofuse_test(hw_027
+		hw_027/main.c
+		LIBRARIES picofuse-hw
+		TESTRUNNER_TIMEOUT 60
+	)
+endif()
 
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
 # or SPI - see the detection order/reasoning in dev_bme680/main.c.
