@@ -65,6 +65,12 @@ typedef enum {
                                    ///< available (see @ref app_led). Has no
                                    ///< effect when the platform has no
                                    ///< default on-board LED.
+  app_flag_watchdog = (1 << 7),    ///< Enable the watchdog (see
+                                   ///< @ref app_watchdog) - hw_poll(),
+                                   ///< called every run loop tick, feeds
+                                   ///< it from there. Has no effect when
+                                   ///< the platform has no watchdog
+                                   ///< backend.
 } app_flag_t;
 
 /**
@@ -125,11 +131,15 @@ typedef void (*app_callback_event_t)(app_t *app, sys_event_t event,
  * events if @ref app_flag_signal is set, registers the board's user button
  * as a HID event if @ref app_flag_user_button is set, registers the
  * internal temperature sensor as a HID metric source if
- * @ref app_flag_temperature is set, then runs the event loop across
- * every available core if @ref app_flag_multicore is set, or on the
- * calling thread alone otherwise. Blocks until @ref app_shutdown is called
- * from within a callback (or from another thread), then tears down
- * (`hid_deinit()`, `hw_led_deinit()`, `hw_exit()`, `sys_exit()`).
+ * @ref app_flag_temperature is set, enables the watchdog if
+ * @ref app_flag_watchdog is set and available (see @ref app_watchdog),
+ * then runs the event loop across every available core if
+ * @ref app_flag_multicore is set, or on the calling thread alone
+ * otherwise. Every run loop tick calls `hw_poll()`, which feeds the
+ * watchdog when enabled (see `hw_watchdog_enable()`). Blocks until
+ * @ref app_shutdown is called from within a callback (or from another
+ * thread), then tears down (`hid_deinit()`, `hw_led_deinit()`,
+ * `hw_watchdog_deinit()`, `hw_exit()`, `sys_exit()`).
  */
 int app_main(int argc, char *argv[], app_flag_t flags,
              app_callback_start_t on_start, app_callback_event_t on_event,
@@ -163,6 +173,20 @@ hid_t *app_hid(const app_t *app);
  * Call hw_led_set()/hw_led_blink() on it directly.
  */
 hw_led_t *app_led(const app_t *app);
+
+/**
+ * @brief Get the watchdog handle initialized for this app.
+ * @ingroup Application
+ * @param app Application instance.
+ * @return Watchdog handle, or NULL if @ref app_flag_watchdog was not
+ * passed to app_main(), or the platform has no watchdog backend (see
+ * hw_watchdog_init()).
+ *
+ * app_main() already calls hw_watchdog_enable() to start feeding this from
+ * hw_poll() (see its own doc) - call hw_watchdog_reset() on it directly to
+ * force an earlier reset, or hw_watchdog_enable() to stop feeding it.
+ */
+hw_watchdog_t *app_watchdog(const app_t *app);
 
 /** @} */
 

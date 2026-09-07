@@ -1,7 +1,12 @@
 /**
  * @file ntp.h
  * @brief Simple SNTP time client.
+ * @defgroup NetworkNTP NTP
  * @ingroup Network
+ *
+ * NTP (Network Time Protocol) is how a device gets the current wall-clock
+ * time from a server over the network, rather than relying on a
+ * battery-backed RTC it may not have.
  *
  * A net_ntp_t identifies one NTP server; net_ntp_read() opens a fresh
  * connection to it, sends one request, returns the time it replies with,
@@ -43,14 +48,14 @@ extern "C" {
 
 /**
  * @def NET_NTP_PORT
- * @ingroup Network
+ * @ingroup NetworkNTP
  * @brief Standard NTP port.
  */
 #define NET_NTP_PORT 123
 
 /**
  * @def NET_NTP_DEFAULT_ADDR
- * @ingroup Network
+ * @ingroup NetworkNTP
  * @brief Default NTP server address, as net_addr_v4() arguments - used by
  * net_ntp_init() when its own @p addr parameter is NULL.
  *
@@ -66,7 +71,7 @@ extern "C" {
 
 /**
  * @brief Opaque handle identifying an SNTP server to query.
- * @ingroup Network
+ * @ingroup NetworkNTP
  */
 typedef struct net_ntp_t net_ntp_t;
 
@@ -78,7 +83,7 @@ typedef struct net_ntp_t net_ntp_t;
 
 /**
  * @brief Identify an NTP server to query with net_ntp_read().
- * @ingroup Network
+ * @ingroup NetworkNTP
  * @param addr Server address, or NULL to default to
  * time.cloudflare.com (162.159.200.1).
  * @param port Server port, or 0 to default to NET_NTP_PORT (123).
@@ -93,7 +98,7 @@ net_ntp_t *net_ntp_init(const net_addr_t *addr, uint16_t port,
 
 /**
  * @brief Release a handle from net_ntp_init().
- * @ingroup Network
+ * @ingroup NetworkNTP
  * @param ntp Handle to release, or NULL (a no-op).
  */
 void net_ntp_deinit(net_ntp_t *ntp);
@@ -108,7 +113,7 @@ void net_ntp_deinit(net_ntp_t *ntp);
 
 /**
  * @brief Query the server for the current time.
- * @ingroup Network
+ * @ingroup NetworkNTP
  * @param ntp Handle from net_ntp_init().
  * @param date Set to the server's reported time (UTC - tzoffset is
  * always 0) on success. Left untouched on failure.
@@ -134,7 +139,7 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date);
 
 /**
  * @brief Register an NTP connection as a polling HID time source.
- * @ingroup Network
+ * @ingroup NetworkNTP
  * @param instance HID instance that owns the registration.
  * @param ntp Handle from net_ntp_init(). Not owned by this registration -
  * net_ntp_deinit() is still the caller's own responsibility, the same

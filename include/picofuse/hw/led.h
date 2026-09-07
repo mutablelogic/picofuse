@@ -1,8 +1,48 @@
 /**
  * @file led.h
- * @brief Board LED helpers.
+ * @brief Support for controlling on-board and external LEDs.
  * @defgroup LED LED
  * @ingroup Hardware
+ *
+ * Support for controlling on-board and external LEDs.
+ *
+ * One API - hw_led_set(), hw_led_set_brightness(), hw_led_clear(),
+ * hw_led_blink() - works the same way no matter what's actually behind
+ * the handle: a Wi-Fi chip GPIO, a plain GPIO pin, a PWM output, a
+ * NeoPixel/WS2812 chain, or (on Linux) a kernel LED-class device.
+ * hw_led_init_default() finds and initializes whichever of these the
+ * current board actually has, so most code never needs to know which
+ * one it got.
+ *
+ * @code
+ * hw_led_t *led = hw_led_init_default();
+ * if (led != NULL) {
+ *   hw_led_set(led, 0, true);             // on
+ *   hw_led_set_brightness(led, 0, 50.0f); // 50%, where supported
+ *   hw_led_clear(led);                    // off
+ * }
+ * @endcode
+ *
+ * hw_led_blink() runs a blink on a timer in the background, repeating
+ * until explicitly stopped or just once:
+ *
+ * @code
+ * // Repeating: blink at 2Hz (250ms on, 250ms off) while, say, Wi-Fi is
+ * // still connecting.
+ * hw_led_blink(led, 0, 250, true);
+ * ...
+ * // Outcome known - hw_led_set()/hw_led_clear() cancel the blink, same
+ * // as calling hw_led_blink() again would.
+ * hw_led_set(led, 0, true); // connected: solid on
+ *
+ * // Non-repeating: a single "flash" - the LED turns on once, after one
+ * // period_ms, and stays on until something else changes it.
+ * hw_led_blink(led, 0, 500, false);
+ * @endcode
+ *
+ * Only one blink can be active per handle at a time - see
+ * hw_led_blink()'s own doc, notably a real limitation for NeoPixel,
+ * whose whole chain shares one handle.
  */
 #pragma once
 #include "gpio.h"
@@ -215,16 +255,23 @@ bool hw_led_clear(hw_led_t *led);
  * @ingroup LED
  * @param led LED handle.
  * @param index NeoPixel index to update. Ignored for non-NeoPixel LED types.
- * @param period_ms Blink period in milliseconds.
- * @param repeating When `true`, blink repeats until @ref hw_led_set or
- * @ref hw_led_clear is called to stop it. When `false`, LED is turned on
- * immediately and turned off once after one period.
+ * @param period_ms How long each on/off phase lasts, in milliseconds - a
+ * full on-then-off blink cycle takes twice this.
+ * @param repeating When `true`, blink repeats (off, on, off, on, ...)
+ * until @ref hw_led_set or @ref hw_led_clear is called to stop it. When
+ * `false`, the LED turns on once, after one @p period_ms, and stays on.
  * @retval true Blink started.
- * @retval false Handle is invalid, blink is already active on this handle, or
- * timer setup failed.
+ * @retval false Handle is invalid, or timer setup failed.
  *
- * @todo Not implemented yet - always returns false. Planned for a separate
- * PR once the rest of the LED module has landed.
+ * The LED starts off (regardless of whatever state it was already in)
+ * the moment this is called, and a timer takes over from there, flipping
+ * it every @p period_ms.
+ *
+ * Only one blink can be active per handle at a time - a hard limitation
+ * for NeoPixel, whose whole chain shares this one handle, so two indices
+ * can't blink independently. Calling this again while a blink is already
+ * running - even for a different @p index - cancels it first, the same
+ * as @ref hw_led_set or @ref hw_led_clear would, rather than failing.
  */
 bool hw_led_blink(hw_led_t *led, uint8_t index, uint32_t period_ms,
                   bool repeating);
