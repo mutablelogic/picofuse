@@ -11,6 +11,9 @@
 extern void _hw_wifi_poll(void);
 #endif
 
+// Defined in ../led/blink.c.
+extern void _hw_led_poll(void);
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -49,6 +52,7 @@ void hw_poll(void) {
 #ifdef PICOFUSE_WIFI
   _hw_wifi_poll();
 #endif
+  _hw_led_poll();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

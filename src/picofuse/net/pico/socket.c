@@ -417,6 +417,14 @@ static void _net_conn_ops_close(sys_iostream_t *s) {
   sys_atomic_dec(&ctx->claimed);
 }
 
+static const sys_iostream_ops_t _net_conn_ops = {
+    .read = _net_conn_ops_read,
+    .write = _net_conn_ops_write,
+    .seek = _net_conn_ops_seek,
+    .set_callback = _net_conn_ops_set_callback,
+    .close = _net_conn_ops_close,
+};
+
 /** Finalizes a _net_conn_ctx_t and returns the associated sys_iostream_t.
  * Returns NULL on failure. */
 static sys_iostream_t *_net_conn_finish(_net_conn_ctx_t *ctx) {
@@ -468,14 +476,6 @@ sys_iostream_t *_net_conn_wrap_tcp(struct tcp_pcb *pcb) {
   cyw43_arch_lwip_end();
   return stream;
 }
-
-static const sys_iostream_ops_t _net_conn_ops = {
-    .read = _net_conn_ops_read,
-    .write = _net_conn_ops_write,
-    .seek = _net_conn_ops_seek,
-    .set_callback = _net_conn_ops_set_callback,
-    .close = _net_conn_ops_close,
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE

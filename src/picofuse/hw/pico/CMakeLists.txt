@@ -22,6 +22,7 @@ picofuse_library(
         uart.c
         ../deviceio/deviceio.c
         ../led/led.c
+        ../led/blink.c
         ../led/led_gpio.c
         ../led/led_pwm.c
         led_wifi.c

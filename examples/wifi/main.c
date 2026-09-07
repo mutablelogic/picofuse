@@ -94,7 +94,21 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
           sys_debugf("wifi", "on_event: net_ntp_init failed");
         }
       }
-    } else if (wifi_event & hw_wifi_event_disconnected) {
+    } else if (wifi_event & hw_wifi_event_joining) {
+      // A repeated `joining` event (a retry, say) restarts the blink
+      // cycle from off rather than glitching it - only one blink can
+      // ever be active per handle, so hw_led_blink() cancels whatever
+      // was already running before starting the new one (see its own
+      // doc). CYW43_LINK_JOIN only ever fires once per connection
+      // attempt in practice, so this doesn't visibly matter here.
+      (void)hw_led_blink(app_led(app), 0, 250, true);
+    } else if (wifi_event & (hw_wifi_event_disconnected |
+                             hw_wifi_event_badauth |
+                             hw_wifi_event_notfound |
+                             hw_wifi_event_error)) {
+      // Any definitive non-connected outcome - hw_led_set() cancels
+      // whatever blink hw_wifi_event_joining above started, same as
+      // hw_led_clear() would (see hw_led_blink()'s own doc).
       (void)hw_led_set(app_led(app), 0, false);
     }
 

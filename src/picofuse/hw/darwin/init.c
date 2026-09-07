@@ -6,6 +6,9 @@ extern void _hw_wifi_module_init(void);
 extern void _hw_wifi_module_exit(void);
 #endif
 
+// Defined in ../led/blink.c.
+extern void _hw_led_poll(void);
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -22,5 +25,5 @@ void hw_exit(void) {
 }
 
 void hw_poll(void) {
-  // No hardware backend
+  _hw_led_poll();
 }

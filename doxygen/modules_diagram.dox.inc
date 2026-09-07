@@ -51,6 +51,7 @@ digraph modules {
   HIDEvents   [label="Events",                   URL="\ref HIDEvents"];
   HIDKeycodes [label="Keycodes",                 URL="\ref HIDKeycodes"];
   Network     [label="Network",                  URL="\ref Network"];
+  NTP         [label="NTP",                      URL="\ref NetworkNTP"];
 
   System -> Memory;
   System -> Sync;
@@ -93,5 +94,6 @@ digraph modules {
   Application -> HID;
   HID -> HIDEvents;
   HID -> HIDKeycodes;
+  Network -> NTP;
 }
 \enddot

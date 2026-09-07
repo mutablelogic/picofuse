@@ -187,14 +187,26 @@ bool sys_timer_start(sys_timer_t *timer) {
   // first time a timer is started from it: an alarm pool always delivers
   // its callbacks on the core that created it, so lazily creating one per
   // calling core is what makes a timer's callback land on the same core
-  // that started it, matching this module's documented contract. Guarded
-  // by the pool lock since alarm_pool_create() hard-asserts if the same
-  // hardware alarm is claimed twice.
+  // that started it, matching this module's documented contract.
+  //
+  // alarm_pool_create()'s own first parameter is a *hardware* alarm
+  // number (0-3 on RP2040/RP2350), not a core number - passing `core`
+  // there (0 or 1) used to claim hardware alarm 0 or 1 outright,
+  // regardless of who else already owns it. On a CYW43-enabled board
+  // that's alarm 0, the exact one cyw43_arch_init()'s own background
+  // async context already claims via its own
+  // alarm_pool_create_with_unused_hardware_alarm() call (see
+  // third_party/pico-sdk's async_context_threadsafe_background.c) - real
+  // hardware testing hung solid inside this call the first time
+  // something on this project actually started a sys_timer_t on a
+  // Wi-Fi-active board, exactly matching that collision. Use the same
+  // auto-picking call cyw43 itself uses instead of hardcoding a number
+  // that happens to double as a core index.
   uint core = get_core_num();
   critical_section_enter_blocking(&_sys_timer_pool_lock);
   alarm_pool_t *pool = _sys_timer_pools[core];
   if (pool == NULL) {
-    pool = alarm_pool_create(core, SYS_TIMER_CAPACITY);
+    pool = alarm_pool_create_with_unused_hardware_alarm(SYS_TIMER_CAPACITY);
     _sys_timer_pools[core] = pool;
   }
   critical_section_exit(&_sys_timer_pool_lock);

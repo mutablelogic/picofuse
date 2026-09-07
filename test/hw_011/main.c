@@ -2,6 +2,19 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
+// hw_led_blink()'s own flips only ever land via hw_poll() (see
+// blink.c's own doc: its timer callback just queues one up, since a
+// backend's ops->set() isn't safe to call from the timer's own ISR
+// context) - a plain sys_sleep_ms() never pumps that, the same reason
+// hw_017's own wait_for() has to poll instead of sleeping blindly.
+static void sleep_and_poll(uint32_t ms) {
+  uint64_t start = sys_timestamp_ms();
+  while (sys_timestamp_ms() - start < ms) {
+    hw_poll();
+    sys_sleep_ms(10);
+  }
+}
+
 static const char *_led_type_name(hw_led_type_t type) {
   switch (type) {
   case hw_led_type_gpio:
@@ -72,8 +85,24 @@ test_main_hw(0) {
 
   test_assert(hw_led_clear(led));
 
-  // hw_led_blink() isn't implemented yet - update this once it is.
-  test_assert(hw_led_blink(led, 0, 200, true) == false);
+  // hw_led_blink(): starts, and calling it again while already active
+  // cancels the first blink and starts the new one rather than failing
+  // (only one blink can ever be active per handle - see hw_led_blink()'s
+  // own doc on why); hw_led_set()/hw_led_clear() also cancel one.
+  test_assert(hw_led_blink(led, 0, 100, true));
+  test_assert(hw_led_blink(led, 0, 100, true)); // cancels + restarts
+  sleep_and_poll(350); // several flips
+  test_assert(hw_led_clear(led)); // cancels the repeating blink
+  test_assert(hw_led_blink(led, 0, 100, true)); // slot is free again
+  test_assert(hw_led_set(led, 0, false)); // cancels it too
+
+  // Non-repeating: one flip (off -> on) after one period, then the timer
+  // stops itself - a fresh hw_led_blink() succeeds again once that's had
+  // time to happen, with no hw_led_set()/hw_led_clear() needed.
+  test_assert(hw_led_blink(led, 0, 100, false));
+  sleep_and_poll(250); // past the single flip
+  test_assert(hw_led_blink(led, 0, 100, true));
+  test_assert(hw_led_clear(led));
 
   hw_led_deinit(led);
 

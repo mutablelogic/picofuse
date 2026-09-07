@@ -433,16 +433,17 @@ picofuse_test(sys_082
 )
 
 # sys_timer_deinit blocking on an in-flight callback, and overlapping
-# fires being serialized/skipped rather than run concurrently. Host-only
-# for now: on Pico this starts its timer from core 1 (to test cross-core
-# callback affinity per timer.h's platform note), but a timer armed on
-# core 1's lazily-created alarm pool never actually fires there - open
-# investigation, see project notes. Once fixed, drop this guard.
-if(NOT DEFINED PICO_BOARD)
-	picofuse_test(sys_083
-		sys_083/main.c
-	)
-endif()
+# fires being serialized/skipped rather than run concurrently - on Pico
+# this starts its timer from core 1 (to test cross-core callback affinity
+# per timer.h's platform note). Was Pico-excluded pending investigation
+# into a timer started on core 1 never actually firing there - root
+# cause turned out to be sys/pico/timer.c's own alarm_pool_create() call
+# mistakenly passing a core number as its hardware alarm number
+# argument, sometimes colliding with an alarm another subsystem (CYW43's
+# own background async context, on a Wi-Fi board) had already claimed.
+picofuse_test(sys_083
+	sys_083/main.c
+)
 
 # sys_mem_arena_init argument validation: size/malloc_fn/free_fn rules for
 # both the first arena in a chain and appended ones.

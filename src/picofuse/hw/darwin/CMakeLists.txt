@@ -10,6 +10,7 @@ picofuse_library(
         init.c
         ../deviceio/deviceio.c
         ../led/led.c
+        ../led/blink.c
         ../led/led_gpio.c
         ../led/led_pwm.c
         ../led/led_wifi.c
