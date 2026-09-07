@@ -15,13 +15,6 @@
 
 #define HW_WATCHDOG_FALLBACK_TIMEOUT_MS 10000u
 
-// Larger than any real hardware watchdog's actual ceiling (typically tens
-// of seconds to a few minutes), just large enough to reliably trigger a
-// compliant driver's own WDIOC_SETTIMEOUT clamping (see
-// _hw_watchdog_probe_timeout_ms()) - deliberately not INT_MAX, to avoid
-// relying on an unusual driver clamping cleanly against an extreme value.
-#define HW_WATCHDOG_PROBE_TIMEOUT_S 86400
-
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -105,76 +98,27 @@ static uint32_t _hw_watchdog_probe_timeout_ms(const char *device) {
     return sysfs_max_s * 1000u;
   }
 
+  // No WDIOC_SETTIMEOUT clamp-and-readback probe here on purpose, even
+  // though the kernel documents that as the standard way to discover a
+  // ceiling sysfs didn't report: real-hardware testing against a
+  // Raspberry Pi's bcm2835_wdt found it doesn't validate an oversized
+  // request against the real (narrow) hardware register width at all -
+  // it reports the oversized value back as "accepted" while the actual
+  // countdown register silently wraps to something short and
+  // unpredictable (observed: requesting 86400s, then wdctl immediately
+  // showing ~15s left - a live, ticking, unfed watchdog with no warning
+  // sign anything was wrong). Given this is Raspberry Pi's own SoC
+  // watchdog - the single most likely piece of hardware anyone using
+  // this backend actually has - the "more accurate" ceiling this
+  // technique promises isn't worth ever touching a live countdown
+  // register for a mere query again. Whatever's already configured,
+  // straight from sysfs, is the best available answer.
   uint32_t sysfs_timeout_s = 0u;
-  bool have_sysfs_timeout =
-      _hw_watchdog_read_sysfs_u32(device, "timeout", &sysfs_timeout_s) &&
-      sysfs_timeout_s > 0u;
-  uint32_t sysfs_fallback_ms = have_sysfs_timeout
-                                   ? sysfs_timeout_s * 1000u
-                                   : HW_WATCHDOG_FALLBACK_TIMEOUT_MS;
-
-  // Only even attempt to open the character device - for the
-  // WDIOC_SETTIMEOUT clamp-and-readback technique below, a more accurate
-  // ceiling than a bare "currently configured" value - when sysfs itself
-  // confirms it's safe to: "nowayout" == 0 means a magic close (see
-  // below) actually disarms it again afterward. If nowayout is
-  // unreadable or true, opening it either can't be safely undone or we
-  // can't tell either way - stay on sysfs/the fallback constant instead.
-  // Mirrors wdctl's own should_read_from_device() gate, for the same
-  // reason.
-  uint32_t nowayout = 1u;
-  bool safe_to_open =
-      _hw_watchdog_read_sysfs_u32(device, "nowayout", &nowayout) &&
-      nowayout == 0u;
-  if (!safe_to_open) {
-    return sysfs_fallback_ms;
+  if (_hw_watchdog_read_sysfs_u32(device, "timeout", &sysfs_timeout_s) &&
+      sysfs_timeout_s > 0u) {
+    return sysfs_timeout_s * 1000u;
   }
-
-  // Opening the device is not side-effect-free even for a read-only
-  // query - the kernel's watchdog framework treats a mere open() as
-  // claiming/arming it, and a bare close() afterward leaves it running,
-  // unfed, ticking toward a real reset if nothing else was already
-  // feeding it (confirmed on real hardware: this exact function, with a
-  // bare close(), caused a second, unintended reboot during testing).
-  // Always end with the documented magic close character below, never a
-  // bare close() - matching util-linux's own wdctl, which carries the
-  // exact same warning for the exact same reason: "successfully opened
-  // watchdog has to be properly closed with magic close character
-  // otherwise the machine will be rebooted!"
-  int fd = open(device, O_WRONLY | O_CLOEXEC);
-  if (fd < 0) {
-    return sysfs_fallback_ms;
-  }
-
-  int original_s = 0;
-  bool have_original =
-      ioctl(fd, WDIOC_GETTIMEOUT, &original_s) == 0 && original_s > 0;
-
-  // WDIOC_SETTIMEOUT is documented (Documentation/watchdog/watchdog-api.rst)
-  // to clamp an out-of-range request to the real supported range and
-  // write back whatever it actually applied, so requesting a
-  // deliberately oversized value and reading that back is the only
-  // portable way to discover a ceiling sysfs itself didn't report.
-  int probe_s = HW_WATCHDOG_PROBE_TIMEOUT_S;
-  uint32_t timeout_ms = 0u;
-  if (ioctl(fd, WDIOC_SETTIMEOUT, &probe_s) == 0 && probe_s > 0) {
-    timeout_ms = (uint32_t)probe_s * 1000u;
-  } else if (have_original) {
-    timeout_ms = (uint32_t)original_s * 1000u;
-  }
-
-  // Restore whatever was configured before this probe touched it, so a
-  // watchdog someone else already armed isn't left reconfigured to this
-  // probe's oversized value.
-  if (have_original) {
-    (void)ioctl(fd, WDIOC_SETTIMEOUT, &original_s);
-  }
-
-  static const char magic_close = 'V';
-  (void)write(fd, &magic_close, 1);
-  close(fd);
-
-  return timeout_ms != 0u ? timeout_ms : sysfs_fallback_ms;
+  return HW_WATCHDOG_FALLBACK_TIMEOUT_MS;
 }
 
 static bool _hw_watchdog_open(hw_watchdog_t *watchdog) {
