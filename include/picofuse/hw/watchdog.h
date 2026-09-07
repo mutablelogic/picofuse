@@ -14,6 +14,13 @@
  * `hw_watchdog_reset()` arms a delayed device reset (a reboot) without
  * requiring additional polling. The pending reset can be cancelled by
  * calling `hw_watchdog_enable()`.
+ *
+ * @note Unlike I2C/SPI/PWM, Raspberry Pi OS's hardware watchdog
+ * (`bcm2835_wdt`) is commonly already active out of the box - `/dev/watchdog`
+ * and `/dev/watchdog0` exist and already counting down with no `config.txt`
+ * change (`wdctl` shows its current timeout/time left). If it's ever not
+ * already active, `dtparam=watchdog=on` in `config.txt` is the documented
+ * way to force it on, needing a reboot to take effect.
  */
 #pragma once
 
@@ -23,6 +30,24 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+///////////////////////////////////////////////////////////////////////////////
+// CONSTANTS
+
+/**
+ * @brief Default device path used by hw_watchdog_init().
+ * @ingroup Watchdog
+ *
+ * `/dev/watchdog0`, not the legacy un-numbered `/dev/watchdog` misc device -
+ * see hw_watchdog_init_device()'s own doc on the difference. Override by
+ * defining `HW_WATCHDOG_DEFAULT_DEVICE` at compile time.
+ */
+#ifndef HW_WATCHDOG_DEFAULT_DEVICE
+#define HW_WATCHDOG_DEFAULT_DEVICE "/dev/watchdog0"
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// TYPES
 
 /**
  * @brief Watchdog adapter handle.
@@ -45,7 +70,10 @@ hw_watchdog_t *hw_watchdog_init(void);
  * @return Singleton watchdog handle, or `NULL` when unsupported.
  *
  * This is intended for backends that expose multiple watchdog devices, such as
- * Linux `/dev/watchdog*` nodes.
+ * Linux `/dev/watchdog0`, `/dev/watchdog1`, etc. (one per registered kernel
+ * watchdog driver) - as opposed to `/dev/watchdog`, an older, un-numbered
+ * device path kept only for backward compatibility, aliased to whichever
+ * watchdog driver registered first.
  */
 hw_watchdog_t *hw_watchdog_init_device(const char *device);
 
