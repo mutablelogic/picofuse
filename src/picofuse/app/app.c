@@ -23,6 +23,7 @@ struct app_t {
   sys_event_queue_t *queue;
   hid_t *hid;
   hw_led_t *led;
+  hw_watchdog_t *watchdog;
   app_flag_t flags;
   app_callback_start_t on_start;
   app_callback_event_t on_event;
@@ -58,7 +59,23 @@ static void _app_on_init(uint8_t worker) {
     sys_debugf("app", "app_flag_led enabled");
     hw_led_clear(_app->led);
   } else if (_app->flags & app_flag_led) {
-    sys_debugf("app", "app_flag_led not enabled");
+    sys_debugf("app", "app_flag_led not supported");
+  }
+
+  // hw_watchdog_init() - once enabled, hw_poll() (called from _app_poll()
+  // on every run loop tick) feeds it via its own built-in ping-interval
+  // logic (see _hw_watchdog_poll()).
+  if (_app->flags & app_flag_watchdog) {
+    _app->watchdog = hw_watchdog_init();
+  }
+  if (_app->watchdog != NULL) {
+    hw_watchdog_enable(_app->watchdog, true);
+    sys_debugf("app", "app_flag_watchdog enabled");
+    if (hw_watchdog_did_reset(_app->watchdog)) {
+      sys_debugf("watchdog", "previous reset was watchdog-triggered");
+    }
+  } else if (_app->flags & app_flag_watchdog) {
+    sys_debugf("app", "app_flag_watchdog not supported");
   }
 
   // signals
@@ -66,7 +83,7 @@ static void _app_on_init(uint8_t worker) {
     if (hid_register_signal(_app->hid, NULL)) {
       sys_debugf("app", "app_flag_signal enabled");
     } else {
-      sys_debugf("app", "app_flag_signal not enabled");
+      sys_debugf("app", "app_flag_signal not supported");
     }
   }
 
@@ -75,7 +92,7 @@ static void _app_on_init(uint8_t worker) {
     if (hid_register_user_button(_app->hid, KEYCODE_BUTTON_USER, NULL)) {
       sys_debugf("app", "app_flag_user_button enabled");
     } else {
-      sys_debugf("app", "app_flag_user_button not enabled");
+      sys_debugf("app", "app_flag_user_button not supported");
     }
   }
 
@@ -84,7 +101,7 @@ static void _app_on_init(uint8_t worker) {
     if (hid_register_temperature(_app->hid, 0u, NULL)) {
       sys_debugf("app", "app_flag_temperature enabled");
     } else {
-      sys_debugf("app", "app_flag_temperature not enabled");
+      sys_debugf("app", "app_flag_temperature not supported");
     }
   }
 
@@ -117,6 +134,9 @@ static void _app_on_exit(uint8_t worker) {
 
   hw_led_deinit(_app->led);
   _app->led = NULL;
+
+  hw_watchdog_deinit(_app->watchdog);
+  _app->watchdog = NULL;
 
   hw_exit();
 }
@@ -157,6 +177,7 @@ int app_main(int argc, char *argv[], app_flag_t flags,
       .queue = queue,
       .hid = NULL,
       .led = NULL,
+      .watchdog = NULL,
       .flags = flags,
       .on_start = on_start,
       .on_event = on_event,
@@ -169,9 +190,8 @@ int app_main(int argc, char *argv[], app_flag_t flags,
   // its own doc), in which case that always wins over what the caller
   // asked for.
   uint8_t num_workers =
-      (flags & app_flag_multicore) && !_app_single_core_required(flags)
-          ? 0u
-          : 1u;
+      (flags & app_flag_multicore) && !_app_single_core_required(flags) ? 0u
+                                                                        : 1u;
 
   // Run the event loop until app_shutdown() is called, then exit with the
   // provided exit code.
@@ -190,6 +210,10 @@ int app_main(int argc, char *argv[], app_flag_t flags,
 hid_t *app_hid(const app_t *app) { return (app != NULL) ? app->hid : NULL; }
 
 hw_led_t *app_led(const app_t *app) { return (app != NULL) ? app->led : NULL; }
+
+hw_watchdog_t *app_watchdog(const app_t *app) {
+  return (app != NULL) ? app->watchdog : NULL;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
