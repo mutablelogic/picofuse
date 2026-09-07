@@ -798,6 +798,14 @@ if(NOT DEFINED PICO_BOARD)
 	target_include_directories(hw_022 PRIVATE ${CMAKE_SOURCE_DIR}/include)
 endif()
 
+# hw_usb_device_class_to_string() (always available), plus hw_usb_* init/
+# enumerate/deinit lifecycle - stub (always NULL) by default, real libusb
+# backend if PICOFUSE_USB=ON and libusb-1.0 was found - see hw_023/main.c.
+picofuse_test(hw_023
+	hw_023/main.c
+	LIBRARIES picofuse-hw
+)
+
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
 # or SPI - see the detection order/reasoning in dev_bme680/main.c.
 if(DEFINED PICO_BOARD)

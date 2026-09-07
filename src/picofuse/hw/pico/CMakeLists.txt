@@ -23,6 +23,7 @@ picofuse_library(
         watchdog.c
         ../deviceio/deviceio.c
         ../led/led.c
+        ../usb/usb.c
         ../led/blink.c
         ../led/gpio.c
         ../led/pwm.c
@@ -31,6 +32,11 @@ picofuse_library(
         led_neopixel.c
         ../led/device.c
         ${_wifi_src}
+        # @todo No real Pico hw_usb_* backend yet (TinyUSB host - see
+        # picofuse-sys's own src/hw/pico/usb.c) to gate behind
+        # PICOFUSE_USB, unlike Linux/Darwin's libusb one. Always the stub
+        # for now.
+        ../stub/usb.c
 )
 
 pico_generate_pio_header(picofuse-hw ${CMAKE_CURRENT_LIST_DIR}/led_neopixel.pio)
