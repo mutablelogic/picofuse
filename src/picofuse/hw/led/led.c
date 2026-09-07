@@ -43,6 +43,13 @@ void *_hw_led_context(const hw_led_t *led) {
   return _hw_led_valid(led) ? (void *)led->context : NULL;
 }
 
+pix_color_t _hw_led_get_color(hw_led_t *led, uint8_t index) {
+  if (!_hw_led_valid(led) || led->ops->get_color == NULL) {
+    return PIX_COLOR_BLACK;
+  }
+  return led->ops->get_color(led, index);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -85,6 +92,37 @@ bool hw_led_set_brightness(hw_led_t *led, uint8_t index, float percent) {
   if (!_hw_led_valid(led) || led->ops->set_brightness == NULL) {
     return false;
   }
+  return led->ops->set_brightness(led, index, percent);
+}
+
+bool hw_led_set_color(hw_led_t *led, uint8_t index, pix_color_t color) {
+  if (!_hw_led_valid(led)) {
+    return false;
+  }
+  // An explicit set_color() overrides whatever a blink was doing - same
+  // as hw_led_set()'s own doc.
+  _hw_led_blink_cancel(led);
+
+  if (led->ops->set_color != NULL) {
+    return led->ops->set_color(led, index, color);
+  }
+  if (led->ops->set_brightness == NULL) {
+    return false;
+  }
+
+  // No real color concept (GPIO/PWM/Wi-Fi/sysfs): fall back to perceived
+  // brightness, weighted 0.2/0.7/0.1 (R/G/B) rather than a plain average,
+  // since green reads far brighter to the eye than red or blue at the
+  // same channel value - a rougher approximation than a true luma
+  // formula like ITU-R BT.601's 0.299/0.587/0.114, but simple integer-
+  // friendly weights are enough for an on/off-or-dim fallback that was
+  // never going to show real color anyway. Alpha scales the result the
+  // same way it scales a NeoPixel's own channels (see led_neopixel.c's
+  // own _hw_led_neopixel_scale()).
+  float luma = 0.2f * (float)pix_color_r(color) +
+              0.7f * (float)pix_color_g(color) +
+              0.1f * (float)pix_color_b(color);
+  float percent = luma * (float)pix_color_a(color) / (255.0f * 255.0f) * 100.0f;
   return led->ops->set_brightness(led, index, percent);
 }
 

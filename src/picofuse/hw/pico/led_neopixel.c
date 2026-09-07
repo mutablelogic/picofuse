@@ -44,10 +44,14 @@ _Static_assert(sizeof(_hw_led_neopixel_ctx_t) <= HW_LED_CONTEXT_SIZE,
 
 // pix_color_t is 0xRRGGBBAA - WS2812 wants each pixel on the wire as GRB.
 // Alpha doubles as this pixel's own brightness scale (see
-// hw_led_set_brightness()) rather than the usual compositing alpha, since
-// there's no "background" to blend against on a physical LED.
+// hw_led_set_brightness()), not the usual compositing alpha.
+//
+// Squaring the linear fraction approximates gamma~2 correction - WS2812
+// has none of its own, and a linearly scaled duty cycle looks much
+// brighter than requested to the human eye.
 static inline uint8_t _hw_led_neopixel_scale(uint8_t channel, uint8_t alpha) {
-  return (uint8_t)(((uint16_t)channel * alpha) / 255u);
+  uint16_t linear = ((uint16_t)channel * alpha) / 255u;
+  return (uint8_t)((linear * linear) / 255u);
 }
 
 static inline uint32_t _hw_led_neopixel_pack_color(pix_color_t color) {
@@ -81,25 +85,46 @@ static bool _hw_led_neopixel_flush(const _hw_led_neopixel_ctx_t *ctx) {
   return true;
 }
 
-// A simple on/off hw_led_t doesn't expose per-pixel color, so turning an
-// index on lights it plain white the first time - but if it already holds
-// some other color (set some other way, once this driver grows a way to
-// do that), re-enabling it preserves that color instead of clobbering it
-// back to white. A NeoPixel chain wanting real color control from the
-// start should be driven directly rather than through this interface.
+// A plain on/off toggle always uses white, regardless of whatever color
+// was there before - hw_led_set_color() is how a caller sets a specific
+// color instead.
 static bool _hw_led_neopixel_set(hw_led_t *led, uint8_t index, bool enabled) {
   _hw_led_neopixel_ctx_t *ctx = _hw_led_context(led);
   if (index >= ctx->led_count) {
     return false;
   }
 
-  if (!enabled) {
-    ctx->pixels[index] = 0;
-  } else if (ctx->pixels[index] == 0) {
-    ctx->pixels[index] = PIX_COLOR_WHITE;
+  ctx->pixels[index] = enabled ? PIX_COLOR_WHITE : 0;
+  return _hw_led_neopixel_flush(ctx);
+}
+
+// Unlike _set(), which only lights an index plain white the first time,
+// this replaces the pixel's color outright - full R/G/B/A, alpha included
+// (see _hw_led_neopixel_pack_color()'s own doc on alpha doubling as
+// brightness).
+static bool _hw_led_neopixel_set_color(hw_led_t *led, uint8_t index,
+                                       pix_color_t color) {
+  _hw_led_neopixel_ctx_t *ctx = _hw_led_context(led);
+  if (index >= ctx->led_count) {
+    return false;
   }
 
+  ctx->pixels[index] = color;
   return _hw_led_neopixel_flush(ctx);
+}
+
+// Backs hw_led_blink()'s own capture of "whatever color this index is
+// currently showing" (see led/blink.c). Alpha is masked to full (0xFF)
+// rather than returned as-is - it doubles as this pixel's own brightness
+// scale (see _hw_led_neopixel_pack_color()'s own doc), not part of the
+// color hw_led_set_color() itself set, so a dimmed pixel (via
+// hw_led_set_brightness()) still reports its true, undimmed color here.
+static pix_color_t _hw_led_neopixel_get_color(hw_led_t *led, uint8_t index) {
+  _hw_led_neopixel_ctx_t *ctx = _hw_led_context(led);
+  if (index >= ctx->led_count) {
+    return PIX_COLOR_BLACK;
+  }
+  return (ctx->pixels[index] & 0xFFFFFF00u) | 0xFFu;
 }
 
 // Leaves R/G/B untouched and only replaces the alpha (brightness) byte, so
@@ -142,6 +167,8 @@ static void _hw_led_neopixel_deinit(hw_led_t *led) {
 static const hw_led_ops_t _hw_led_neopixel_ops = {
     .set = _hw_led_neopixel_set,
     .set_brightness = _hw_led_neopixel_set_brightness,
+    .set_color = _hw_led_neopixel_set_color,
+    .get_color = _hw_led_neopixel_get_color,
     .clear = _hw_led_neopixel_clear,
     .deinit = _hw_led_neopixel_deinit,
 };
