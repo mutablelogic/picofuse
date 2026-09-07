@@ -915,6 +915,17 @@ picofuse_test(app_001
 	LIBRARIES picofuse-app picofuse-hw picofuse-hid
 )
 
+# app_flag_usb: hid_event_type_usb events registered by app_main() itself
+# (see app.h's own doc) actually reach on_event() once the run loop is
+# ticking. Unconditional, same cross-platform gating as hw_023/hid_010 -
+# skips cleanly with no USB host backend (stub by default, real
+# libusb/TinyUSB backend only with PICOFUSE_USB=ON). Passes a real
+# on_event to test_main_app() - see test/test.h's own doc.
+picofuse_test(app_002
+	app_002/main.c
+	LIBRARIES picofuse-app picofuse-hw picofuse-hid
+)
+
 # net_addr_v4()/_v4_any()/_v6()/_v6_any()/_to_string() - pure logic, no
 # sockets, so this runs (and is expected to fully pass) on every platform.
 picofuse_test(net_001

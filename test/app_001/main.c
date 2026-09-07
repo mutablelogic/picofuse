@@ -3,7 +3,8 @@
 #include <test/test.h>
 
 test_main_app(app_flag_signal | app_flag_user_button | app_flag_temperature |
-             app_flag_usb) {
+             app_flag_usb,
+             NULL) {
   test_assert(app != NULL);
 
   // picofuse-hid is linked into this test (see app_001's LIBRARIES below),
