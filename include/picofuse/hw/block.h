@@ -11,8 +11,8 @@
  * backends, must be explicitly erased before it can be rewritten at all
  * (@ref hw_block_erase). This module only provides that raw block
  * transport; it's meant to sit underneath higher-level systems that need
- * one - a filesystem, a key/value store, a simple append log - not to be
- * used as a storage format in its own right.
+ * one - a filesystem - not to be used as a storage format in its own
+ * right.
  *
  * @ref hw_block_t is a generic handle - @ref hw_block_read,
  * @ref hw_block_write, @ref hw_block_erase and @ref hw_block_deinit all
