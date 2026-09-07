@@ -844,6 +844,16 @@ if(DEFINED PICO_BOARD)
 		LIBRARIES picofuse-hw
 		TESTRUNNER_TIMEOUT 60
 	)
+
+	# Same erase/program/read exercise as hw_027, but issued from inside an
+	# event handler instead of on_poll() - event_fn (unlike poll_fn) may run
+	# on either worker, so this actually lands on core 1 sometimes and
+	# documents today's known limitation there - see TODO.md.
+	picofuse_test(hw_028
+		hw_028/main.c
+		LIBRARIES picofuse-hw
+		TESTRUNNER_TIMEOUT 60
+	)
 endif()
 
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)

@@ -3,6 +3,11 @@
  * @brief Memory usage monitoring.
  * @defgroup Memory Memory
  * @ingroup Hardware
+ *
+ * @note Only implemented on Pico. On every other platform,
+ * hw_memory_get_usage() still succeeds (returns `true`) but reports every
+ * field as zero - there's no real RAM/stack/flash accounting backend for
+ * a host OS, which already manages all of that itself.
  */
 #pragma once
 #include <stdbool.h>

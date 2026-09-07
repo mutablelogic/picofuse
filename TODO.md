@@ -109,15 +109,39 @@ none is being added - only erase/write get the dispatch-or-marshal
 treatment, keeping the common/frequent read path exactly as fast as it
 is now.
 
+#### Already fixed: lock acquired before the core-affinity check
+
+While building the verification test below, found and fixed a sharper
+version of the core-1-fails problem: `_hw_flash_block_erase_cb()`/
+`_write_cb()` used to acquire `_hw_flash_lock` (a genuine cross-core
+spinlock) *before* anything checked which core was calling. A core-1
+caller would spin trying to acquire that same lock while core 0 held it
+waiting on `_sys_pico_flash_pause_request()` for core 1 to reach its own
+pause point - which core 1 can never do while stuck spinning on the
+lock, so core 0's own otherwise-valid call would time out and fail too.
+Fixed by moving the `get_core_num() != 0u` check to the very top of both
+callbacks, before `_hw_flash_lock` is ever touched - a core-1 call now
+backs out immediately without contending for anything. This step is
+still needed for the RPC design above (core 1 must not hold the lock
+while marshaling either), so it's not superseded by it.
+
 ### Verification
 
-1. New test (next available number, e.g. `hw_028`) using `app_flag_
-   multicore`: register a flash block, post/handle an event on worker 1
-   specifically (needs a way to confirm which core is running it -
-   `get_core_num()`/`sys_thread_core()` inside the handler), call
-   `hw_block_erase()`/`hw_block_write()`/`hw_block_read()` from there,
-   assert success and correct readback. Real-hardware-only (`if(DEFINED
-   PICO_BOARD)`), matching `hw_026`/`hw_027`'s own gating.
+1. Done - `test/hw_028/main.c`, gated `if(DEFINED PICO_BOARD)` like
+   `hw_026`/`hw_027`. Uses `app_flag_multicore`-equivalent
+   (`sys_runloop_run(2, ...)`), calls `hw_block_erase()`/`_write()`/
+   `_read()` from inside `on_event()` (which may land on either worker,
+   unlike `hw_027`'s own `on_poll()`-based exercise - see
+   `sys_runloop_poll_func_t`'s own doc on why that matters), asserts
+   core 0 always succeeds and core 1 always fails erase/write (documents
+   *today's* limitation - flip those assertions once the RPC lands).
+   Needed a `_worker_ready` startup gate (same pattern as `hw_027`'s
+   own) before the first event can be posted - without it, a backlog
+   built up during core 1's own launch delay
+   (`_sys_thread_ensure_core1_worker()`'s reset-safety `sleep_ms(100)` in
+   `sys/pico/thread.c`) let core 0 attempt a flash op before core 1 had
+   even reached `_sys_pico_flash_pause_worker_enter()`, producing
+   failures unrelated to the actual code under test.
 2. Re-run `hw_024`-`hw_027` on real hardware (`build-pico` and/or
    `build-picow`, whichever board is attached) to confirm the direct
    core-0 path (untouched logic, just extracted into `_hw_flash_do_*()`)

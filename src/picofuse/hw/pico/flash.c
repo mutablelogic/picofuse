@@ -252,6 +252,21 @@ static bool __no_inline_not_in_flash_func(_hw_flash_block_read_cb)(
 
 static bool __no_inline_not_in_flash_func(_hw_flash_block_erase_cb)(
     hw_block_t *block, void *userdata, size_t index) {
+  // Checked before _hw_flash_lock, not after: that lock is a genuine
+  // cross-core spinlock, and _sys_pico_flash_pause_request() (below) needs
+  // core 1 to reach its own pause point promptly once core 0 holds this
+  // lock. A core-1 caller spinning to acquire the same lock first - which
+  // is exactly what happens if this check runs after it - can never reach
+  // that pause point, so core 0's own otherwise-valid erase times out and
+  // fails too. Checking core affinity first means a core-1 call backs out
+  // immediately without ever contending for the lock at all.
+  //
+  // @todo Currently just fails - see TODO.md's "Transparent core-1 ->
+  // core-0 flash write/erase marshaling" for the planned fix.
+  if (get_core_num() != 0u) {
+    return false;
+  }
+
   const hw_flash_block_state_t *state = userdata;
   critical_section_enter_blocking(&_hw_flash_lock);
   if (!_hw_flash_block_index_valid(block, state, index)) {
@@ -274,6 +289,12 @@ static bool __no_inline_not_in_flash_func(_hw_flash_block_erase_cb)(
 
 static bool __no_inline_not_in_flash_func(_hw_flash_block_write_cb)(
     hw_block_t *block, void *userdata, size_t index, const void *src) {
+  // See _hw_flash_block_erase_cb()'s own doc on why this is checked before
+  // _hw_flash_lock.
+  if (get_core_num() != 0u) {
+    return false;
+  }
+
   const hw_flash_block_state_t *state = userdata;
   critical_section_enter_blocking(&_hw_flash_lock);
   if (src == NULL || !_hw_flash_block_index_valid(block, state, index)) {
