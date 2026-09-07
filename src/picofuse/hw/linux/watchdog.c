@@ -16,6 +16,13 @@
 
 #define HW_WATCHDOG_FALLBACK_TIMEOUT_MS 10000u
 
+// Larger than any real hardware watchdog's actual ceiling (typically tens
+// of seconds to a few minutes), just large enough to reliably trigger a
+// compliant driver's own WDIOC_SETTIMEOUT clamping (see
+// _hw_watchdog_probe_timeout_ms()) - deliberately not INT_MAX, to avoid
+// relying on an unusual driver clamping cleanly against an extreme value.
+#define HW_WATCHDOG_PROBE_TIMEOUT_S 86400
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -64,14 +71,40 @@ static uint32_t _hw_watchdog_probe_timeout_ms(const char *device) {
     return 0u;
   }
 
-  int timeout_s = 0;
-  uint32_t timeout_ms = 0u;
+  int original_s = 0;
+  bool have_original =
+      ioctl(fd, WDIOC_GETTIMEOUT, &original_s) == 0 && original_s > 0;
 
-  if (ioctl(fd, WDIOC_GETTIMEOUT, &timeout_s) == 0 && timeout_s > 0) {
-    timeout_ms = (uint32_t)timeout_s * 1000u;
+  // WDIOC_GETTIMEOUT alone only reports whatever timeout happens to be
+  // configured right now - this driver's own default, or whatever an
+  // earlier session already set - not the hardware's true ceiling, so
+  // reporting that as-is as "max" would silently under-clamp
+  // hw_watchdog_reset() on a device whose real maximum is higher.
+  // WDIOC_SETTIMEOUT is documented (Documentation/watchdog/watchdog-api.rst)
+  // to clamp an out-of-range request to the real supported range and write
+  // back whatever it actually applied, so requesting a deliberately
+  // oversized value and reading that back is the only portable way to
+  // discover it.
+  int probe_s = HW_WATCHDOG_PROBE_TIMEOUT_S;
+  uint32_t timeout_ms = 0u;
+  if (ioctl(fd, WDIOC_SETTIMEOUT, &probe_s) == 0 && probe_s > 0) {
+    timeout_ms = (uint32_t)probe_s * 1000u;
+  } else if (have_original) {
+    // No WDIOC_SETTIMEOUT support (or it rejected the probe value) - fall
+    // back to whatever's already configured.
+    timeout_ms = (uint32_t)original_s * 1000u;
   }
 
-  _hw_watchdog_close_fd(&fd);
+  // Restore whatever was configured before this probe touched it
+  if (have_original) {
+    (void)ioctl(fd, WDIOC_SETTIMEOUT, &original_s);
+  }
+  close(fd);
+
+  // Fallback
+  if (timeout_ms == 0u) {
+    timeout_ms = HW_WATCHDOG_FALLBACK_TIMEOUT_MS;
+  }
   return timeout_ms;
 }
 
@@ -173,14 +206,19 @@ hw_watchdog_t *hw_watchdog_init_device(const char *device) {
     path = HW_WATCHDOG_DEFAULT_DEVICE;
   }
 
+  // 0 here unambiguously means no such device (see
+  // _hw_watchdog_probe_timeout_ms()'s own doc) - don't hand back a handle
+  // that looks initialized for hardware that was never actually there.
+  uint32_t timeout_ms = _hw_watchdog_probe_timeout_ms(path);
+  if (timeout_ms == 0u) {
+    return NULL;
+  }
+
   memset(&_hw_watchdog, 0, sizeof(_hw_watchdog));
   _hw_watchdog.fd = -1;
 
   (void)snprintf(_hw_watchdog.device, sizeof(_hw_watchdog.device), "%s", path);
-  _hw_watchdog.timeout_ms = _hw_watchdog_probe_timeout_ms(path);
-  if (_hw_watchdog.timeout_ms == 0u) {
-    _hw_watchdog.timeout_ms = HW_WATCHDOG_FALLBACK_TIMEOUT_MS;
-  }
+  _hw_watchdog.timeout_ms = timeout_ms;
   _hw_watchdog.reset_timeout_ms = 0u;
 
   _hw_watchdog.did_reset = _hw_watchdog_read_bootstatus(path);
@@ -204,13 +242,9 @@ uint32_t hw_watchdog_maxtimeout_ms(void) {
     return _hw_watchdog.timeout_ms;
   }
 
-  uint32_t timeout_ms =
-      _hw_watchdog_probe_timeout_ms(HW_WATCHDOG_DEFAULT_DEVICE);
-  if (timeout_ms == 0u) {
-    timeout_ms = HW_WATCHDOG_FALLBACK_TIMEOUT_MS;
-  }
-
-  return timeout_ms;
+  // 0 here already unambiguously means no such device - see
+  // _hw_watchdog_probe_timeout_ms()'s own doc.
+  return _hw_watchdog_probe_timeout_ms(HW_WATCHDOG_DEFAULT_DEVICE);
 }
 
 bool hw_watchdog_did_reset(hw_watchdog_t *watchdog) {
