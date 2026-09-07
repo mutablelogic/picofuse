@@ -39,6 +39,17 @@ test_main_hw(0) {
   test_assert(hw_led_set_brightness(led, 0, 0.0f));
   test_assert(hw_gpio_get(gpio) == false);
 
+  // hw_led_set_color() has no real color concept on GPIO - it falls back
+  // to brightness, derived from perceived luma scaled by alpha (see
+  // hw_led_set_color()'s own doc). Alpha 0 always turns off regardless of
+  // R/G/B; a nonzero luma at full alpha turns on.
+  test_assert(hw_led_set_color(led, 0, PIX_COLOR_RGBA(255, 255, 255, 0)));
+  test_assert(hw_gpio_get(gpio) == false);
+  test_assert(hw_led_set_color(led, 0, PIX_COLOR_WHITE));
+  test_assert(hw_gpio_get(gpio) == true);
+  test_assert(hw_led_set_color(led, 0, PIX_COLOR_BLACK));
+  test_assert(hw_gpio_get(gpio) == false);
+
   test_assert(hw_led_clear(led));
   test_assert(hw_gpio_get(gpio) == false);
 

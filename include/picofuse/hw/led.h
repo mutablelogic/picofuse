@@ -247,7 +247,9 @@ bool hw_led_set_brightness(hw_led_t *led, uint8_t index, float percent);
  * @param color Color to apply, including alpha - see pix_color_t's own doc.
  * @retval true Color (or, for a fallback - see below - brightness) was
  * applied.
- * @retval false Handle is invalid.
+ * @retval false Handle is invalid, @p index is out of range for a
+ * color-capable backend (NeoPixel), or the LED type supports neither
+ * real color nor the @ref hw_led_set_brightness fallback.
  *
  * Only @ref hw_led_type_neopixel has a real color concept - every other
  * LED type falls back to @ref hw_led_set_brightness, deriving a

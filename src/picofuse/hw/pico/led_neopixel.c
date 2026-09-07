@@ -85,24 +85,16 @@ static bool _hw_led_neopixel_flush(const _hw_led_neopixel_ctx_t *ctx) {
   return true;
 }
 
-// A simple on/off hw_led_t doesn't expose per-pixel color, so turning an
-// index on lights it plain white the first time - but if it already holds
-// some other color (set some other way, once this driver grows a way to
-// do that), re-enabling it preserves that color instead of clobbering it
-// back to white. A NeoPixel chain wanting real color control from the
-// start should be driven directly rather than through this interface.
+// A plain on/off toggle always uses white, regardless of whatever color
+// was there before - hw_led_set_color() is how a caller sets a specific
+// color instead.
 static bool _hw_led_neopixel_set(hw_led_t *led, uint8_t index, bool enabled) {
   _hw_led_neopixel_ctx_t *ctx = _hw_led_context(led);
   if (index >= ctx->led_count) {
     return false;
   }
 
-  if (!enabled) {
-    ctx->pixels[index] = 0;
-  } else if (ctx->pixels[index] == 0) {
-    ctx->pixels[index] = PIX_COLOR_WHITE;
-  }
-
+  ctx->pixels[index] = enabled ? PIX_COLOR_WHITE : 0;
   return _hw_led_neopixel_flush(ctx);
 }
 

@@ -111,11 +111,14 @@ bool hw_led_set_color(hw_led_t *led, uint8_t index, pix_color_t color) {
   }
 
   // No real color concept (GPIO/PWM/Wi-Fi/sysfs): fall back to perceived
-  // brightness, weighted per ITU-R BT.601 luma (0.299/0.587/0.114,
-  // rounded here to 0.2/0.7/0.1) rather than a plain average, since green
-  // reads far brighter to the eye than red or blue at the same channel
-  // value. Alpha scales the result the same way it scales a NeoPixel's
-  // own channels (see led_neopixel.c's own _hw_led_neopixel_scale()).
+  // brightness, weighted 0.2/0.7/0.1 (R/G/B) rather than a plain average,
+  // since green reads far brighter to the eye than red or blue at the
+  // same channel value - a rougher approximation than a true luma
+  // formula like ITU-R BT.601's 0.299/0.587/0.114, but simple integer-
+  // friendly weights are enough for an on/off-or-dim fallback that was
+  // never going to show real color anyway. Alpha scales the result the
+  // same way it scales a NeoPixel's own channels (see led_neopixel.c's
+  // own _hw_led_neopixel_scale()).
   float luma = 0.2f * (float)pix_color_r(color) +
               0.7f * (float)pix_color_g(color) +
               0.1f * (float)pix_color_b(color);

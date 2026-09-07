@@ -41,6 +41,17 @@ test_main_hw(0) {
   test_assert(hw_led_set_brightness(led, 1, -10.0f));
   test_assert(hw_led_set_brightness(led, 1, 150.0f));
 
+  // hw_led_set_color() - real per-pixel color, unlike every other LED
+  // type (see its own doc).
+  test_assert(hw_led_set_color(led, 0, PIX_COLOR_RED));
+  test_assert(hw_led_set_color(led, 1, PIX_COLOR_GREEN));
+  test_assert(hw_led_set_color(led, 2, PIX_COLOR_BLUE));
+  sys_sleep_ms(50);
+
+  // Out-of-range index is rejected, not clamped - same as hw_led_set().
+  test_assert(hw_led_set_color(led, HW_LED_TEST_NEOPIXEL_COUNT,
+                               PIX_COLOR_WHITE) == false);
+
   // Unlike _set(), which only ever touches one index, hw_led_clear() turns
   // off every LED in the chain (see the public API doc).
   test_assert(hw_led_clear(led));

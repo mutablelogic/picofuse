@@ -49,6 +49,7 @@ test_main_hw(0) {
   // NULL-safety: every operation must tolerate an invalid handle.
   test_assert(hw_led_set(NULL, 0, true) == false);
   test_assert(hw_led_set_brightness(NULL, 0, 50.0f) == false);
+  test_assert(hw_led_set_color(NULL, 0, PIX_COLOR_RED) == false);
   test_assert(hw_led_clear(NULL) == false);
   test_assert(hw_led_blink(NULL, 0, 100, false) == false);
   hw_led_deinit(NULL); // must not crash
@@ -83,6 +84,15 @@ test_main_hw(0) {
   test_assert(hw_led_set_brightness(led, 0, -10.0f));
   test_assert(hw_led_set_brightness(led, 0, 150.0f));
 
+  // hw_led_set_color() always succeeds regardless of LED type - real
+  // color on NeoPixel, a perceived-luma brightness fallback on every
+  // other type (see its own doc). A fully-transparent color (alpha 0)
+  // is the fallback's "off", same as zero brightness.
+  test_assert(hw_led_set_color(led, 0, PIX_COLOR_WHITE));
+  sys_sleep_ms(200);
+  test_assert(hw_led_set_color(led, 0, PIX_COLOR_RGBA(255, 0, 0, 0)));
+  sys_sleep_ms(200);
+
   test_assert(hw_led_clear(led));
 
   // hw_led_blink(): starts, and calling it again while already active
@@ -95,6 +105,20 @@ test_main_hw(0) {
   test_assert(hw_led_clear(led)); // cancels the repeating blink
   test_assert(hw_led_blink(led, 0, 100, true)); // slot is free again
   test_assert(hw_led_set(led, 0, false)); // cancels it too
+
+  // hw_led_set_color() cancels an active blink too, same as hw_led_set()/
+  // hw_led_clear() above.
+  test_assert(hw_led_blink(led, 0, 100, true));
+  test_assert(hw_led_set_color(led, 0, PIX_COLOR_BLUE));
+
+  // A color set before hw_led_blink() is captured as the "on" phase's
+  // color (NeoPixel only - see hw_led_blink()'s own doc; every other
+  // type just toggles fully on/off regardless) - exercised here for
+  // crash/hang safety, not visually verified.
+  test_assert(hw_led_set_color(led, 0, PIX_COLOR_RED));
+  test_assert(hw_led_blink(led, 0, 100, true));
+  sleep_and_poll(350); // several flips
+  test_assert(hw_led_clear(led));
 
   // Non-repeating: one flip (off -> on) after one period, then the timer
   // stops itself - a fresh hw_led_blink() succeeds again once that's had
