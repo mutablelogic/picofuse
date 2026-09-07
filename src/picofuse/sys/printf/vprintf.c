@@ -98,6 +98,22 @@ size_t _sys_vprintf(struct sys_printf_state *state, const char *format,
         state->flags |= SYS_PRINTF_FLAG_SIZET;
         format++;
         break;
+      case 'h':
+        // 'h'/'hh' (short/char) - no flag to set: a short or char vararg
+        // is already promoted to int by C's own default argument
+        // promotion rules before it ever reaches va_arg(), so reading it
+        // takes the same va_arg(*va, int) call as a bare %d/%u would.
+        // Still has to be consumed here rather than left for
+        // handle_specifier below, though - otherwise 'h' itself gets
+        // treated as the conversion character (falls through to
+        // _sys_printf_put()'s own default: case, which silently consumes
+        // no argument and prints nothing), leaking the real specifier
+        // that follows it (the 'u' in "%hu", say - exactly what
+        // lwIP's own debug builds format IP addresses/ports with, via
+        // U16_F/PRIu16) out as a literal character instead, and
+        // desyncing every va_arg after it in the same call.
+        format++;
+        break;
       default:
         goto handle_specifier;
       }

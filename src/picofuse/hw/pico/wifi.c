@@ -268,6 +268,15 @@ bool hw_wifi_scan(hw_wifi_t *wifi) {
     cyw43_arch_lwip_begin();
     cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true,
                       _hw_wifi_country_code(wifi->country_code));
+    // cyw43_wifi_set_up() above just switched pm to CYW43_DEFAULT_PM (a
+    // PM2-style mode) on its own - the radio sleeps between DTIM
+    // intervals when left there. Not implicated in the dropped-UDP-reply
+    // bug net/pico/socket.c's own _net_conn_ops_read() comment describes
+    // (that turned out to be a missing cyw43_arch_poll() pump, not this),
+    // but disabled anyway: there's no reason to trade any latency for
+    // power savings on a Wi-Fi-powered device that isn't running on a
+    // battery.
+    cyw43_wifi_pm(&cyw43_state, CYW43_NONE_PM);
     cyw43_arch_lwip_end();
   }
 
@@ -341,6 +350,8 @@ bool hw_wifi_connect(hw_wifi_t *wifi, const hw_wifi_network_t *network,
     cyw43_arch_lwip_begin();
     cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true,
                       _hw_wifi_country_code(wifi->country_code));
+    // See hw_wifi_scan()'s own comment on why this is here.
+    cyw43_wifi_pm(&cyw43_state, CYW43_NONE_PM);
     cyw43_arch_lwip_end();
   }
 

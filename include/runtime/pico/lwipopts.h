@@ -58,6 +58,8 @@
 #define LWIP_CHKSUM_ALGORITHM 3
 #define LWIP_DHCP 1
 #define LWIP_IPV4 1
+#define LWIP_IPV6 1
+#define LWIP_IPV6_AUTOCONFIG 1 // SLAAC - assign a global address via RA
 #define LWIP_TCP 1
 #define LWIP_UDP 1
 #define LWIP_DNS 1
@@ -100,3 +102,6 @@
 #define PPP_DEBUG LWIP_DBG_OFF
 #define SLIP_DEBUG LWIP_DBG_OFF
 #define DHCP_DEBUG LWIP_DBG_OFF
+#define IP6_DEBUG LWIP_DBG_OFF
+#define ND6_DEBUG LWIP_DBG_OFF
+#define DHCP6_DEBUG LWIP_DBG_OFF

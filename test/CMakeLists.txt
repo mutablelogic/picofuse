@@ -762,9 +762,7 @@ if(DEFINED PICO_BOARD)
 	target_link_libraries(hw_019 PRIVATE hardware_uart_headers)
 endif()
 
-# hw_uart_init_device() lifecycle plus a real write/flush/callback smoke
-# test against a real serial device - skips if HW_UART_TEST_DEVICE isn't
-# set, see hw_020/main.c. Darwin/Linux only - Pico has no device-path UART.
+# hw_uart_init_device() lifecycle 
 if(NOT DEFINED PICO_BOARD)
 	picofuse_test(hw_020
 		hw_020/main.c
@@ -786,10 +784,7 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
-# hid_init/_deinit singleton lifecycle (including rejecting a second
-# hid_init()) and the generic hid_register/_deregister path against a
-# fake device with caller-supplied callbacks - no real backends
-# (gpio/timer/signal/wifi/...) are wired up yet.
+# hid_init/_deinit singleton lifecycle 
 picofuse_test(hid_001
 	hid_001/main.c
 	LIBRARIES picofuse-hw picofuse-hid

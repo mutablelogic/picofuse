@@ -74,6 +74,12 @@ typedef struct {
     struct tcp_pcb *tcp;
     struct udp_pcb *udp;
   } pcb;
+  // UDP only: net_open()'s own remote address/port, used both to target
+  // udp_sendto() below and to filter _net_conn_udp_recv_cb()'s incoming
+  // datagrams by hand - see net_open()'s own doc on why this isn't done
+  // via udp_connect()'s built-in remote-address filtering instead.
+  ip_addr_t udp_remote_ip;
+  u16_t udp_remote_port;
   sys_iostream_t *stream;
   bool gone; // true once lwIP has already freed pcb (tcp_err() fired) -
              // never touch pcb again.
@@ -214,10 +220,17 @@ static void _net_conn_udp_recv_cb(void *arg, struct udp_pcb *upcb,
                                   struct pbuf *p, const ip_addr_t *addr,
                                   u16_t port) {
   (void)upcb;
-  (void)addr;
-  (void)port;
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)arg;
   if (p == NULL) {
+    return;
+  }
+  // Matches net_open()'s own promise that this stream only ever sees
+  // datagrams from the address/port it was opened against - done here in
+  // application code, on an otherwise-unconnected pcb, rather than via
+  // udp_connect()'s own built-in remote-address filtering (see net_open()'s
+  // own doc).
+  if (!ip_addr_cmp(addr, &ctx->udp_remote_ip) || port != ctx->udp_remote_port) {
+    pbuf_free(p);
     return;
   }
   if (ctx->rx.udp_rx.count >= NET_CONN_UDP_QUEUE_CAPACITY) {
@@ -257,6 +270,24 @@ static size_t _net_conn_ops_read(sys_iostream_t *s, char *buf, size_t n) {
   if (n == 0) {
     return 0;
   }
+
+#if PICO_CYW43_ARCH_POLL
+  // A caller blocking on a reply by spinning sys_iostream_read()+
+  // sys_sleep_ms() in its own loop (net_ntp_read(), say) never otherwise
+  // gives anything a chance to service the CYW43 driver's own RX queue
+  // in between - net_open()'s own TCP-connect wait loop already has to
+  // pump cyw43_arch_poll() itself for the exact same reason (see its own
+  // comment). Real-hardware testing showed a genuine reply sitting
+  // unclaimed in the driver for the caller's *entire* wait, only
+  // surfacing (as an orphaned "not for us" drop, its own pcb long since
+  // torn down) once something else eventually called cyw43_arch_poll()
+  // again - cheap and meant to be called liberally, so just always do it
+  // here rather than depend on every future blocking caller getting this
+  // right on its own. Only meaningful under the poll architecture - under
+  // threadsafe_background, driver/lwIP work already happens on its own via
+  // interrupt, and cyw43_arch_poll() isn't there to call.
+  cyw43_arch_poll();
+#endif
 
   size_t total = 0;
   if (ctx->pushback >= 0) {
@@ -336,7 +367,8 @@ static size_t _net_conn_ops_write(sys_iostream_t *s, const char *buf,
     struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, (u16_t)want, PBUF_RAM);
     if (p != NULL) {
       pbuf_take(p, buf, (u16_t)want);
-      if (udp_send(ctx->pcb.udp, p) == ERR_OK) {
+      if (udp_sendto(ctx->pcb.udp, p, &ctx->udp_remote_ip,
+                     ctx->udp_remote_port) == ERR_OK) {
         written = want;
       }
       pbuf_free(p);
@@ -471,23 +503,27 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
 
   if (proto == net_proto_udp) {
     cyw43_arch_lwip_begin();
-    struct udp_pcb *pcb = udp_new_ip_type(IPADDR_TYPE_V4);
-    err_t err = (pcb != NULL) ? udp_connect(pcb, &ip, port) : ERR_MEM;
-    if (pcb != NULL && err == ERR_OK) {
+    // Deliberately left unconnected (no udp_connect()) - udp_sendto()/
+    // _net_conn_udp_recv_cb() below carry the remote address/port
+    // instead, matching pico-examples' own NTP client (see its
+    // ntp_request()/ntp_recv()) rather than relying on udp_connect()'s
+    // own built-in remote-address filtering, which real-hardware testing
+    // showed silently swallowing every reply on this platform's lwIP/
+    // cyw43 combination for reasons that stayed unclear even after an
+    // extensive source audit turned up nothing conclusive.
+    struct udp_pcb *pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
+    if (pcb != NULL) {
       udp_recv(pcb, _net_conn_udp_recv_cb, ctx);
     }
     cyw43_arch_lwip_end();
-    if (pcb == NULL || err != ERR_OK) {
-      if (pcb != NULL) {
-        cyw43_arch_lwip_begin();
-        udp_remove(pcb);
-        cyw43_arch_lwip_end();
-      }
+    if (pcb == NULL) {
       sys_atomic_dec(&ctx->claimed);
       return NULL;
     }
     ctx->kind = _net_conn_udp;
     ctx->pcb.udp = pcb;
+    ctx->udp_remote_ip = ip;
+    ctx->udp_remote_port = port;
     return _net_conn_finish(ctx);
   }
 
@@ -512,12 +548,15 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
 
   // net_open()'s documented contract is to block until connected or
   // failed - since this backend has no threads, that means pumping the
-  // poll loop ourselves rather than waiting for the caller's own hw_poll()
-  // to eventually get around to it.
+  // poll loop ourselves (under the poll architecture only - see
+  // _net_conn_ops_read()'s own comment) rather than waiting for the
+  // caller's own hw_poll() to eventually get around to it.
   uint64_t start = sys_timestamp_ms();
   while (!ctx->connect_done &&
         sys_timestamp_ms() - start < NET_CONN_CONNECT_TIMEOUT_MS) {
+#if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();
+#endif
     sys_sleep_ms(NET_CONN_POLL_MS);
   }
 

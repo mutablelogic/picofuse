@@ -62,7 +62,7 @@ if(DEFINED PICO_BOARD)
 
     if(PICO_CYW43_SUPPORTED)
         if(PICOFUSE_WIFI)
-            list(APPEND _picosdk_targets pico_cyw43_arch_lwip_poll)
+            list(APPEND _picosdk_targets pico_cyw43_arch_lwip_threadsafe_background)
             # hw/pico/wifi.c (compiled instead of the stub only when both
             # PICOFUSE_WIFI and PICO_CYW43_SUPPORTED hold - see its own
             # CMakeLists.txt) exposes _hw_wifi_poll() for init.c's

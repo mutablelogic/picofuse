@@ -3,6 +3,11 @@
 #include <picofuse/hw.h>
 #include <picofuse/sys.h>
 
+#if defined(SYSTEM_NAME_PICO)
+// Defined in hw/pico/init.c - internal, not part of the public hw API.
+extern bool _hw_requires_single_core(void);
+#endif
+
 /**
  * @def APP_QUEUE_CAPACITY
  * @brief Maximum number of events retained by an app's event queue.
@@ -116,6 +121,26 @@ static void _app_on_exit(uint8_t worker) {
   hw_exit();
 }
 
+// True if app_flag_multicore was requested but isn't actually safe to
+// honor on this platform - logs why when it overrides the caller. Only
+// Pico's CYW43 driver has this constraint today (see
+// _hw_requires_single_core()'s own doc in hw/pico/init.c), so this is a
+// no-op everywhere else.
+static bool _app_single_core_required(app_flag_t flags) {
+  if ((flags & app_flag_multicore) == 0) {
+    return false;
+  }
+#if defined(SYSTEM_NAME_PICO)
+  if (_hw_requires_single_core()) {
+    sys_debugf("app", "app_flag_multicore requested but this platform's "
+                      "hardware backend requires single-core operation - "
+                      "falling back to a single core");
+    return true;
+  }
+#endif
+  return false;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -140,8 +165,13 @@ int app_main(int argc, char *argv[], app_flag_t flags,
   _app = &app;
 
   // Run on all cores if app_flag_multicore is set, otherwise run on a
-  // single core.
-  uint8_t num_workers = (flags & app_flag_multicore) ? 0u : 1u;
+  // single core - unless _app_single_core_required() overrides that (see
+  // its own doc), in which case that always wins over what the caller
+  // asked for.
+  uint8_t num_workers =
+      (flags & app_flag_multicore) && !_app_single_core_required(flags)
+          ? 0u
+          : 1u;
 
   // Run the event loop until app_shutdown() is called, then exit with the
   // provided exit code.

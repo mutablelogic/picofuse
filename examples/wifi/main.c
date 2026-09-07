@@ -77,39 +77,6 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
     if (wifi_event & hw_wifi_event_connected) {
       (void)hw_led_set(app_led(app), 0, true);
 
-      // TEMPORARY diagnostic: isolate whether outbound-to-the-internet
-      // routing works at all on this hardware (as opposed to a
-      // UDP/NTP-specific bug) - nothing before this has ever tested
-      // net_open() reaching a WAN address; the TCP echo example only
-      // ever had LAN clients connect *in*. Remove once NTP is sorted.
-      {
-        net_addr_t cloudflare_dns = net_addr_v4(1, 1, 1, 1);
-        sys_iostream_t *diag = net_open(net_proto_tcp, &cloudflare_dns, 80);
-        if (diag != NULL) {
-          sys_debugf("wifi", "on_event: diag TCP connect to 1.1.1.1:80 OK");
-          sys_iostream_close(diag);
-        } else {
-          sys_debugf("wifi", "on_event: diag TCP connect to 1.1.1.1:80 FAILED");
-        }
-
-        // Second diagnostic: some routers/ISPs specifically block or
-        // intercept outbound UDP port 123 (NTP) to prevent it being used
-        // for amplification abuse - if that's what's happening, it isn't
-        // a bug in this code at all. Try a different, non-anycast NTP
-        // server (NIST, a single physical host, unlike Cloudflare's
-        // anycast address) to see whether ANY NTP traffic gets through.
-        net_addr_t nist = net_addr_v4(132, 163, 97, 1); // time-a-g.nist.gov
-        net_ntp_t *diag_ntp = net_ntp_init(&nist, NET_NTP_PORT, 3000);
-        sys_date_t diag_date;
-        if (diag_ntp != NULL && net_ntp_read(diag_ntp, &diag_date)) {
-          sys_debugf("wifi", "on_event: diag NTP to NIST OK, seconds=%lld",
-                    (long long)diag_date.seconds);
-        } else {
-          sys_debugf("wifi", "on_event: diag NTP to NIST FAILED");
-        }
-        net_ntp_deinit(diag_ntp);
-      }
-
       // Start syncing the system clock over NTP now that there's a
       // network route - only once, the first time we connect; the
       // periodic poll this registers keeps re-syncing from here on its
@@ -178,11 +145,6 @@ static void _on_event(app_t *app, sys_event_t event, void *userdata) {
       sys_date_to_string(&hid_event->data.time.date, sys_date_format_iso8601,
                          date_buf, sizeof(date_buf));
       sys_printf("[wifi] system clock synced via NTP: %s\n", date_buf);
-      sys_debugf("wifi",
-                 "on_event: system clock synced via NTP, seconds=%lld "
-                 "(core=%u)",
-                 (long long)hid_event->data.time.date.seconds,
-                 sys_thread_core());
     } else {
       sys_debugf("wifi", "on_event: sys_date_set_now failed (core=%u)",
                  sys_thread_core());
