@@ -163,7 +163,11 @@ static void _net_conn_rx_thread(void *arg) {
                 ctx->fd);
       break;
     }
-    if (got == 0) {
+    // A zero-length recv() means "peer closed" for TCP (EOF) - but UDP is
+    // connectionless, with no such concept, so a zero-length datagram is
+    // simply a valid, if unusual, received message and falls through to
+    // the ordinary per-protocol handling below like any other size.
+    if (got == 0 && ctx->proto != net_proto_udp) {
       sys_debugf("net", "conn_rx_thread: peer closed fd=%d, stopping",
                 ctx->fd);
       break;

@@ -13,7 +13,11 @@
 #define NET_003_WAIT_MS (5 * 1000)
 #define NET_003_POLL_MS 20
 
-static volatile int g_dgrams = 0;
+// See net_002/main.c's own comment on why this needs sys_atomic_t rather
+// than a plain (volatile or not) int - g_dgrams++ below is a
+// read-modify-write on top of that, so a plain int risks a genuine lost
+// update, not just a formal visibility issue.
+static sys_atomic_t g_dgrams;
 
 static void on_accept(net_listener_t *listener, sys_iostream_t *conn,
                       const net_addr_t *remote, uint16_t remote_port,
@@ -35,7 +39,7 @@ static void on_accept(net_listener_t *listener, sys_iostream_t *conn,
 
   test_assert(sys_iostream_write(conn, "pong", 4) == 4);
   sys_iostream_close(conn);
-  g_dgrams++;
+  sys_atomic_inc(&g_dgrams);
 }
 
 static bool send_and_wait_reply(net_addr_t *loopback, int expect_count) {
@@ -59,11 +63,11 @@ static bool send_and_wait_reply(net_addr_t *loopback, int expect_count) {
   sys_iostream_close(client);
 
   start = sys_timestamp_ms();
-  while (g_dgrams < expect_count &&
+  while ((int)sys_atomic_get(&g_dgrams) < expect_count &&
         sys_timestamp_ms() - start < NET_003_WAIT_MS) {
     sys_sleep_ms(NET_003_POLL_MS);
   }
-  test_assert(g_dgrams == expect_count);
+  test_assert((int)sys_atomic_get(&g_dgrams) == expect_count);
   return true;
 }
 

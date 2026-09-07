@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <poll.h>
 #include <stdint.h>
 #include <string.h>
@@ -142,9 +143,19 @@ bool serial_wait_for_marker(int fd, uint64_t deadline_ms,
     // "no deadline" - poll() needs its own -1 sentinel for that rather
     // than the literal (deadline_ms - now_ms), which would be a huge
     // uint64_t that truncates to something meaningless once cast to int.
+    // A finite deadline can still overflow int once cast (--timeout is a
+    // uint32_t of seconds, so the delta can exceed INT_MAX ms - about 24.8
+    // days) - clamp it first rather than let the cast silently wrap into
+    // a negative (and so, to poll(), infinite) timeout.
     struct pollfd pfd = {.fd = fd, .events = POLLIN};
-    int poll_timeout_ms =
-        (deadline_ms == UINT64_MAX) ? -1 : (int)(deadline_ms - now_ms);
+    int poll_timeout_ms;
+    if (deadline_ms == UINT64_MAX) {
+      poll_timeout_ms = -1;
+    } else {
+      uint64_t remaining_ms = deadline_ms - now_ms;
+      poll_timeout_ms =
+          (remaining_ms > (uint64_t)INT_MAX) ? INT_MAX : (int)remaining_ms;
+    }
     int rc = poll(&pfd, 1, poll_timeout_ms);
     if (rc < 0) {
       if (errno == EINTR) {

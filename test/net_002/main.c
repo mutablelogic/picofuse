@@ -12,7 +12,13 @@
 #define NET_002_WAIT_MS (5 * 1000)
 #define NET_002_POLL_MS 20
 
-static volatile bool g_accepted = false;
+// net/posix/listener.c runs on_accept() on a real background thread (see
+// its own _net_listener_tcp_thread()) - a plain bool, volatile or not,
+// gives no cross-thread visibility/atomicity guarantee in C, so this
+// needs the same sys_atomic_t signaling idiom the rest of the codebase
+// already uses for exactly this (see e.g. test/sys_022/main.c's
+// _holder_ready).
+static sys_atomic_t g_accepted;
 
 static void on_accept(net_listener_t *listener, sys_iostream_t *conn,
                       const net_addr_t *remote, uint16_t remote_port,
@@ -41,7 +47,7 @@ static void on_accept(net_listener_t *listener, sys_iostream_t *conn,
 
   test_assert(sys_iostream_write(conn, "pong", 4) == 4);
   sys_iostream_close(conn);
-  g_accepted = true;
+  sys_atomic_set(&g_accepted, 1);
 }
 
 test_main_sys(0) {
@@ -84,10 +90,11 @@ test_main_sys(0) {
   sys_iostream_close(client);
 
   start = sys_timestamp_ms();
-  while (!g_accepted && sys_timestamp_ms() - start < NET_002_WAIT_MS) {
+  while (sys_atomic_get(&g_accepted) == 0 &&
+        sys_timestamp_ms() - start < NET_002_WAIT_MS) {
     sys_sleep_ms(NET_002_POLL_MS);
   }
-  test_assert(g_accepted);
+  test_assert(sys_atomic_get(&g_accepted) != 0);
 
   net_listener_deinit(listener);
   net_listener_deinit(NULL); // must not crash

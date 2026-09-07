@@ -362,12 +362,23 @@ static size_t _net_conn_ops_read(sys_iostream_t *s, char *buf, size_t n) {
 static size_t _net_conn_ops_write(sys_iostream_t *s, const char *buf,
                                   size_t n) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
-  if (ctx->gone || n == 0) {
+  if (n == 0) {
     return 0;
   }
 
+  // ctx->gone is set by _net_conn_tcp_err_cb() (an lwIP callback, so
+  // already running with the lock held) - reading it needs the same lock
+  // under pico_cyw43_arch_lwip_threadsafe_background, where that callback
+  // can genuinely run concurrently with this function on a different
+  // context, unlike under the poll architecture where nothing here is
+  // truly concurrent. Check it inside the critical section rather than
+  // before entering it.
   size_t written = 0;
   cyw43_arch_lwip_begin();
+  if (ctx->gone) {
+    cyw43_arch_lwip_end();
+    return 0;
+  }
   if (ctx->kind == _net_conn_tcp) {
     u16_t avail = tcp_sndbuf(ctx->pcb.tcp);
     u16_t want = (u16_t)((n < avail) ? n : avail);
@@ -581,11 +592,13 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
   }
 
   if (!ctx->connect_done || ctx->connect_err != ERR_OK) {
+    // See _net_conn_ops_write()'s own comment on why ctx->gone has to be
+    // read inside the critical section, not before it.
+    cyw43_arch_lwip_begin();
     if (!ctx->gone) {
-      cyw43_arch_lwip_begin();
       tcp_abort(pcb);
-      cyw43_arch_lwip_end();
     }
+    cyw43_arch_lwip_end();
     sys_atomic_dec(&ctx->claimed);
     return NULL;
   }
