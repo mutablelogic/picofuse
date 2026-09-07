@@ -34,18 +34,6 @@ struct hw_watchdog_t {
 #endif
 
 static struct hw_watchdog_t _hw_watchdog = {0};
-
-// Lets _hw_watchdog_poll() skip _HW_WATCHDOG_LOCK() entirely while feeding
-// isn't active - hw_poll() calls it on every single run loop tick,
-// regardless of whether app_flag_watchdog (or hw_watchdog_enable() at all)
-// is in use, and _HW_WATCHDOG_LOCK() is the same shared critical section
-// every other hw/pico/*.c backend and sys/pico/*.c primitive also
-// contends on (see sys/pico/sync.c) - not just wasted cycles on an idle
-// watchdog, but avoidable contention against unrelated subsystems on the
-// other core. Mirrors _hw_led_active_blinks's own fast path in
-// hw/led/blink.c. Kept in sync with `disable` (see hw_watchdog_enable(),
-// hw_watchdog_reset(), hw_watchdog_init(), hw_watchdog_deinit()) - true
-// whenever a poll tick might actually have a feed to do.
 static sys_atomic_t _hw_watchdog_active;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -58,35 +46,33 @@ static bool _hw_watchdog_is_valid(const hw_watchdog_t *watchdog) {
 ///////////////////////////////////////////////////////////////////////////////
 // MODULE HOOKS
 
-// Called from hw_exit() - see hw/pico/init.c. Disabling here means an
-// intentional shutdown doesn't leave the watchdog counting down unattended
-// into a spurious reset.
+// Called from hw_exit()
 void _hw_watchdog_module_exit(void) { hw_watchdog_deinit(&_hw_watchdog); }
 
-// Called from hw_poll() - see hw/pico/init.c.
+// Called from hw_poll()
 void _hw_watchdog_poll(void) {
   if (sys_atomic_get(&_hw_watchdog_active) == 0u) {
     return;
   }
 
   hw_watchdog_t *watchdog = &_hw_watchdog;
+
   _HW_WATCHDOG_LOCK();
-  if (!_hw_watchdog_is_valid(watchdog) || watchdog->disable) {
-    _HW_WATCHDOG_UNLOCK();
-    return;
+  bool due = false;
+  if (_hw_watchdog_is_valid(watchdog) && !watchdog->disable) {
+    uint64_t now_ms = sys_timestamp_ms();
+    uint64_t next_feed_ms = watchdog->last_feed_ms + watchdog->ping_interval_ms;
+    if (watchdog->last_feed_ms == 0u || now_ms >= next_feed_ms) {
+      watchdog->last_feed_ms = now_ms;
+      due = true;
+    }
   }
-
-  uint64_t now_ms = sys_timestamp_ms();
-  uint64_t next_feed_ms = watchdog->last_feed_ms + watchdog->ping_interval_ms;
-  if (watchdog->last_feed_ms != 0u && now_ms < next_feed_ms) {
-    _HW_WATCHDOG_UNLOCK();
-    return;
-  }
-
-  sys_debugf("watchdog", "ping");
-  watchdog->last_feed_ms = now_ms;
-  watchdog_update();
   _HW_WATCHDOG_UNLOCK();
+
+  if (due) {
+    sys_debugf("watchdog", "ping");
+    watchdog_update();
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
