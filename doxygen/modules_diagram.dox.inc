@@ -38,6 +38,9 @@ digraph modules {
   WiFi        [label="WiFi",                     URL="\ref WiFi"];
   UART        [label="UART",                     URL="\ref UART"];
   DeviceIO    [label="Device I/O",               URL="\ref DeviceIO"];
+  BlockIO     [label="Block I/O",                URL="\ref Block"];
+  Flash       [label="Flash",                    URL="\ref Flash"];
+  HardwareMemory [label="Memory",                URL="\ref Memory"];
   Watchdog    [label="Watchdog",                 URL="\ref Watchdog"];
   USB         [label="USB",                      URL="\ref USB"];
   SPI         [label="SPI",                      URL="\ref SPI"];
@@ -87,10 +90,13 @@ digraph modules {
   Hardware -> WiFi;
   Hardware -> UART;
   Hardware -> DeviceIO;
+  Hardware -> BlockIO;
+  Hardware -> HardwareMemory;
   Hardware -> Watchdog;
   Hardware -> USB;
   DeviceIO -> SPI;
   DeviceIO -> I2C;
+  BlockIO -> Flash;
   Device -> BME680;
   Device -> FT6236;
   Device -> STMPE610;

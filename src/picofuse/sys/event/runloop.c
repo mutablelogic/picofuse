@@ -3,6 +3,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef SYSTEM_NAME_PICO
+#include "../pico/flash_pause.h"
+#define _SYS_RUNLOOP_WORKER_WAIT_MS 10u
+#endif
+
 // How often worker 0 re-checks the queue while idle, so poll_fn (if any)
 // keeps firing at a steady cadence. Matches the granularity
 // sys_event_queue_timed_pop() already re-checks at internally, so this adds
@@ -95,21 +100,53 @@ static void _sys_runloop_worker(void *arg) {
   uint8_t worker_index = (uint8_t)worker->worker_number;
 
   sys_debugf("runloop", "worker %u starting", worker_index);
+
+#ifdef SYSTEM_NAME_PICO
+  // Before init_fn, not after - init_fn (an application on_start callback)
+  // may itself run for a while and, being ordinary flash-resident code,
+  // needs this worker already marked pausable for the whole duration a
+  // core-0 flash write could land during it (see _sys_pico_flash_pause_
+  // request()'s own doc) - not just once the run loop's own while() below
+  // starts.
+  _sys_pico_flash_pause_worker_enter();
+#endif
+
   if (runloop->init_fn != NULL) {
     runloop->init_fn(worker_index);
   }
 
   while (true) {
+#ifdef SYSTEM_NAME_PICO
+    _sys_pico_flash_pause_point();
+    sys_event_t event =
+        sys_event_queue_timed_pop(runloop->queue, _SYS_RUNLOOP_WORKER_WAIT_MS);
+    if (event == NULL) {
+      if (sys_atomic_get(&runloop->shutdown_requested) &&
+          sys_event_queue_empty(runloop->queue)) {
+        break;
+      }
+      continue;
+    }
+#else
     sys_event_t event = sys_event_queue_pop(runloop->queue);
     if (event == NULL) {
       break;
     }
+#endif
     runloop->event_fn(event);
   }
 
   if (runloop->exit_fn != NULL) {
     runloop->exit_fn(worker_index);
   }
+
+#ifdef SYSTEM_NAME_PICO
+  // After exit_fn, not before - same reasoning as the enter() move above,
+  // symmetric on the way out: exit_fn is still ordinary flash-resident
+  // application code, so this worker needs to stay marked pausable for its
+  // whole duration too.
+  _sys_pico_flash_pause_worker_exit();
+#endif
 
   sys_debugf("runloop", "worker %u exiting", worker_index);
   sys_waitgroup_done(runloop->workers);

@@ -19,9 +19,11 @@ picofuse_library(
         gpio.c
         i2c.c
         init.c
+        ../memory/memory.c
         pwm.c
         spi.c
         ../deviceio/deviceio.c
+        ../block/block.c
         ../gpio/gpio.c
         ../led/led.c
         ../usb/usb.c
@@ -33,6 +35,7 @@ picofuse_library(
         ../led/neopixel.c
         led_device.c
         ../stub/adc.c
+        ../stub/flash.c
         ../posix/uart.c
         watchdog.c
         # @todo No real Linux hw_wifi_* backend yet (wpa_supplicant control
