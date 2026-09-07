@@ -940,3 +940,14 @@ if(DEFINED PICO_BOARD)
 		WIFI_PASSWORD="${WIFI_PASSWORD}"
 	)
 endif()
+
+# TCP backpressure: a payload bigger than the POSIX backend's own RX ring
+# buffer arrives byte-for-byte even when the reader doesn't drain it
+# until well after the writer has finished - see net_008/main.c's own
+# comment. Skips gracefully wherever there's no real backend yet, same as
+# net_002.
+picofuse_test(net_008
+	net_008/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 30
+)

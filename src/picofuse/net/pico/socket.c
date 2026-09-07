@@ -6,28 +6,18 @@
 #include "lwip/pbuf.h"
 #include "lwip/udp.h"
 
-// Fixed-capacity pool of connected streams - net_open()'s own connections
-// (TCP and UDP alike) and every TCP connection a listener accepts (see
-// listener.c's _net_listener_tcp_accept_cb()). Pico-only: unlike the
-// POSIX backend, which heap-allocates one context per connection, this
-// project's Pico-side pools are fixed-size, matching every other Pico
-// pool (hid_device_t, net_listener_t, ...).
+// Fixed-capacity pool of connected streams
 #ifndef NET_CONN_CAPACITY
 #define NET_CONN_CAPACITY 4
 #endif
 
 // How long net_open()'s TCP path spin-polls waiting for tcp_connect()'s
-// callback before giving up - lwIP's own SYN retransmit logic normally
-// reports failure well before this via the err callback, this is only a
-// defensive backstop.
+// callback before giving up
 #define NET_CONN_CONNECT_TIMEOUT_MS (30 * 1000)
 #define NET_CONN_POLL_MS 2
 
 // Max payload size for a single UDP datagram this backend will send or
-// buffer on receive - large enough for a typical Ethernet-path MTU's
-// worth of payload. A larger outgoing write is clamped to this; a larger
-// incoming datagram is truncated the same way a too-small recv() buffer
-// would truncate a real UDP socket's read.
+// buffer on receive
 #ifndef NET_CONN_UDP_DGRAM_MAX_SIZE
 #define NET_CONN_UDP_DGRAM_MAX_SIZE 1500
 #endif
@@ -44,29 +34,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+/** Connection kind (TCP or UDP) for a _net_conn_ctx_t. */
 typedef enum {
   _net_conn_tcp,
   _net_conn_udp,
 } _net_conn_kind_t;
 
-// Backs net_open()'s own connections (TCP and UDP) and each TCP
-// connection a listener accepts (via _net_conn_wrap_tcp()).
-//
-// For TCP (a plain byte stream, no message boundaries to preserve),
-// received data accumulates as a single pbuf chain in rx.tcp_rx,
-// unconsumed by the app until sys_iostream_read() drains it -
-// pbuf_free_header() (see _net_conn_ops_read()) both copies out and
-// frees/advances the chain in one step. This doubles as lwIP's
-// flow-control signal: tcp_recved() is only called for bytes actually
-// drained by the app, so an unread stream throttles its sender via the
-// TCP window rather than growing unbounded.
-//
-// For UDP, each arriving datagram keeps its own identity: rx.udp_rx.chain
-// is still one pbuf_cat()-joined chain (for the same copy-free-advance
-// trick), but rx.udp_rx.lengths is a parallel queue of each still-unread
-// datagram's own length, so _net_conn_ops_read() can stop draining right
-// at a datagram's end instead of continuing into the next one - see its
-// own doc for why that matters.
+/** Context structure for a network connection (TCP or UDP). */
 typedef struct {
   sys_atomic_t claimed;
   _net_conn_kind_t kind;
@@ -81,8 +55,8 @@ typedef struct {
   ip_addr_t udp_remote_ip;
   u16_t udp_remote_port;
   sys_iostream_t *stream;
-  bool gone; // true once lwIP has already freed pcb (tcp_err() fired) -
-             // never touch pcb again.
+  bool gone;         // true once lwIP has already freed pcb (tcp_err() fired) -
+                     // never touch pcb again.
   bool connect_done; // TCP net_open() only: set by the connected/err
                      // callback to end the spin-wait below.
   err_t connect_err; // TCP net_open() only: result once connect_done.
@@ -105,19 +79,16 @@ typedef struct {
   } rx;
 } _net_conn_ctx_t;
 
+///////////////////////////////////////////////////////////////////////////////
+// GLOBAL VARIABLES
+
 static _net_conn_ctx_t _net_conn_pool[NET_CONN_CAPACITY];
 
 ///////////////////////////////////////////////////////////////////////////////
 // ADDRESS CONVERSION
-//
-// ip_addr_t is a dual-stack tagged union here (LWIP_IPV6 is on - see
-// lwipopts.h), so these go through lwIP's own ip_2_ip4()/ip_2_ip6()
-// accessors plus IP_SET_TYPE_VAL() rather than treating out/ip as a bare
-// ip4_addr_t. ip6_addr_t's own 16 bytes (a u32_t addr[4], see lwip/
-// ip6_addr.h) are the same network-byte-order layout net_addr_t.addr.v6
-// already uses, so - like the v4 case - this is a plain copy, no
-// byte-swapping.
 
+/** Converts a net_addr_t to an ip_addr_t. Returns true on success, false
+ * otherwise. */
 bool _net_addr_to_ipaddr(const net_addr_t *addr, ip_addr_t *out) {
   if (addr->family == net_addr_family_v4) {
     uint32_t raw;
@@ -134,6 +105,7 @@ bool _net_addr_to_ipaddr(const net_addr_t *addr, ip_addr_t *out) {
   return false;
 }
 
+/** Converts an ip_addr_t to a net_addr_t. */
 void _net_ipaddr_to_addr(const ip_addr_t *ip, net_addr_t *addr) {
   if (IP_IS_V6_VAL(*ip)) {
     addr->family = net_addr_family_v6;
@@ -148,6 +120,8 @@ void _net_ipaddr_to_addr(const ip_addr_t *ip, net_addr_t *addr) {
 ///////////////////////////////////////////////////////////////////////////////
 // POOL
 
+/** Allocates a new _net_conn_ctx_t from the pool. Returns NULL if none are
+ * available. */
 static _net_conn_ctx_t *_net_conn_alloc(void) {
   for (size_t i = 0; i < NET_CONN_CAPACITY; i++) {
     _net_conn_ctx_t *ctx = &_net_conn_pool[i];
@@ -167,8 +141,9 @@ static _net_conn_ctx_t *_net_conn_alloc(void) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// CONNECTED STREAM (net_open(), and each TCP connection listener.c accepts)
+// CONNECTED STREAM CALLBACKS
 
+/** TCP receive callback for a _net_conn_ctx_t. */
 static err_t _net_conn_tcp_recv_cb(void *arg, struct tcp_pcb *tpcb,
                                    struct pbuf *p, err_t err) {
   (void)tpcb;
@@ -211,6 +186,7 @@ static err_t _net_conn_tcp_recv_cb(void *arg, struct tcp_pcb *tpcb,
   return ERR_OK;
 }
 
+/** TCP error callback for a _net_conn_ctx_t. */
 static void _net_conn_tcp_err_cb(void *arg, err_t err) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)arg;
   // lwIP has already freed tpcb by the time this fires - never touch it
@@ -222,6 +198,7 @@ static void _net_conn_tcp_err_cb(void *arg, err_t err) {
   }
 }
 
+/** TCP connected callback for a _net_conn_ctx_t. */
 static err_t _net_conn_tcp_connected_cb(void *arg, struct tcp_pcb *tpcb,
                                         err_t err) {
   (void)tpcb;
@@ -231,6 +208,7 @@ static err_t _net_conn_tcp_connected_cb(void *arg, struct tcp_pcb *tpcb,
   return ERR_OK;
 }
 
+/** UDP receive callback for a _net_conn_ctx_t. */
 static void _net_conn_udp_recv_cb(void *arg, struct udp_pcb *upcb,
                                   struct pbuf *p, const ip_addr_t *addr,
                                   u16_t port) {
@@ -253,7 +231,7 @@ static void _net_conn_udp_recv_cb(void *arg, struct udp_pcb *upcb,
     return;
   }
   size_t slot = (ctx->rx.udp_rx.head + ctx->rx.udp_rx.count) %
-               NET_CONN_UDP_QUEUE_CAPACITY;
+                NET_CONN_UDP_QUEUE_CAPACITY;
   ctx->rx.udp_rx.lengths[slot] = p->tot_len;
   ctx->rx.udp_rx.count++;
   if (ctx->rx.udp_rx.chain == NULL) {
@@ -268,18 +246,9 @@ static void _net_conn_udp_recv_cb(void *arg, struct udp_pcb *upcb,
   }
 }
 
-// Reads buffered data. For TCP this drains rx.tcp_rx same as always - a
-// plain byte stream, no boundaries to preserve. For UDP, this only ever
-// returns bytes from a single datagram per call: it drains
-// rx.udp_rx.lengths[head] worth of bytes from the front of the chain and
-// stops there (even if the caller's buffer has room left and another
-// datagram is already queued behind it) - the guarantee this exists for
-// is that one sys_iostream_read() can never glue two separate datagrams'
-// bytes together. A caller whose buffer is smaller than one datagram
-// simply gets the rest of it on a follow-up call, rather than losing
-// data - unlike a real recv() on a SOCK_DGRAM socket, which would discard
-// whatever didn't fit; this behaves more like TCP in that one respect,
-// while still never mixing datagrams.
+/** Reads buffered data from a _net_conn_ctx_t. For TCP this drains rx.tcp_rx
+ * as a plain byte stream. For UDP, this only ever returns bytes from a single
+ * datagram per call, preserving datagram boundaries. */
 static size_t _net_conn_ops_read(sys_iostream_t *s, char *buf, size_t n) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
   if (n == 0) {
@@ -287,20 +256,6 @@ static size_t _net_conn_ops_read(sys_iostream_t *s, char *buf, size_t n) {
   }
 
 #if PICO_CYW43_ARCH_POLL
-  // A caller blocking on a reply by spinning sys_iostream_read()+
-  // sys_sleep_ms() in its own loop (net_ntp_read(), say) never otherwise
-  // gives anything a chance to service the CYW43 driver's own RX queue
-  // in between - net_open()'s own TCP-connect wait loop already has to
-  // pump cyw43_arch_poll() itself for the exact same reason (see its own
-  // comment). Real-hardware testing showed a genuine reply sitting
-  // unclaimed in the driver for the caller's *entire* wait, only
-  // surfacing (as an orphaned "not for us" drop, its own pcb long since
-  // torn down) once something else eventually called cyw43_arch_poll()
-  // again - cheap and meant to be called liberally, so just always do it
-  // here rather than depend on every future blocking caller getting this
-  // right on its own. Only meaningful under the poll architecture - under
-  // threadsafe_background, driver/lwIP work already happens on its own via
-  // interrupt, and cyw43_arch_poll() isn't there to call.
   cyw43_arch_poll();
 #endif
 
@@ -359,6 +314,8 @@ static size_t _net_conn_ops_read(sys_iostream_t *s, char *buf, size_t n) {
   return total;
 }
 
+/** Writes data to a _net_conn_ctx_t. Returns the number of bytes successfully
+ * written. */
 static size_t _net_conn_ops_write(sys_iostream_t *s, const char *buf,
                                   size_t n) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
@@ -404,9 +361,8 @@ static size_t _net_conn_ops_write(sys_iostream_t *s, const char *buf,
   return written;
 }
 
-// The only seek this stream supports is sys_iostream_peek()'s own "undo
-// the single byte I just read" pattern - see hw/posix/uart.c's own
-// _hw_uart_ops_seek().
+/** Seeks within a _net_conn_ctx_t. Only supports "undo the last read byte"
+ * pattern used by sys_iostream_peek(). Returns 0 on success, -1 on failure. */
 static ptrdiff_t _net_conn_ops_seek(sys_iostream_t *s, ptrdiff_t offset,
                                     bool abs) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
@@ -418,17 +374,19 @@ static ptrdiff_t _net_conn_ops_seek(sys_iostream_t *s, ptrdiff_t offset,
   return 0;
 }
 
+/** Sets the callback and userdata for a _net_conn_ctx_t. Always returns true.
+ */
 static bool _net_conn_ops_set_callback(sys_iostream_t *s,
                                        sys_iostream_callback_t callback,
                                        void *userdata) {
-  // No lock needed: unlike the POSIX backend, every recv callback that
-  // reads these two fields runs on the same single thread/core as any
-  // caller of this function - see private.h's own threading-model doc.
+  cyw43_arch_lwip_begin();
   s->backend.net.userdata = userdata;
   s->backend.net.callback = callback;
+  cyw43_arch_lwip_end();
   return true;
 }
 
+/** Closes a _net_conn_ctx_t, releasing any associated resources. */
 static void _net_conn_ops_close(sys_iostream_t *s) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
   cyw43_arch_lwip_begin();
@@ -459,14 +417,8 @@ static void _net_conn_ops_close(sys_iostream_t *s) {
   sys_atomic_dec(&ctx->claimed);
 }
 
-static const sys_iostream_ops_t _net_conn_ops = {
-    .read = _net_conn_ops_read,
-    .write = _net_conn_ops_write,
-    .seek = _net_conn_ops_seek,
-    .set_callback = _net_conn_ops_set_callback,
-    .close = _net_conn_ops_close,
-};
-
+/** Finalizes a _net_conn_ctx_t and returns the associated sys_iostream_t.
+ * Returns NULL on failure. */
 static sys_iostream_t *_net_conn_finish(_net_conn_ctx_t *ctx) {
   sys_iostream_t *stream = _sys_iostream_alloc(&_net_conn_ops);
   if (stream == NULL) {
@@ -487,6 +439,8 @@ static sys_iostream_t *_net_conn_finish(_net_conn_ctx_t *ctx) {
   return stream;
 }
 
+/** Wraps an existing TCP pcb in a _net_conn_ctx_t and returns the associated
+ * sys_iostream_t. Returns NULL on failure. */
 sys_iostream_t *_net_conn_wrap_tcp(struct tcp_pcb *pcb) {
   _net_conn_ctx_t *ctx = _net_conn_alloc();
   if (ctx == NULL) {
@@ -502,16 +456,32 @@ sys_iostream_t *_net_conn_wrap_tcp(struct tcp_pcb *pcb) {
 
   cyw43_arch_lwip_begin();
   tcp_arg(pcb, ctx);
+  cyw43_arch_lwip_end();
+
+  sys_iostream_t *stream = _net_conn_finish(ctx);
+  if (stream == NULL) {
+    return NULL; // _net_conn_finish() already aborted pcb on failure
+  }
+  cyw43_arch_lwip_begin();
   tcp_recv(pcb, _net_conn_tcp_recv_cb);
   tcp_err(pcb, _net_conn_tcp_err_cb);
   cyw43_arch_lwip_end();
-
-  return _net_conn_finish(ctx);
+  return stream;
 }
+
+static const sys_iostream_ops_t _net_conn_ops = {
+    .read = _net_conn_ops_read,
+    .write = _net_conn_ops_write,
+    .seek = _net_conn_ops_seek,
+    .set_callback = _net_conn_ops_set_callback,
+    .close = _net_conn_ops_close,
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
+/** Opens a new network connection and returns the associated sys_iostream_t.
+ * Returns NULL on failure. */
 sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
                          uint16_t port) {
   if (addr == NULL || !cyw43_is_initialized(&cyw43_state)) {
@@ -529,18 +499,7 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
 
   if (proto == net_proto_udp) {
     cyw43_arch_lwip_begin();
-    // Deliberately left unconnected (no udp_connect()) - udp_sendto()/
-    // _net_conn_udp_recv_cb() below carry the remote address/port
-    // instead, matching pico-examples' own NTP client (see its
-    // ntp_request()/ntp_recv()) rather than relying on udp_connect()'s
-    // own built-in remote-address filtering, which real-hardware testing
-    // showed silently swallowing every reply on this platform's lwIP/
-    // cyw43 combination for reasons that stayed unclear even after an
-    // extensive source audit turned up nothing conclusive.
     struct udp_pcb *pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
-    if (pcb != NULL) {
-      udp_recv(pcb, _net_conn_udp_recv_cb, ctx);
-    }
     cyw43_arch_lwip_end();
     if (pcb == NULL) {
       sys_atomic_dec(&ctx->claimed);
@@ -550,16 +509,19 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
     ctx->pcb.udp = pcb;
     ctx->udp_remote_ip = ip;
     ctx->udp_remote_port = port;
-    return _net_conn_finish(ctx);
+
+    sys_iostream_t *stream = _net_conn_finish(ctx);
+    if (stream == NULL) {
+      return NULL; // _net_conn_finish() already removed pcb on failure
+    }
+    cyw43_arch_lwip_begin();
+    udp_recv(pcb, _net_conn_udp_recv_cb, ctx);
+    cyw43_arch_lwip_end();
+    return stream;
   }
 
   // TCP
   cyw43_arch_lwip_begin();
-  // IPADDR_TYPE_ANY, not IPADDR_TYPE_V4 - see net_open()'s own UDP path
-  // above, which already used ANY (for an unrelated reason, before IPv6
-  // existed here) and turns out to be exactly right for dual-stack: an
-  // ANY pcb adapts to whichever family tcp_connect()'s own destination
-  // address (ip, from _net_addr_to_ipaddr() above) actually is.
   struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_ANY);
   if (pcb != NULL) {
     tcp_arg(pcb, ctx);
@@ -577,14 +539,9 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
   ctx->kind = _net_conn_tcp;
   ctx->pcb.tcp = pcb;
 
-  // net_open()'s documented contract is to block until connected or
-  // failed - since this backend has no threads, that means pumping the
-  // poll loop ourselves (under the poll architecture only - see
-  // _net_conn_ops_read()'s own comment) rather than waiting for the
-  // caller's own hw_poll() to eventually get around to it.
   uint64_t start = sys_timestamp_ms();
   while (!ctx->connect_done &&
-        sys_timestamp_ms() - start < NET_CONN_CONNECT_TIMEOUT_MS) {
+         sys_timestamp_ms() - start < NET_CONN_CONNECT_TIMEOUT_MS) {
 #if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();
 #endif
@@ -592,8 +549,6 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
   }
 
   if (!ctx->connect_done || ctx->connect_err != ERR_OK) {
-    // See _net_conn_ops_write()'s own comment on why ctx->gone has to be
-    // read inside the critical section, not before it.
     cyw43_arch_lwip_begin();
     if (!ctx->gone) {
       tcp_abort(pcb);
@@ -603,9 +558,12 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
     return NULL;
   }
 
+  sys_iostream_t *stream = _net_conn_finish(ctx);
+  if (stream == NULL) {
+    return NULL; // _net_conn_finish() already aborted pcb on failure
+  }
   cyw43_arch_lwip_begin();
   tcp_recv(pcb, _net_conn_tcp_recv_cb);
   cyw43_arch_lwip_end();
-
-  return _net_conn_finish(ctx);
+  return stream;
 }

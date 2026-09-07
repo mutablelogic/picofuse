@@ -154,7 +154,34 @@ static void _net_conn_rx_thread(void *arg) {
     // NET_CONN_UDP_DGRAM_MAX_SIZE's own truncation-on-store below even
     // gets a say. Harmless for TCP either way - just a bigger chunk size.
     char buf[NET_CONN_UDP_DGRAM_MAX_SIZE];
-    ssize_t got = recv(ctx->fd, buf, sizeof(buf), 0);
+    size_t recv_cap = sizeof(buf);
+    if (ctx->proto != net_proto_udp) {
+      // TCP's ring buffer is fixed-size, unlike UDP's own documented
+      // drop-when-full trade-off (NET_CONN_UDP_QUEUE_CAPACITY's own doc)
+      // - dropping bytes here would violate net_proto_tcp's own reliable
+      // byte-stream guarantee, since recv() has already irrevocably
+      // pulled them off the socket by the time the copy loop below would
+      // otherwise discover there's nowhere to put them. Never recv()
+      // more than there's room to store: whatever's left stays in the
+      // kernel's own socket receive buffer instead, which is what real
+      // TCP flow control is supposed to do - the OS's own receive window
+      // shrinks and throttles the sender, rather than us discarding data
+      // after already accepting it off the wire. See net/pico/socket.c's
+      // own _net_conn_ctx_t doc for the equivalent story there (lwIP's
+      // pbuf chain plus tcp_recved() achieves the same thing).
+      sys_mutex_lock(ctx->lock);
+      size_t free_space = NET_CONN_BUFFER_SIZE - ctx->rx.tcp.count;
+      sys_mutex_unlock(ctx->lock);
+      if (free_space == 0) {
+        sys_sleep_ms(NET_POLL_TIMEOUT_MS); // avoid busy-looping on poll()
+                                           // seeing the same unread bytes
+        continue;
+      }
+      if (free_space < recv_cap) {
+        recv_cap = free_space;
+      }
+    }
+    ssize_t got = recv(ctx->fd, buf, recv_cap, 0);
     if (got < 0) {
       if (errno == EINTR) {
         continue;

@@ -351,9 +351,8 @@ bool hw_wifi_disconnect(hw_wifi_t *wifi);
  * mode, or the access point's own address in access-point mode.
  * @retval false Handle is invalid, or no address of the requested family
  * is currently bound (for example, station mode but not yet connected, or
- * this platform/build doesn't support that family - IPv6 is never
- * available on Pico, since this project's lwipopts.h only enables
- * LWIP_IPV4).
+ * this platform/build's own network backend doesn't support that
+ * family).
  */
 bool hw_wifi_get_address(hw_wifi_t *wifi, net_addr_family_t family,
                          net_addr_t *addr);
