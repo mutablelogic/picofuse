@@ -547,10 +547,19 @@ hw_usb_t *hw_usb_init(void) {
     _hw_usb_instance.thread_started = true;
     _HW_USB_UNLOCK();
   } else {
+    // This backend depends entirely on the event thread - both for the
+    // initial enumeration pass (see _hw_usb_event_thread()'s own doc) and
+    // for pumping libusb_handle_events_timeout() at all (nothing else
+    // ever calls it). A handle without one would look valid
+    // (_hw_usb_valid() only checks init/context) but never fire a single
+    // callback - treat thread startup failure as init failure, matching
+    // the libusb_init() failure path just above.
     atomic_store_explicit(&_hw_usb_instance.running, false,
                           memory_order_release);
     atomic_store_explicit(&_hw_usb_instance.cleanup_in_thread, false,
                           memory_order_release);
+    hw_usb_deinit(&_hw_usb_instance);
+    return NULL;
   }
 
   return &_hw_usb_instance;

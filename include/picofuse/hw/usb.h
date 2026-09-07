@@ -58,9 +58,18 @@
  * Use a debug probe if you need simultaneous debug output.
  */
 #pragma once
-#include <picofuse/hid/device.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+// Forward-declared rather than #include <picofuse/hid/device.h> - only
+// used as opaque pointers below (hw_usb_register_hid()'s own parameter/
+// return type), and pulling in the whole header would add a hw->hid
+// header dependency this module doesn't otherwise have (hid already
+// depends on hw, not the other way around - see hw_usb_register_hid()'s
+// own doc on why the bridge itself still has to be compiled into
+// picofuse-hid rather than picofuse-hw).
+typedef struct hid_t hid_t;
+typedef struct hid_device_t hid_device_t;
 
 /**
  * @def HW_USB_STRING_MAX_LENGTH
@@ -254,7 +263,7 @@ typedef struct hw_usb_t hw_usb_t;
  *               once with @ref hw_usb_event_attached and @p device set to
  *               NULL as an "enumeration complete" marker.
  *               String fields may be empty on detach.
- * @param userdata Opaque user pointer supplied to @ref hw_usb_init.
+ * @param userdata Opaque user pointer supplied to @ref hw_usb_set_callback.
  */
 typedef void (*hw_usb_callback_t)(hw_usb_t *usb, hw_usb_event_t event,
                                   const hw_usb_device_t *device,

@@ -156,7 +156,9 @@ bool sys_string_parse_float32(const char *str, size_t len, float *value) {
     return false;
   }
   if (value) {
-    *value = (float)d;
+    // On Pico's soft-float ABI, narrowing NAN through a double can lose its
+    // NaN representation. Construct the result directly at float width.
+    *value = d != d ? __builtin_nanf("") : (float)d;
   }
   return true;
 }
