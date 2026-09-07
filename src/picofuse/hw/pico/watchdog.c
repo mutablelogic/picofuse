@@ -65,6 +65,10 @@ void _hw_watchdog_module_exit(void) { hw_watchdog_deinit(&_hw_watchdog); }
 
 // Called from hw_poll() - see hw/pico/init.c.
 void _hw_watchdog_poll(void) {
+  if (sys_atomic_get(&_hw_watchdog_active) == 0u) {
+    return;
+  }
+
   hw_watchdog_t *watchdog = &_hw_watchdog;
   _HW_WATCHDOG_LOCK();
   if (!_hw_watchdog_is_valid(watchdog) || watchdog->disable) {
@@ -116,6 +120,7 @@ hw_watchdog_t *hw_watchdog_init(void) {
   watchdog->ping_interval_ms = ping_interval_ms;
   watchdog->last_feed_ms = 0u;
   watchdog->disable = true;
+  sys_atomic_set(&_hw_watchdog_active, 0u);
   _HW_WATCHDOG_UNLOCK();
   return watchdog;
 }
@@ -135,6 +140,7 @@ void hw_watchdog_deinit(hw_watchdog_t *watchdog) {
 
   watchdog_disable();
   memset(watchdog, 0, sizeof(*watchdog));
+  sys_atomic_set(&_hw_watchdog_active, 0u);
   _HW_WATCHDOG_UNLOCK();
 }
 
@@ -168,9 +174,11 @@ void hw_watchdog_enable(hw_watchdog_t *watchdog, bool enable) {
     watchdog_enable(watchdog->timeout_ms * WATCHDOG_XFACTOR, true);
     watchdog->disable = false;
     watchdog->last_feed_ms = 0u;
+    sys_atomic_set(&_hw_watchdog_active, 1u);
   } else {
     watchdog_disable();
     watchdog->disable = true;
+    sys_atomic_set(&_hw_watchdog_active, 0u);
   }
 
   _HW_WATCHDOG_UNLOCK();
@@ -192,5 +200,6 @@ void hw_watchdog_reset(hw_watchdog_t *watchdog, uint32_t delay_ms) {
 
   watchdog_enable(delay_ms * WATCHDOG_XFACTOR, true);
   watchdog->disable = true;
+  sys_atomic_set(&_hw_watchdog_active, 0u);
   _HW_WATCHDOG_UNLOCK();
 }
