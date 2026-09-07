@@ -1,5 +1,101 @@
 # TODO
 
+## Roadmap
+
+Larger modules/features not yet started - no design work done on any of
+these yet, just the list of what's next:
+
+- **Power management** - battery status, power supply enumeration,
+  setting power state, and wakeups by source.
+- **Rename `hw/memory.h` to `hw_stats`** - broaden its scope beyond just
+  memory to also cover network and process load.
+- **Filesystem module** - LittleFS, wrapping the existing code (already
+  written outside picofuse, needs porting in). Comes after SD card
+  support below - LittleFS needs a working `hw/block.h` backend to sit
+  on, and on-chip flash alone (already done) isn't the target for it.
+  See the flash core-1/core-0 marshaling section below, which exists
+  specifically because of this dependency.
+- **Networking protocols** - HTTP client/server, MQTT client, DNS
+  client/server, DHCP server.
+- **Displays** - e-ink, TFT, Linux framebuffer, SDL (host builds). Design
+  intent so far: a `pix_t` registry, same shape as `hid_t` (`hid_init()`/
+  `hid_register_*()`/`hid_deregister()`/`hid_poll()`) - `pix_register_
+  display()`/`pix_deregister_display()` attach/detach a `pix_display_t`
+  (not yet designed beyond the earlier lock/unlock/framebuffer-pixmap
+  sketch), and `pix_poll()` gets called regularly the same way
+  `hid_poll()`/`hw_poll()` already are (from the app run loop). Each
+  registered display only actually pushes pixels out to the real
+  hardware when its framebuffer has changed since the last poll, not
+  unconditionally every call, and that push is itself rate-limited to a
+  regular framerate rather than firing on every single change - avoids
+  hammering a slow SPI/e-ink bus with redundant or excessive updates.
+
+  Two things to watch, found while tracing `sys_runloop_run()`'s actual
+  loop (`sys/event/runloop.c`): `poll_fn` (which `pix_poll()` would be
+  folded into, alongside `hw_poll()`/`hid_poll()`) runs on *every* loop
+  iteration, not on some throttled schedule - so being "one more poll in
+  the chain" is cheap as long as `pix_poll()` does its own due-check
+  first and bails immediately when not yet time to push a frame. But the
+  loop's idle re-check is fixed at `_SYS_RUNLOOP_POLL_INTERVAL_MS`
+  (50ms), so with no other event traffic keeping it awake more often,
+  `pix_poll()` can only ever be invoked that often - a ~20fps ceiling
+  regardless of a display's actual target framerate. Fix: `pix_t` should
+  register its own repeating `hid_register_timer()` at the target frame
+  interval the moment a display is registered, the same way
+  `examples/presto`'s own animation drives its cadence, rather than
+  leaning on ambient traffic. Separately, `poll_fn` only ever runs on
+  worker 0, so a display's actual hardware push (a big SPI transfer to a
+  TFT, say) is serialized with `hw_poll()`/`hid_poll()` and any
+  `event_fn()` that happens to land on worker 0 too - fine most of the
+  time, but worth remembering if a push is ever slow.
+- **Pixel/graphics library, on top of the display work above** - roughly
+  in this order:
+  1. `pix_font_t` - both vector and pixel (bitmap) fonts.
+  2. Pixel-based line and text drawing primitives, onto a
+     `pix_bitmap_t`/display's own framebuffer.
+  3. JPEG decoding, into a `pix_bitmap_t`.
+  4. Vector graphics (paths/shapes generally, not just font glyphs).
+  5. UI widgets and layout, on top of all of the above - see the earlier
+     LVGL discussion; this is roughly aiming at LVGL's own scope, as a
+     picofuse-native alternative to actually integrating LVGL itself.
+- **Bluetooth** - BLE and classic.
+- **CI/CD** - build and publish picofuse distributions for Linux and
+  Darwin.
+- **SD card and other mass storage** - another `hw/block.h` backend,
+  alongside on-chip flash. Comes before the filesystem item above, not
+  after - LittleFS is going on top of this, not on-chip flash.
+- **USB mass storage (Pico as host)** - a `hw/block.h` backend over a USB
+  flash drive, cheaper than SD despite the similar shape: TinyUSB
+  (already vendored) ships a complete host-side Mass Storage Class driver
+  (`third_party/pico-sdk/lib/tinyusb/src/class/msc/msc_host.c` - Bulk-Only
+  Transport + SCSI READ10/WRITE10/etc, with a working example at
+  `examples/host/msc_file_explorer`), so there's no protocol to write
+  from scratch the way SD-over-SPI needs. Work is: enable `CFG_TUH_MSC`
+  in `tusb_config.h` (currently disabled along with every other class
+  driver, deliberately, per its own doc) and make sure `msc_host.c` is
+  compiled into the `tinyusb_host` target; then a thin `hw_block_usb_
+  init()` adapter wrapping `tuh_msc_read10()`/`_write10()`/
+  `_get_maxlun()` in the same `hw_block_ops_t` shape as `flash.c`.
+  Attach detection needs nothing new - `hw/usb.h`'s existing interface-
+  enumeration callback already fires with mass-storage class/subclass/
+  protocol (0x08/0x06/0x50) when a drive is plugged in. TinyUSB's host
+  API is callback-driven, so the adapter needs a "block the caller until
+  the async callback fires" wrapper - worth building once and sharing
+  with the SD backend, which will need the same thing.
+- **Objective-C API** - bindings on top of picofuse, organized as
+  separate frameworks the way Apple's own are: Foundation, Application,
+  Network, Filesystem.
+- **WASM runtime** - not yet scoped further.
+- **OTA firmware updates** - write+verify a new firmware image and
+  reboot into it, on top of the existing on-chip flash block work.
+  Source isn't just network - also from mass storage (SD/USB, once
+  those land above), for an update pushed via a card/drive rather than
+  downloaded.
+- **TLS** - for the HTTP/MQTT clients above, which need HTTPS/TLS in
+  practice; mbedtls is already vendored for the SDK build
+  (`src/runtime/pico/mbedtls.c`), just not wired up as a general-purpose
+  TLS API yet.
+
 ## Transparent core-1 -> core-0 flash write/erase marshaling
 
 ### Context
@@ -152,13 +248,49 @@ while marshaling either), so it's not superseded by it.
 
 ## Other known gaps (see inline `@todo` comments for detail)
 
-- `hw_wifi_init_device()` - no real Linux backend yet (`hw/wifi.h`).
-- `hid_event_queue_touch()` - no `.c` definition or touch-controller
-  registration helper yet (`hid/event.h`).
-- `hw_usb_register_hid_device()` (working name) - no module reads HID
-  *input* yet; needs three separate backends (Pico TinyUSB HID class
-  driver, Linux evdev, Darwin IOHIDManager) - see `hw/usb.h`'s own
-  top-level doc.
+- `hw_wifi_init_device(const char *device)` - not implemented on Linux;
+  always returns `NULL` there (`src/picofuse/hw/linux/CMakeLists.txt`
+  always falls back to `hw/stub/wifi.c`, rather than gating a real
+  backend behind `PICOFUSE_WIFI` the way `hw/pico/CMakeLists.txt` does).
+  Needs a real `wpa_supplicant` control-socket client under
+  `picofuse/hw`.
+- `hid_event_queue_touch(hid_device_t *device, hid_state_t state,
+  pix_point_t point, uint8_t slot)` - no `.c` definition anywhere in
+  `src/picofuse/hid/`, so linking any code that calls it fails. Also no
+  touch-controller registration helper yet (a `hid_register_touch()`-
+  style function) - a driver like `dev/ft6236.h`/`dev/stmpe610.h` would
+  presumably call this directly once it exists, the same way ADC/
+  temperature drivers call `hid_event_queue_metric_float()`.
+- `hw_usb_register_hid_device()` (working name only - needs a better
+  name, and a real signature, presumably taking a `hw_usb_device_t`
+  identifying which interface to read). No module reads USB HID *input*
+  (keystrokes, mouse movement) yet - scoped initially to boot-protocol
+  interfaces (`hw_usb_device_subclass_boot_interface`,
+  `interface_protocol` == keyboard/mouse) so a fixed, known report shape
+  (8 bytes keyboard, 3-4 bytes mouse) can be assumed without a general
+  HID report-descriptor parser. This is NOT one cross-platform
+  implementation - three genuinely different backends are needed:
+  - **Pico**: straightforward, directly through TinyUSB's own HID host
+    class driver (`CFG_TUH_HID`, currently left at 0 in
+    `tusb_config.h`) plus `tuh_hid_report_received_cb()` - this
+    process's USB stack is the only consumer of the bus, nothing else to
+    conflict with.
+  - **Linux**: NOT through libusb/this module at all - the kernel's own
+    `usbhid` driver already owns the interface the instant it's plugged
+    in (confirmed via `lsusb -t` showing `Driver=usbhid`), so reading it
+    via libusb would need `libusb_detach_kernel_driver()`, which steals
+    the device from the rest of the running system (the real keyboard
+    stops working for the OS itself). The correct mechanism is evdev
+    (`/dev/input/eventN`), read alongside the OS rather than instead of
+    it - see the already-reserved but unimplemented `hid_type_evdev`.
+  - **Darwin**: same reasoning as Linux, different API -
+    `IOHIDManager`/`IOHIDDeviceClient` (IOKit's HID Manager) taps into
+    HID collections the kernel's own driver already parsed, without
+    taking exclusive ownership. Needs the user to grant Input Monitoring
+    permission on modern macOS. Neither the Linux nor Darwin backend
+    needs `hw_usb_init()`/`PICOFUSE_USB` engaged at all for this, since
+    both observe at the kernel-input layer rather than the raw USB layer
+    this module provides.
 - `_sys_pico_flash_pause_worker_enter()` - doesn't cover core 1 while
   parked in `thread.c`'s own `multicore_fifo_pop_blocking()`, before a
   runloop worker has started or between runloop sessions. Low severity
