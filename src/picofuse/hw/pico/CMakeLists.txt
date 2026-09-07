@@ -20,15 +20,16 @@ picofuse_library(
         pwm.c
         spi.c
         uart.c
+        watchdog.c
         ../deviceio/deviceio.c
         ../led/led.c
         ../led/blink.c
-        ../led/led_gpio.c
-        ../led/led_pwm.c
+        ../led/gpio.c
+        ../led/pwm.c
         led_wifi.c
         led_default.c
         led_neopixel.c
-        ../led/led_device.c
+        ../led/device.c
         ${_wifi_src}
 )
 

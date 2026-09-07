@@ -11,17 +11,18 @@ picofuse_library(
         ../deviceio/deviceio.c
         ../led/led.c
         ../led/blink.c
-        ../led/led_gpio.c
-        ../led/led_pwm.c
-        ../led/led_wifi.c
-        ../led/led_default.c
-        ../led/led_neopixel.c
-        ../led/led_device.c
+        ../led/gpio.c
+        ../led/pwm.c
+        ../led/wifi.c
+        ../led/default.c
+        ../led/neopixel.c
+        ../led/device.c
         ../stub/adc.c
         ../stub/gpio.c
         ../stub/i2c.c
         ../stub/pwm.c
         ../stub/spi.c
+        ../stub/watchdog.c
         ../posix/uart.c
         ../posix/address.c
         ${_wifi_src}

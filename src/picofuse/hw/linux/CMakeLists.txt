@@ -10,14 +10,15 @@ picofuse_library(
         ../gpio/gpio.c
         ../led/led.c
         ../led/blink.c
-        ../led/led_gpio.c
-        ../led/led_pwm.c
-        ../led/led_wifi.c
-        ../led/led_default.c
-        ../led/led_neopixel.c
+        ../led/gpio.c
+        ../led/pwm.c
+        ../led/wifi.c
+        ../led/default.c
+        ../led/neopixel.c
         led_device.c
         ../stub/adc.c
         ../posix/uart.c
+        ../stub/watchdog.c
         # @todo No real Linux hw_wifi_* backend yet (wpa_supplicant control
         # socket - see hw_wifi_init_device()'s doc) to gate behind
         # PICOFUSE_WIFI, unlike darwin/CMakeLists.txt's wifi.m. Always the

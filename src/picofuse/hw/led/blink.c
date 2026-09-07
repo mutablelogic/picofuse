@@ -6,6 +6,13 @@
 // See private.h's own doc on why this is a count, not a bool.
 sys_atomic_t _hw_led_active_blinks;
 
+#ifndef SYSTEM_NAME_PICO
+// See private.h's own doc on why this needs to be a real lock on host
+// platforms - sys_timer callbacks there run on a genuine background
+// thread, unlike Pico's IRQ context.
+pthread_mutex_t _hw_led_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -120,7 +127,13 @@ bool hw_led_blink(hw_led_t *led, uint8_t index, uint32_t period_ms,
   led->blink.desired = false;
   led->blink.flip_pending = false;
   led->blink.repeating = repeating;
-  led->ops->set(led, index, false);
+  // Backends can reject this - an out-of-range NeoPixel index, or a flush
+  // that timed out (see led_neopixel.c's own _set()) - same as
+  // hw_led_set() itself propagates. Don't start a timer that can never
+  // successfully apply its own first flip.
+  if (!led->ops->set(led, index, false)) {
+    return false;
+  }
 
   sys_timer_t *timer =
       sys_timer_init(period_ms, _hw_led_blink_timer_cb, led);

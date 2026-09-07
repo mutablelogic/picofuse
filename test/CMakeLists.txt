@@ -776,6 +776,13 @@ if(NOT DEFINED PICO_BOARD)
 	)
 endif()
 
+# hw_watchdog_* singleton lifecycle - real backend on Pico, stub (all
+# no-ops/NULL) on Linux/Darwin - see hw_021/main.c.
+picofuse_test(hw_021
+	hw_021/main.c
+	LIBRARIES picofuse-hw
+)
+
 # dev_bme680_* against a real sensor, detected over I2C (both addresses)
 # or SPI - see the detection order/reasoning in dev_bme680/main.c.
 if(DEFINED PICO_BOARD)

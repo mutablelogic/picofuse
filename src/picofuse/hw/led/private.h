@@ -12,8 +12,21 @@
 #define _HW_LED_LOCK() _sys_sync_pool_lock()
 #define _HW_LED_UNLOCK() _sys_sync_pool_unlock()
 #else
-#define _HW_LED_LOCK()
-#define _HW_LED_UNLOCK()
+#include <pthread.h>
+// sys_timer callbacks run on a genuine background thread on both host
+// platforms - Linux's SIGEV_THREAD (see sys/linux/timer.c) and Darwin's
+// libdispatch worker queue (see sys/darwin/timer.c) - unlike Pico's IRQ,
+// where a critical section is the only thing that can touch this state
+// concurrently. A no-op lock here would leave blink.c's timer callback
+// racing hw_led_set()/hw_led_clear()/_hw_led_poll() for real, each
+// potentially running on a different application thread. Plain static
+// storage, initialized at compile time, mirrors the same per-timer lock
+// sys/linux/timer.c and sys/darwin/timer.c already use for their own pool
+// state. Defined once in blink.c; every translation unit that includes
+// this header (led.c too) links against that same instance.
+extern pthread_mutex_t _hw_led_lock;
+#define _HW_LED_LOCK() pthread_mutex_lock(&_hw_led_lock)
+#define _HW_LED_UNLOCK() pthread_mutex_unlock(&_hw_led_lock)
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -93,14 +106,38 @@ extern sys_atomic_t _hw_led_active_blinks;
  * sys_timer_deinit() outside it - never the other way around.
  * sys_timer_deinit() blocks until any in-progress callback finishes, and
  * that callback needs @ref _HW_LED_LOCK for itself; holding the lock
- * across the call would deadlock the two against each other. */
+ * across the call would deadlock the two against each other.
+ *
+ * Also clears any pending-but-unapplied flip, both up front and again
+ * after sys_timer_deinit() returns. Without the first clear, a one-shot
+ * blink's final flip (queued by the timer callback, which already cleared
+ * @ref hw_blink_state_t::timer itself before this ever runs - see
+ * blink.c's own comment on why) would otherwise survive a cancel here
+ * untouched, and _hw_led_poll() would apply it - and decrement @ref
+ * _hw_led_active_blinks for it - later, *after* the caller's own
+ * hw_led_set()/hw_led_clear() has already applied its own explicit state,
+ * silently overriding it and double-decrementing the count this function
+ * already accounted for. Without the second clear, a repeating blink's
+ * timer callback can still fire once more between the first unlock above
+ * and the sys_timer_deinit() call below (deinit only guarantees no
+ * callback is *still running* once it returns, not that none starts
+ * before it's called), leaving the exact same stale flip behind. */
 static inline void _hw_led_blink_cancel(hw_led_t *led) {
   _HW_LED_LOCK();
   sys_timer_t *timer = led->blink.timer;
+  bool had_pending = led->blink.flip_pending;
   led->blink.timer = NULL;
+  led->blink.flip_pending = false;
   _HW_LED_UNLOCK();
+
   if (timer != NULL) {
     sys_timer_deinit(timer);
+    _HW_LED_LOCK();
+    led->blink.flip_pending = false;
+    _HW_LED_UNLOCK();
+  }
+
+  if (timer != NULL || had_pending) {
     sys_atomic_dec(&_hw_led_active_blinks);
   }
 }

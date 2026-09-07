@@ -14,6 +14,10 @@ extern void _hw_wifi_poll(void);
 // Defined in ../led/blink.c.
 extern void _hw_led_poll(void);
 
+// Defined in watchdog.c.
+extern void _hw_watchdog_module_exit(void);
+extern void _hw_watchdog_poll(void);
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -34,6 +38,7 @@ void hw_init(void) {
  * @brief Cleans up the hardware system on shutdown.
  */
 void hw_exit(void) {
+  _hw_watchdog_module_exit();
 #if PICO_CYW43_SUPPORTED
   cyw43_arch_deinit();
 #endif
@@ -53,6 +58,7 @@ void hw_poll(void) {
   _hw_wifi_poll();
 #endif
   _hw_led_poll();
+  _hw_watchdog_poll();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -37,6 +37,7 @@ if(DEFINED PICO_BOARD)
         hardware_pwm
         hardware_spi
         hardware_uart
+        hardware_watchdog
         pico_multicore
         pico_bit_ops
         pico_divider
