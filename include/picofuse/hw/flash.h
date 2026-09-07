@@ -25,6 +25,16 @@
  *
  * @param size_bytes Requested region size in bytes.
  * @return A block descriptor on success, or `NULL` on failure.
+ *
+ * @note On Pico, `hw_block_erase()`/`hw_block_write()` on the returned
+ * handle currently only work when called from core 0 - calling either
+ * from any other worker fails outright (returns `false`, nothing is
+ * touched), since erasing/programming flash requires briefly pausing
+ * whatever else the other core is doing, and only core 0 can currently
+ * initiate that pause. `hw_block_read()` has no such restriction - it
+ * works from any core. See `TODO.md`'s "Transparent core-1 -> core-0
+ * flash write/erase marshaling" for the planned fix that will make
+ * erase/write core-independent too.
  */
 hw_block_t *hw_block_flash_init(size_t size_bytes);
 
