@@ -92,7 +92,7 @@ bool hw_block_erase(hw_block_t *block, size_t index);
  * @brief Write one block from @p src.
  * @ingroup Block
  * @param block Block handle.
- * @param index Block index to erase.
+ * @param index Block index to write.
  * @param src Source buffer of at least @ref hw_block_size bytes.
  * @retval true Write succeeded.
  * @retval false Invalid arguments or backend failure.
