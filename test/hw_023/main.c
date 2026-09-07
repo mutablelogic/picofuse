@@ -49,14 +49,18 @@ test_main_hw(0) {
   _test_class_to_string();
 
   // NULL-safety: every operation must tolerate an invalid handle/argument.
-  hw_usb_deinit(NULL); // must not crash
-  test_assert(hw_usb_init(NULL, NULL) == NULL);
+  hw_usb_deinit(NULL);                      // must not crash
+  hw_usb_set_callback(NULL, NULL, NULL);    // must not crash
 
-  hw_usb_t *usb = hw_usb_init(_hw_023_callback, NULL);
+  hw_usb_t *usb = hw_usb_init();
   if (usb == NULL) {
     sys_printf("[hw_023] no USB host backend available on this platform\n");
     return;
   }
+
+  // Init and callback attachment are deliberately separate calls - see
+  // hw_usb_set_callback()'s own doc.
+  hw_usb_set_callback(usb, _hw_023_callback, NULL);
 
   // The backend may enumerate on its own background thread (libusb) or
   // defer to hw_poll() (TinyUSB) - poll for a bit either way.
@@ -73,7 +77,7 @@ test_main_hw(0) {
   hw_usb_deinit(usb);
 
   // The singleton is free again once deinited - a fresh init must succeed.
-  hw_usb_t *usb2 = hw_usb_init(_hw_023_callback, NULL);
+  hw_usb_t *usb2 = hw_usb_init();
   test_assert(usb2 != NULL);
   hw_usb_deinit(usb2);
 }

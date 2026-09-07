@@ -306,28 +306,6 @@ hid_device_t *hid_register_timer(hid_t *instance, uint32_t id,
 hid_device_t *hid_register_signal(hid_t *instance, void *userdata);
 
 /**
- * @brief Register a USB host hotplug observer.
- * @ingroup HID
- * @param instance HID instance that owns the USB registration.
- * @return Registered HID device descriptor, or NULL on failure (for
- * example, if the platform has no USB host controller support built in).
- *
- * Initializes the USB host subsystem (see `hw_usb_init()`), which
- * enumerates already-attached devices through the same attach/detach
- * callback used for live hotplug. Only one USB registration is permitted
- * at a time, since `hw_usb_init()` is itself a process-wide singleton.
- *
- * Attach/detach activity is currently only logged via `sys_debugf()`; it
- * is not yet delivered as HID events.
- *
- * @todo Not implemented yet - always returns NULL. There is no
- * `hw_usb_init()`/`hw_usb_t` backend anywhere in this codebase yet (see
- * `src/picofuse/hid/usb.c`); this needs a real USB host module under
- * `picofuse/hw` before this can do anything.
- */
-hid_device_t *hid_register_usb(hid_t *instance);
-
-/**
  * @brief Register a Wi-Fi connection-state observer.
  * @ingroup HID
  * @param instance HID instance that owns the Wi-Fi registration.

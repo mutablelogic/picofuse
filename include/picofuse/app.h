@@ -71,6 +71,13 @@ typedef enum {
                                    ///< it from there. Has no effect when
                                    ///< the platform has no watchdog
                                    ///< backend.
+  app_flag_usb = (1 << 8),         ///< Initialize the USB host subsystem
+                                   ///< (see @ref app_usb). No callback is
+                                   ///< attached - use hw_usb_set_callback()
+                                   ///< or hw_usb_register_hid() on the
+                                   ///< returned handle for that. Has no
+                                   ///< effect when the platform has no USB
+                                   ///< host backend.
 } app_flag_t;
 
 /**

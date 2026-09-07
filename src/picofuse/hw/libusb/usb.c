@@ -49,10 +49,14 @@ static pthread_mutex_t _hw_usb_lock = PTHREAD_MUTEX_INITIALIZER;
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE
 
-// Caller must already hold _HW_USB_LOCK().
+// Caller must already hold _HW_USB_LOCK(). Deliberately doesn't require
+// usb->callback != NULL - a handle with nothing attached yet (see
+// hw_usb_set_callback()'s own doc on why init and callback attachment are
+// separate calls) is still a valid one; callers that specifically need "is
+// anyone listening" (_hw_usb_emit_event() et al.) check usb->callback for
+// that themselves.
 static bool _hw_usb_valid(const hw_usb_t *usb) {
-  return usb != NULL && usb->init && usb->callback != NULL &&
-         usb->context != NULL;
+  return usb != NULL && usb->init && usb->context != NULL;
 }
 
 static void _hw_usb_populate_strings(libusb_device_handle *handle,
@@ -290,19 +294,12 @@ static void *_hw_usb_event_thread(void *arg) {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-hw_usb_t *hw_usb_init(hw_usb_callback_t callback, void *userdata) {
-  sys_debugf("usb", "usb_init: callback=%p userdata=%p", (void *)callback,
-             userdata);
+hw_usb_t *hw_usb_init(void) {
+  sys_debugf("usb", "usb_init");
   hw_usb_deinit(&_hw_usb_instance);
-
-  if (callback == NULL) {
-    return NULL;
-  }
 
   _HW_USB_LOCK();
   memset(&_hw_usb_instance, 0, sizeof(_hw_usb_instance));
-  _hw_usb_instance.callback = callback;
-  _hw_usb_instance.userdata = userdata;
   _HW_USB_UNLOCK();
 
   libusb_context *context = NULL;
@@ -355,6 +352,20 @@ hw_usb_t *hw_usb_init(hw_usb_callback_t callback, void *userdata) {
   }
 
   return &_hw_usb_instance;
+}
+
+void hw_usb_set_callback(hw_usb_t *usb, hw_usb_callback_t callback,
+                         void *userdata) {
+  if (usb == NULL) {
+    return;
+  }
+
+  _HW_USB_LOCK();
+  if (_hw_usb_valid(usb)) {
+    usb->callback = callback;
+    usb->userdata = userdata;
+  }
+  _HW_USB_UNLOCK();
 }
 
 /**

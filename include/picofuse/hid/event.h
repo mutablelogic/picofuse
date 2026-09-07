@@ -26,6 +26,7 @@
 #pragma once
 #include "device.h"
 #include "keycode.h"
+#include <picofuse/hw/usb.h>
 #include <picofuse/hw/wifi.h>
 #include <picofuse/pix/types.h>
 #include <picofuse/sys/date.h>
@@ -60,6 +61,7 @@ typedef enum {
   hid_event_type_wifi = 6,
   hid_event_type_iostream = 7,
   hid_event_type_time = 8,
+  hid_event_type_usb = 9,
 } hid_event_type_t;
 
 /**
@@ -127,6 +129,25 @@ typedef struct {
 } hid_wifi_t;
 
 /**
+ * @brief USB-hotplug-oriented HID event payload.
+ * @ingroup HIDEvents
+ *
+ * @p device is copied by value into this event at the point it's queued -
+ * unlike hw_usb_callback_t's own @p device parameter (which some backends
+ * pass as a pointer to worker-thread-local storage, valid only for the
+ * duration of that callback), this is safe to read at any point up until
+ * hid_event_free(). @p has_device is false for the enumeration-complete
+ * marker (see hw_usb_init()'s own doc), in which case @p device itself is
+ * unspecified.
+ */
+typedef struct {
+  hw_usb_event_t event;   ///< USB hotplug event (see hw_usb_event_t).
+  hw_usb_device_t device; ///< Associated device - only valid if has_device
+                          ///< is true.
+  bool has_device;        ///< True if device is populated.
+} hid_usb_t;
+
+/**
  * @brief Stream-readiness-oriented HID event payload.
  * @ingroup HIDEvents
  */
@@ -161,6 +182,7 @@ typedef struct {
     hid_wifi_t wifi;
     hid_iostream_t iostream;
     hid_time_t time;
+    hid_usb_t usb;
   } data; ///< Payload selected by type.
 } hid_event_t;
 
@@ -236,6 +258,19 @@ bool hid_event_queue_signal(hid_device_t *device, sys_env_signal_t signal);
  */
 bool hid_event_queue_wifi(hid_device_t *device, hw_wifi_event_t event,
                           const hw_wifi_network_t *network);
+
+/**
+ * @brief Queue a USB hotplug HID event to the owning HID instance queue.
+ * @ingroup HIDEvents
+ * @param device HID device associated with the event.
+ * @param event USB hotplug event to publish (see hw_usb_event_t).
+ * @param usb_device Associated device, or NULL for the enumeration-complete
+ * marker. Copied by value into the queued event - see hid_usb_t.
+ * @retval true Event queued successfully.
+ * @retval false Queueing failed.
+ */
+bool hid_event_queue_usb(hid_device_t *device, hw_usb_event_t event,
+                         const hw_usb_device_t *usb_device);
 
 /**
  * @brief Queue a stream-readiness HID event to the owning HID instance

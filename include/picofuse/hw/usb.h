@@ -7,10 +7,15 @@
  * USB host interface for hardware platforms.
  *
  * This module provides USB host functionality, including detection of devices
- * as they are attached and detached. On initialisation, the callback is fired
- * once for each device already connected to the host, with the
- * @ref hw_usb_event_attached event. Subsequently, the callback fires whenever
- * a device is physically attached or detached.
+ * as they are attached and detached. @ref hw_usb_init brings the host
+ * controller up but attaches no callback - use @ref hw_usb_set_callback for
+ * that, separately, so that whichever part of a program brings USB up
+ * doesn't have to be the same part that observes it (see
+ * @ref hw_usb_register_hid for exactly that: a HID bridge that only
+ * observes a handle some other part of the program owns). Once a callback
+ * is attached, it's fired once for each device already connected to the
+ * host, with the @ref hw_usb_event_attached event, then again whenever a
+ * device is physically attached or detached from then on.
  *
  * The @ref hw_usb_device_t structure describes a connected device. It carries
  * the USB vendor/product identifiers, the device class metadata, and the
@@ -34,6 +39,7 @@
  * Use a debug probe if you need simultaneous debug output.
  */
 #pragma once
+#include <picofuse/hid/device.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -183,22 +189,13 @@ typedef void (*hw_usb_callback_t)(hw_usb_t *usb, hw_usb_event_t event,
  * @brief Initialize the USB host subsystem.
  * @ingroup USB
  *
- * Initializes the USB host controller and registers the hotplug callback.
- * Backends may enumerate already-connected devices immediately or defer the
- * initial device callbacks until the next host poll cycle. When initial
- * enumeration completes, the callback is fired with @ref hw_usb_event_attached
- * for each attached device, then once more with @ref hw_usb_event_attached
- * and @p device set to NULL to mark completion, so that callers receive a
- * consistent view of attached devices regardless of when @ref hw_usb_init is
- * called.
+ * Initializes the USB host controller. The returned handle has no callback
+ * attached - enumeration and hotplug detection still happen, just silently,
+ * until one is attached via @ref hw_usb_set_callback.
  *
- * @param callback Callback to invoke on attach and detach events. Must not
- *                 be NULL.
- * @param userdata Opaque user pointer passed to the callback on each
- *                 invocation.
  * @return A USB host handle, or NULL if initialization fails.
  */
-hw_usb_t *hw_usb_init(hw_usb_callback_t callback, void *userdata);
+hw_usb_t *hw_usb_init(void);
 
 /**
  * @brief Deinitialize the USB host subsystem.
@@ -212,5 +209,61 @@ hw_usb_t *hw_usb_init(hw_usb_callback_t callback, void *userdata);
  * @param usb The USB host handle to deinitialize.
  */
 void hw_usb_deinit(hw_usb_t *usb);
+
+/** @} */
+
+///////////////////////////////////////////////////////////////////////////////
+// METHODS
+
+/** @name Methods
+ * @{ */
+
+/**
+ * @brief Attach or detach the USB hotplug callback.
+ * @ingroup USB
+ *
+ * @param usb Handle from @ref hw_usb_init.
+ * @param callback Callback to invoke on attach/detach events, or NULL to
+ * detach the current callback.
+ * @param userdata Opaque user pointer forwarded to @p callback.
+ *
+ * Separate from init so that whichever part of a program brought USB up
+ * doesn't have to be the same part that observes it - see this file's own
+ * top-level doc, and @ref hw_usb_register_hid for exactly that use. Once
+ * attached, the callback is fired with @ref hw_usb_event_attached for each
+ * device already connected, then once more with @ref hw_usb_event_attached
+ * and @p device set to NULL to mark enumeration complete, then again
+ * whenever a device is physically attached or detached from then on. Safe
+ * to call at any time. A no-op on an invalid handle.
+ */
+void hw_usb_set_callback(hw_usb_t *usb, hw_usb_callback_t callback,
+                         void *userdata);
+
+/** @} */
+
+///////////////////////////////////////////////////////////////////////////////
+// HID INTEGRATION
+
+/** @name HID Integration
+ * @{ */
+
+/**
+ * @brief Register a USB host hotplug observer as a HID source.
+ * @ingroup USB
+ * @param instance HID instance that owns the registration.
+ * @param usb USB handle from @ref hw_usb_init. Ownership isn't
+ * transferred - the caller remains responsible for @ref hw_usb_deinit,
+ * which this doesn't call.
+ * @return Registered HID device descriptor, or NULL on failure (@p usb is
+ * NULL, or a USB HID source is already registered - like @p usb itself,
+ * this is a singleton, only one registration can be active at a time).
+ *
+ * Attaches a callback via @ref hw_usb_set_callback (replacing whatever was
+ * attached before) and forwards every event it fires as a
+ * `hid_event_type_usb` event - see `hid_usb_t`. Deregistering (via the
+ * owning `hid_t`'s own teardown) detaches the callback but does not
+ * deinitialize @p usb.
+ */
+hid_device_t *hw_usb_register_hid(hid_t *instance, hw_usb_t *usb);
 
 /** @} */
