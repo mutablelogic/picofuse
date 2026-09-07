@@ -102,6 +102,21 @@ static bool _hw_led_neopixel_set(hw_led_t *led, uint8_t index, bool enabled) {
   return _hw_led_neopixel_flush(ctx);
 }
 
+// Unlike _set(), which only lights an index plain white the first time,
+// this replaces the pixel's color outright - full R/G/B/A, alpha included
+// (see _hw_led_neopixel_pack_color()'s own doc on alpha doubling as
+// brightness).
+static bool _hw_led_neopixel_set_color(hw_led_t *led, uint8_t index,
+                                       pix_color_t color) {
+  _hw_led_neopixel_ctx_t *ctx = _hw_led_context(led);
+  if (index >= ctx->led_count) {
+    return false;
+  }
+
+  ctx->pixels[index] = color;
+  return _hw_led_neopixel_flush(ctx);
+}
+
 // Leaves R/G/B untouched and only replaces the alpha (brightness) byte, so
 // this composes with _set()'s color independently of whatever brightness
 // was last set for this index.
@@ -142,6 +157,7 @@ static void _hw_led_neopixel_deinit(hw_led_t *led) {
 static const hw_led_ops_t _hw_led_neopixel_ops = {
     .set = _hw_led_neopixel_set,
     .set_brightness = _hw_led_neopixel_set_brightness,
+    .set_color = _hw_led_neopixel_set_color,
     .clear = _hw_led_neopixel_clear,
     .deinit = _hw_led_neopixel_deinit,
 };

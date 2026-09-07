@@ -47,6 +47,7 @@
 #pragma once
 #include "gpio.h"
 #include "pwm.h"
+#include <picofuse/pix/color.h>
 #include <stdint.h>
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -237,6 +238,28 @@ bool hw_led_set(hw_led_t *led, uint8_t index, bool enabled);
  * by this LED type.
  */
 bool hw_led_set_brightness(hw_led_t *led, uint8_t index, float percent);
+
+/**
+ * @brief Set LED color.
+ * @ingroup LED
+ * @param led LED handle.
+ * @param index NeoPixel index to update. Ignored for non-NeoPixel LED types.
+ * @param color Color to apply, including alpha - see pix_color_t's own doc.
+ * @retval true Color (or, for a fallback - see below - brightness) was
+ * applied.
+ * @retval false Handle is invalid.
+ *
+ * Only @ref hw_led_type_neopixel has a real color concept - every other
+ * LED type falls back to @ref hw_led_set_brightness, deriving a
+ * brightness percentage from @p color's perceived luma
+ * (0.2*R + 0.7*G + 0.1*B, weighted for how much brighter green reads to
+ * the eye than red or blue at the same channel value) scaled by alpha.
+ * So `hw_led_set_color(led, 0, PIX_COLOR_RED)` on a plain GPIO/PWM/Wi-Fi
+ * LED turns it on dim, not off, and a fully-transparent color (alpha 0)
+ * always turns it off regardless of R/G/B, same as any other zero
+ * brightness.
+ */
+bool hw_led_set_color(hw_led_t *led, uint8_t index, pix_color_t color);
 
 /**
  * @brief Turn off all LED state, cancelling any active blink.
