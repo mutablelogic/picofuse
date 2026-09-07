@@ -110,23 +110,38 @@ static _net_conn_ctx_t _net_conn_pool[NET_CONN_CAPACITY];
 ///////////////////////////////////////////////////////////////////////////////
 // ADDRESS CONVERSION
 //
-// ip_addr_t is exactly ip4_addr_t on this project's build (LWIP_IPV6 is
-// never enabled - see private.h's own doc), so this is a plain 32-bit
-// copy, not the tagged-union dance a dual-stack lwIP build would need.
+// ip_addr_t is a dual-stack tagged union here (LWIP_IPV6 is on - see
+// lwipopts.h), so these go through lwIP's own ip_2_ip4()/ip_2_ip6()
+// accessors plus IP_SET_TYPE_VAL() rather than treating out/ip as a bare
+// ip4_addr_t. ip6_addr_t's own 16 bytes (a u32_t addr[4], see lwip/
+// ip6_addr.h) are the same network-byte-order layout net_addr_t.addr.v6
+// already uses, so - like the v4 case - this is a plain copy, no
+// byte-swapping.
 
 bool _net_addr_to_ipaddr(const net_addr_t *addr, ip_addr_t *out) {
-  if (addr->family != net_addr_family_v4) {
-    return false;
+  if (addr->family == net_addr_family_v4) {
+    uint32_t raw;
+    memcpy(&raw, addr->addr.v4, sizeof(raw));
+    ip4_addr_set_u32(ip_2_ip4(out), raw);
+    IP_SET_TYPE_VAL(*out, IPADDR_TYPE_V4);
+    return true;
   }
-  uint32_t raw;
-  memcpy(&raw, addr->addr.v4, sizeof(raw));
-  ip4_addr_set_u32(out, raw);
-  return true;
+  if (addr->family == net_addr_family_v6) {
+    memcpy(ip_2_ip6(out)->addr, addr->addr.v6, sizeof(addr->addr.v6));
+    IP_SET_TYPE_VAL(*out, IPADDR_TYPE_V6);
+    return true;
+  }
+  return false;
 }
 
 void _net_ipaddr_to_addr(const ip_addr_t *ip, net_addr_t *addr) {
+  if (IP_IS_V6_VAL(*ip)) {
+    addr->family = net_addr_family_v6;
+    memcpy(addr->addr.v6, ip_2_ip6(ip)->addr, sizeof(addr->addr.v6));
+    return;
+  }
   addr->family = net_addr_family_v4;
-  uint32_t raw = ip4_addr_get_u32(ip);
+  uint32_t raw = ip4_addr_get_u32(ip_2_ip4(ip));
   memcpy(addr->addr.v4, &raw, sizeof(addr->addr.v4));
 }
 
@@ -529,7 +544,12 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
 
   // TCP
   cyw43_arch_lwip_begin();
-  struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
+  // IPADDR_TYPE_ANY, not IPADDR_TYPE_V4 - see net_open()'s own UDP path
+  // above, which already used ANY (for an unrelated reason, before IPv6
+  // existed here) and turns out to be exactly right for dual-stack: an
+  // ANY pcb adapts to whichever family tcp_connect()'s own destination
+  // address (ip, from _net_addr_to_ipaddr() above) actually is.
+  struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_ANY);
   if (pcb != NULL) {
     tcp_arg(pcb, ctx);
     tcp_err(pcb, _net_conn_tcp_err_cb);

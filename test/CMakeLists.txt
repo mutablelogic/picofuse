@@ -918,3 +918,25 @@ picofuse_test(net_006
 	net_006/main.c
 	LIBRARIES picofuse-net picofuse-hid
 )
+
+# net_open() over IPv6 against a real Wi-Fi network - skips if WIFI_SSID
+# isn't set, or if the network has no real IPv6 route, see net_007/main.c's
+# own comment. Pico-only for now, mirrors hw_017's own scan/connect
+# scaffolding (needs an actual join, unlike net_005/net_006).
+if(DEFINED PICO_BOARD)
+	picofuse_test(net_007
+		net_007/main.c
+		LIBRARIES picofuse-hw picofuse-net
+		TESTRUNNER_TIMEOUT 60
+	)
+
+	# Wi-Fi credentials from environment (export WIFI_SSID and WIFI_PASSWORD)
+	set(WIFI_SSID "$ENV{WIFI_SSID}")
+	set(WIFI_PASSWORD "$ENV{WIFI_PASSWORD}")
+
+	# Add Wi-Fi credentials as compile definitions
+	target_compile_definitions(net_007 PRIVATE
+		WIFI_SSID="${WIFI_SSID}"
+		WIFI_PASSWORD="${WIFI_PASSWORD}"
+	)
+endif()

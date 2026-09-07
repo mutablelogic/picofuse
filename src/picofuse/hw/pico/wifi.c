@@ -4,6 +4,8 @@
 
 #include "cyw43.h"
 #include "cyw43_country.h"
+#include "lwip/dhcp.h"
+#include "lwip/ip6_addr.h"
 #include "lwip/netif.h"
 #include <pico/cyw43_arch.h>
 
@@ -422,9 +424,14 @@ bool hw_wifi_disconnect(hw_wifi_t *wifi) {
 /**
  * @brief Return the address currently bound to the Wi-Fi interface.
  *
- * IPv6 is never available: this project's lwipopts.h only defines
- * LWIP_IPV4 (see include/runtime/pico/lwipopts.h), so cyw43_state's netifs
- * never carry an IPv6 address to report.
+ * For net_addr_family_v6, a netif can carry several IPv6 addresses at
+ * once - an always-present link-local one (assigned as soon as the
+ * interface is up, no router needed), plus zero or more SLAAC-assigned
+ * global/ULA ones once a router advertisement arrives (see
+ * LWIP_IPV6_AUTOCONFIG in lwipopts.h). This reports the first valid
+ * non-link-local address if there is one (the more generally useful
+ * answer - reachable off-link), falling back to the link-local address
+ * otherwise.
  */
 bool hw_wifi_get_address(hw_wifi_t *wifi, net_addr_family_t family,
                          net_addr_t *addr) {
@@ -432,12 +439,49 @@ bool hw_wifi_get_address(hw_wifi_t *wifi, net_addr_family_t family,
       addr == NULL) {
     return false;
   }
+
+  struct netif *netif =
+      &cyw43_state.netif[wifi->accesspoint ? CYW43_ITF_AP : CYW43_ITF_STA];
+
+  if (family == net_addr_family_v6) {
+    cyw43_arch_lwip_begin();
+    int fallback = -1;
+    int chosen = -1;
+    for (int i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+      if (!ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
+        continue;
+      }
+      const ip6_addr_t *ip6 = netif_ip6_addr(netif, i);
+      if (fallback < 0) {
+        fallback = i; // first valid address of any kind, in case nothing
+                      // better turns up
+      }
+      if (!ip6_addr_islinklocal(ip6)) {
+        chosen = i; // prefer the first valid non-link-local address
+        break;
+      }
+    }
+    if (chosen < 0) {
+      chosen = fallback;
+    }
+    bool has_addr = chosen >= 0;
+    ip6_addr_t ip6_copy;
+    if (has_addr) {
+      ip6_copy = *netif_ip6_addr(netif, chosen);
+    }
+    cyw43_arch_lwip_end();
+    if (!has_addr) {
+      return false;
+    }
+    addr->family = net_addr_family_v6;
+    memcpy(addr->addr.v6, ip6_copy.addr, sizeof(addr->addr.v6));
+    return true;
+  }
+
   if (family != net_addr_family_v4) {
     return false;
   }
 
-  struct netif *netif =
-      &cyw43_state.netif[wifi->accesspoint ? CYW43_ITF_AP : CYW43_ITF_STA];
   cyw43_arch_lwip_begin();
   const ip4_addr_t *ip4 = netif_ip4_addr(netif);
   bool has_addr = !ip4_addr_isany(ip4);
@@ -653,6 +697,25 @@ void _hw_wifi_poll(void) {
                           _hw_wifi_busy_scanning,
                       false);
     wifi->state = _HW_WIFI_STATE_UNKNOWN;
+    // cyw43_wifi_leave() (hw_wifi_disconnect()'s own doing, or the AP
+    // itself dropping us) only disassociates - it doesn't touch the
+    // netif's own DHCP-leased v4 address or SLAAC-assigned v6 ones, both
+    // of which are now stale (this station is no longer associated with
+    // whatever network handed them out). Tear both down here, the one
+    // place that reacts to a link actually going down regardless of why,
+    // before notifying so hw_wifi_get_address() already reports "no
+    // address" to anything reacting to hw_wifi_event_disconnected below.
+    {
+      struct netif *sta_netif = &cyw43_state.netif[CYW43_ITF_STA];
+      cyw43_arch_lwip_begin();
+      dhcp_release_and_stop(sta_netif);
+#if LWIP_IPV6
+      for (int i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+        netif_ip6_addr_set_state(sta_netif, i, IP6_ADDR_INVALID);
+      }
+#endif
+      cyw43_arch_lwip_end();
+    }
     _hw_wifi_notify(wifi, hw_wifi_event_disconnected, NULL);
     memset(&wifi->network, 0, sizeof(wifi->network));
     break;

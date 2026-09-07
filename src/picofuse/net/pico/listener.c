@@ -237,7 +237,13 @@ net_listener_t *net_listener_init(net_proto_t proto, const net_addr_t *addr,
 
   if (proto == net_proto_udp) {
     cyw43_arch_lwip_begin();
-    struct udp_pcb *pcb = udp_new_ip_type(IPADDR_TYPE_V4);
+    // IPADDR_TYPE_ANY, not IPADDR_TYPE_V4 - see socket.c's net_open()'s
+    // own TCP path for why: an ANY pcb adapts to whichever family
+    // udp_bind()'s own address (ip, from _net_addr_to_ipaddr() above)
+    // actually is, so a caller can bind to net_addr_v4_any()/a specific
+    // v4 address or net_addr_v6_any()/a specific v6 address with no
+    // family-specific branching needed here.
+    struct udp_pcb *pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
     err_t err = (pcb != NULL) ? udp_bind(pcb, &ip, port) : ERR_MEM;
     if (pcb != NULL && err == ERR_OK) {
       udp_recv(pcb, _net_listener_udp_recv_cb, listener);
@@ -258,7 +264,8 @@ net_listener_t *net_listener_init(net_proto_t proto, const net_addr_t *addr,
 
   // TCP
   cyw43_arch_lwip_begin();
-  struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_V4);
+  // See this function's own UDP path above for why ANY, not V4.
+  struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_ANY);
   if (pcb != NULL && tcp_bind(pcb, &ip, port) != ERR_OK) {
     tcp_close(pcb);
     pcb = NULL;

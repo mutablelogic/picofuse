@@ -96,9 +96,23 @@ test_main_hw(0) {
   sys_printf("[hw_017] bound address: %s\n", addrbuf);
   test_assert(memcmp(addr.addr.v4, "\x00\x00\x00\x00", 4) != 0);
 
-  // IPv6 is never available - this project's lwipopts.h only enables
-  // LWIP_IPV4 (see hw_wifi_get_address()'s own doc).
-  test_assert(hw_wifi_get_address(wifi, net_addr_family_v6, &addr) == false);
+  // A link-local IPv6 address is assigned as soon as the link comes up -
+  // no router/RA needed for that part (see hw_wifi_get_address()'s own
+  // doc) - but duplicate-address detection takes it through a brief
+  // "tentative" state first (a second or so), so poll rather than
+  // checking once immediately - see net_007/main.c's own identical
+  // reasoning, which this mirrors at a smaller scale.
+  bool have_v6 = false;
+  start = sys_timestamp_ms();
+  while (!have_v6 && sys_timestamp_ms() - start < HW_WIFI_TEST_TIMEOUT_MS) {
+    have_v6 = hw_wifi_get_address(wifi, net_addr_family_v6, &addr);
+    if (!have_v6) {
+      sys_sleep_ms(HW_WIFI_TEST_POLL_MS);
+    }
+  }
+  test_assert(have_v6);
+  net_addr_to_string(&addr, addrbuf, sizeof(addrbuf));
+  sys_printf("[hw_017] bound IPv6 address: %s\n", addrbuf);
 
   sys_printf("[hw_017] disconnecting...\n");
   g_last_connect_event = 0;
