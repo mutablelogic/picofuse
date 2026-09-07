@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -61,51 +60,121 @@ static void _hw_watchdog_close_fd(int *fd) {
   *fd = -1;
 }
 
+static bool _hw_watchdog_read_sysfs_u32(const char *device, const char *attr,
+                                        uint32_t *out) {
+  if (device == NULL || device[0] == '\0' || attr == NULL || out == NULL) {
+    return false;
+  }
+
+  const char *base = strrchr(device, '/');
+  base = (base != NULL) ? base + 1 : device;
+
+  char path[160] = {0};
+  (void)snprintf(path, sizeof(path), "/sys/class/watchdog/%s/%s", base, attr);
+
+  int fd = open(path, O_RDONLY | O_CLOEXEC);
+  if (fd < 0) {
+    return false;
+  }
+
+  char buffer[32] = {0};
+  ssize_t nread = read(fd, buffer, sizeof(buffer) - 1);
+  (void)close(fd);
+  if (nread <= 0) {
+    return false;
+  }
+
+  // sysfs attribute reads come back with a trailing newline -
+  // sys_string_parse_uint32() requires the buffer to contain exactly one
+  // number and nothing else, so that has to go first.
+  sys_string_trimspace(buffer);
+  return sys_string_parse_uint32(buffer, 0, out);
+}
+
 static uint32_t _hw_watchdog_probe_timeout_ms(const char *device) {
-  if (device == NULL || device[0] == '\0') {
+  if (device == NULL || device[0] == '\0' || access(device, F_OK) != 0) {
+    // No such device - see this function's own callers
+    // (hw_watchdog_maxtimeout_ms(), hw_watchdog_init_device()) for why 0
+    // unambiguously means that here.
     return 0u;
   }
 
+  uint32_t sysfs_max_s = 0u;
+  if (_hw_watchdog_read_sysfs_u32(device, "max_timeout", &sysfs_max_s) &&
+      sysfs_max_s > 0u) {
+    return sysfs_max_s * 1000u;
+  }
+
+  uint32_t sysfs_timeout_s = 0u;
+  bool have_sysfs_timeout =
+      _hw_watchdog_read_sysfs_u32(device, "timeout", &sysfs_timeout_s) &&
+      sysfs_timeout_s > 0u;
+  uint32_t sysfs_fallback_ms = have_sysfs_timeout
+                                   ? sysfs_timeout_s * 1000u
+                                   : HW_WATCHDOG_FALLBACK_TIMEOUT_MS;
+
+  // Only even attempt to open the character device - for the
+  // WDIOC_SETTIMEOUT clamp-and-readback technique below, a more accurate
+  // ceiling than a bare "currently configured" value - when sysfs itself
+  // confirms it's safe to: "nowayout" == 0 means a magic close (see
+  // below) actually disarms it again afterward. If nowayout is
+  // unreadable or true, opening it either can't be safely undone or we
+  // can't tell either way - stay on sysfs/the fallback constant instead.
+  // Mirrors wdctl's own should_read_from_device() gate, for the same
+  // reason.
+  uint32_t nowayout = 1u;
+  bool safe_to_open =
+      _hw_watchdog_read_sysfs_u32(device, "nowayout", &nowayout) &&
+      nowayout == 0u;
+  if (!safe_to_open) {
+    return sysfs_fallback_ms;
+  }
+
+  // Opening the device is not side-effect-free even for a read-only
+  // query - the kernel's watchdog framework treats a mere open() as
+  // claiming/arming it, and a bare close() afterward leaves it running,
+  // unfed, ticking toward a real reset if nothing else was already
+  // feeding it (confirmed on real hardware: this exact function, with a
+  // bare close(), caused a second, unintended reboot during testing).
+  // Always end with the documented magic close character below, never a
+  // bare close() - matching util-linux's own wdctl, which carries the
+  // exact same warning for the exact same reason: "successfully opened
+  // watchdog has to be properly closed with magic close character
+  // otherwise the machine will be rebooted!"
   int fd = open(device, O_WRONLY | O_CLOEXEC);
   if (fd < 0) {
-    return 0u;
+    return sysfs_fallback_ms;
   }
 
   int original_s = 0;
   bool have_original =
       ioctl(fd, WDIOC_GETTIMEOUT, &original_s) == 0 && original_s > 0;
 
-  // WDIOC_GETTIMEOUT alone only reports whatever timeout happens to be
-  // configured right now - this driver's own default, or whatever an
-  // earlier session already set - not the hardware's true ceiling, so
-  // reporting that as-is as "max" would silently under-clamp
-  // hw_watchdog_reset() on a device whose real maximum is higher.
   // WDIOC_SETTIMEOUT is documented (Documentation/watchdog/watchdog-api.rst)
-  // to clamp an out-of-range request to the real supported range and write
-  // back whatever it actually applied, so requesting a deliberately
-  // oversized value and reading that back is the only portable way to
-  // discover it.
+  // to clamp an out-of-range request to the real supported range and
+  // write back whatever it actually applied, so requesting a
+  // deliberately oversized value and reading that back is the only
+  // portable way to discover a ceiling sysfs itself didn't report.
   int probe_s = HW_WATCHDOG_PROBE_TIMEOUT_S;
   uint32_t timeout_ms = 0u;
   if (ioctl(fd, WDIOC_SETTIMEOUT, &probe_s) == 0 && probe_s > 0) {
     timeout_ms = (uint32_t)probe_s * 1000u;
   } else if (have_original) {
-    // No WDIOC_SETTIMEOUT support (or it rejected the probe value) - fall
-    // back to whatever's already configured.
     timeout_ms = (uint32_t)original_s * 1000u;
   }
 
-  // Restore whatever was configured before this probe touched it
+  // Restore whatever was configured before this probe touched it, so a
+  // watchdog someone else already armed isn't left reconfigured to this
+  // probe's oversized value.
   if (have_original) {
     (void)ioctl(fd, WDIOC_SETTIMEOUT, &original_s);
   }
+
+  static const char magic_close = 'V';
+  (void)write(fd, &magic_close, 1);
   close(fd);
 
-  // Fallback
-  if (timeout_ms == 0u) {
-    timeout_ms = HW_WATCHDOG_FALLBACK_TIMEOUT_MS;
-  }
-  return timeout_ms;
+  return timeout_ms != 0u ? timeout_ms : sysfs_fallback_ms;
 }
 
 static bool _hw_watchdog_open(hw_watchdog_t *watchdog) {
@@ -141,30 +210,11 @@ static bool _hw_watchdog_set_timeout(hw_watchdog_t *watchdog,
 }
 
 static bool _hw_watchdog_read_bootstatus(const char *device) {
-  if (device == NULL || device[0] == '\0') {
+  uint32_t status = 0u;
+  if (!_hw_watchdog_read_sysfs_u32(device, "bootstatus", &status)) {
     return false;
   }
-
-  const char *base = strrchr(device, '/');
-  base = (base != NULL) ? base + 1 : device;
-
-  char path[128] = {0};
-  (void)snprintf(path, sizeof(path), "/sys/class/watchdog/%s/bootstatus", base);
-
-  int fd = open(path, O_RDONLY | O_CLOEXEC);
-  if (fd < 0) {
-    return false;
-  }
-
-  char buffer[32] = {0};
-  ssize_t nread = read(fd, buffer, sizeof(buffer) - 1);
-  (void)close(fd);
-  if (nread <= 0) {
-    return false;
-  }
-
-  unsigned long status = strtoul(buffer, NULL, 0);
-  return (status & WDIOF_CARDRESET) != 0ul;
+  return (status & WDIOF_CARDRESET) != 0u;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -261,10 +311,17 @@ void hw_watchdog_enable(hw_watchdog_t *watchdog, bool enable) {
   }
 
   if (enable) {
-    watchdog->reset_armed = false;
-    watchdog->reset_timeout_ms = 0u;
-    watchdog->disable = false;
+    // hw_watchdog_init_device() can now succeed via sysfs alone even when
+    // the device is exclusively held by something else (e.g. systemd's
+    // own RuntimeWatchdogSec) - see _hw_watchdog_probe_timeout_ms()'s own
+    // doc. Only claim to be feeding it if actually opening/configuring it
+    // just now really worked - otherwise _hw_watchdog_poll() would think
+    // it's keeping a real watchdog fed when every open() it tries is
+    // silently failing.
     if (_hw_watchdog_set_timeout(watchdog, watchdog->timeout_ms)) {
+      watchdog->reset_armed = false;
+      watchdog->reset_timeout_ms = 0u;
+      watchdog->disable = false;
       int keepalive = 0;
       (void)ioctl(watchdog->fd, WDIOC_KEEPALIVE, &keepalive);
     }
