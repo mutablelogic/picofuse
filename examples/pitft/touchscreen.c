@@ -16,12 +16,11 @@
 #define PITFT_INT_GPIO_PIN 24
 
 static void pitft_touch_callback(dev_stmpe610_t *stmpe610,
-                                 const dev_stmpe610_touch_t *touch,
-                                 void *userdata) {
+                                 const hid_touch_t *touch, void *userdata) {
   (void)stmpe610;
   (void)userdata;
-  sys_printf("touch event=%u x=%u y=%u z=%u\n", touch->event, touch->x,
-             touch->y, touch->z);
+  sys_printf("touch state=%u x=%d y=%d pressure=%u\n", touch->state,
+             touch->point.x, touch->point.y, touch->pressure);
 }
 
 int main(int argc, char *argv[]) {
@@ -41,8 +40,11 @@ int main(int argc, char *argv[]) {
   hw_gpio_t *int_pin =
       hw_gpio_init(PITFT_INT_GPIO_BANK, PITFT_INT_GPIO_PIN, hw_gpio_none);
 
-  dev_stmpe610_t *stmpe610 =
-      dev_stmpe610_init(device, int_pin, pitft_touch_callback, NULL, NULL);
+  dev_stmpe610_config_t config;
+  dev_stmpe610_default_config(&config);
+  config.int_pin = int_pin;
+
+  dev_stmpe610_t *stmpe610 = dev_stmpe610_init(device, &config);
   if (stmpe610 == NULL) {
     sys_puts("Failed to initialize STMPE610 touch controller\n");
     hw_gpio_deinit(int_pin);
@@ -51,6 +53,8 @@ int main(int argc, char *argv[]) {
     sys_exit();
     return 1;
   }
+
+  dev_stmpe610_set_callback(stmpe610, pitft_touch_callback, NULL);
 
   sys_puts("PiTFT touch controller ready. Waiting for touches...\n");
 

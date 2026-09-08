@@ -2,7 +2,7 @@
  * @file bme680.h
  * @brief Bosch BME680 environmental sensor interface.
  * @defgroup BME680 BME680
- * @ingroup Device
+ * @ingroup Sensor
  */
 #pragma once
 

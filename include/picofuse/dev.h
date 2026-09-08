@@ -10,6 +10,26 @@
  * hw/deviceio.h), so the same driver works unchanged whether the peripheral
  * is wired over I2C or SPI.
  */
+
+/**
+ * @defgroup Touch Touch
+ * @ingroup Device
+ * @brief Touch panel controller drivers - capacitive (FT6236) and
+ * resistive (STMPE610).
+ */
+
+/**
+ * @defgroup Sensor Sensor
+ * @ingroup Device
+ * @brief Environmental and other sensor drivers (BME680).
+ */
+
+/**
+ * @defgroup Display Display
+ * @ingroup Device
+ * @brief Display controller drivers (ILI9341).
+ */
+
 #pragma once
 #include "dev/bme680.h"
 #include "dev/ft6236.h"

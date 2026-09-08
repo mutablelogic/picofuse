@@ -2,7 +2,7 @@
  * @file ili9341.h
  * @brief ILI9341 TFT LCD controller interface.
  * @defgroup ILI9341 ILI9341
- * @ingroup Device
+ * @ingroup Display
  *
  * This module provides a device-level API for ILI9341-driven TFT displays
  * over the 4-wire serial (SPI) interface: SCK/MOSI/MISO/CS carried by the

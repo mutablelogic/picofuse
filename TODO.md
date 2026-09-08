@@ -254,13 +254,16 @@ while marshaling either), so it's not superseded by it.
   backend behind `PICOFUSE_WIFI` the way `hw/pico/CMakeLists.txt` does).
   Needs a real `wpa_supplicant` control-socket client under
   `picofuse/hw`.
-- `hid_event_queue_touch(hid_device_t *device, hid_state_t state,
-  pix_point_t point, uint8_t slot)` - no `.c` definition anywhere in
-  `src/picofuse/hid/`, so linking any code that calls it fails. Also no
-  touch-controller registration helper yet (a `hid_register_touch()`-
-  style function) - a driver like `dev/ft6236.h`/`dev/stmpe610.h` would
-  presumably call this directly once it exists, the same way ADC/
-  temperature drivers call `hid_event_queue_metric_float()`.
+- ~~`hid_event_queue_touch()` - no `.c` definition~~ - **Done.** Now
+  implemented in `src/picofuse/hid/event.c`, and `dev/ft6236.h` has a real
+  `dev_ft6236_register_hid()` calling it directly (no generic
+  `hid_register_touch()` helper - each touch controller is its own driver
+  with its own protocol, so each calls this itself, the same way ADC/
+  temperature drivers call `hid_event_queue_metric_float()` directly).
+  `dev_stmpe610_register_hid()` exists too, same shape - both drivers
+  share `hid_touch_t` (with a `pressure` field added for STMPE610's own
+  resistive-panel reading) rather than each having their own bespoke
+  touch struct.
 - `hw_usb_register_hid_device()` (working name only - needs a better
   name, and a real signature, presumably taking a `hw_usb_device_t`
   identifying which interface to read). No module reads USB HID *input*
@@ -297,3 +300,19 @@ while marshaling either), so it's not superseded by it.
   (microsecond-scale window, transient-stall failure mode, storage
   blocks live outside the code region core 1 would be executing) - see
   `sys/pico/flash_pause.h`'s own doc.
+- `hid/gpio.c`'s shared GPIO edge dispatcher only produces
+  `hid_event_type_keycode` events (rising/falling edge -> on/off, with
+  debounce) - there's no way for something that isn't a keycode-shaped
+  input to hook a real GPIO interrupt through it. `hw_gpio_set_callback()`
+  is a single global slot, already claimed by this dispatcher the moment
+  any GPIO-backed HID device is registered (buttons, etc.), so nothing
+  else can call it directly without silently stealing/losing that slot -
+  see `dev_ft6236_register_hid()`'s own doc for a concrete case this
+  blocks: FT6236's own interrupt pin can't get a genuine ISR-driven poll
+  today, just a fast-polling approximation (cheap thanks to
+  `dev_ft6236_poll()`'s own IRQ-skip check, but still HID-timer-driven,
+  not interrupt-driven). Fix would be extending `hid/gpio.c`'s dispatcher
+  to also support a generic raw edge-callback registration alongside its
+  existing keycode-producing one, so callers like
+  `dev_ft6236_register_hid()` can register through the shared mechanism
+  instead of needing `hw_gpio_set_callback()` themselves.

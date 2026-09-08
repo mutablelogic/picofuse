@@ -865,6 +865,16 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
+# dev_ft6236_* against Presto's own touch panel over I2C - no-ops cleanly
+# on any other board (its PIMORONI_PRESTO_TOUCH_* pins won't be defined),
+# see dev_ft6236/main.c.
+if(DEFINED PICO_BOARD)
+	picofuse_test(dev_ft6236
+		dev_ft6236/main.c
+		LIBRARIES picofuse-hw picofuse-dev
+	)
+endif()
+
 # hid_init/_deinit singleton lifecycle 
 picofuse_test(hid_001
 	hid_001/main.c

@@ -81,6 +81,11 @@ typedef struct {
   hid_state_t state; ///< HID state flags for this touch event.
   pix_point_t point; ///< Touch/event coordinates in pixels.
   uint8_t slot;      ///< Touch slot index for multi-touch tracking.
+  uint8_t pressure;  ///< Raw pressure reading, where the controller
+                     ///< supports one (e.g. a resistive touch panel) - 0
+                     ///< for controllers with no pressure sensing (e.g. a
+                     ///< capacitive one), not a meaningful "no touch"
+                     ///< value in its own right.
 } hid_touch_t;
 
 /**
@@ -222,19 +227,21 @@ bool hid_event_queue_metric_float(hid_device_t *device, const char *name,
  * @param state Touch state flags for this event.
  * @param point Touch coordinates in pixels.
  * @param slot Touch slot index.
+ * @param pressure Raw pressure reading, or 0 for a controller with no
+ * pressure sensing - see @ref hid_touch_t::pressure's own doc.
  * @retval true Event queued successfully.
  * @retval false Queueing failed.
  *
- * @todo Not implemented yet - there is no `.c` definition for this
- * function anywhere in `src/picofuse/hid/`, so linking any code that
- * calls it will fail. There is also no touch-controller registration
- * helper (a `hid_register_touch()`-style function) yet; a driver such as
- * `dev/ft6236.h` or `dev/stmpe610.h` would presumably call this directly
- * once it exists, the same way ADC/temperature drivers call
- * `hid_event_queue_metric_float()`.
+ * There is no generic `hid_register_touch()` helper - unlike a GPIO
+ * button or a timer, a touch controller is its own driver (@ref FT6236,
+ * @ref STMPE610) with its own bus/register protocol, so each one calls
+ * this directly from its own `_hid_*_register()`-equivalent (e.g. @ref
+ * dev_ft6236_register_hid), the same way ADC/temperature drivers call
+ * @ref hid_event_queue_metric_float directly rather than through a
+ * shared helper.
  */
 bool hid_event_queue_touch(hid_device_t *device, hid_state_t state,
-                           pix_point_t point, uint8_t slot);
+                           pix_point_t point, uint8_t slot, uint8_t pressure);
 
 /**
  * @brief Queue a signal HID event to the owning HID instance queue.
