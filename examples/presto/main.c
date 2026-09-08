@@ -59,6 +59,7 @@ static hw_gpio_t *_touch_scl = NULL;
 static hw_gpio_t *_touch_int = NULL;
 static hw_deviceio_t *_touch_device = NULL;
 static dev_ft6236_t *_touch_ft6236 = NULL;
+static hid_device_t *_touch_hid_device = NULL;
 
 static void _touch_start(app_t *app) {
   _touch_sda = hw_gpio_init(0, PIMORONI_PRESTO_TOUCH_SDA_PIN, hw_gpio_i2c);
@@ -99,12 +100,22 @@ static void _touch_start(app_t *app) {
     return;
   }
 
-  if (dev_ft6236_register_hid(app_hid(app), _touch_ft6236, 0, NULL) == NULL) {
+  _touch_hid_device = dev_ft6236_register_hid(app_hid(app), _touch_ft6236, 0, NULL);
+  if (_touch_hid_device == NULL) {
     sys_debugf("presto", "touch_start: dev_ft6236_register_hid failed");
   }
 }
 
-static void _touch_stop(void) {
+static void _touch_stop(app_t *app) {
+  // Deregister from HID before freeing the handle it wraps - otherwise
+  // the very next hid_poll() tick (called every runloop iteration
+  // regardless of shutdown state) or app_main()'s own final hid_deinit()
+  // teardown pass would still call into _touch_ft6236 through the HID
+  // device's own .read/.deinit callbacks after it's gone.
+  if (_touch_hid_device != NULL) {
+    hid_deregister(app_hid(app), _touch_hid_device);
+    _touch_hid_device = NULL;
+  }
   dev_ft6236_deinit(_touch_ft6236);
   _touch_ft6236 = NULL;
   if (_touch_device != NULL) {
@@ -130,7 +141,7 @@ static void _touch_start(app_t *app) {
   sys_debugf("presto", "touch_start: board has no PIMORONI_PRESTO_TOUCH_* "
                        "pins - nothing to exercise");
 }
-static void _touch_stop(void) {}
+static void _touch_stop(app_t *app) { (void)app; }
 #endif
 
 static void _draw(hw_led_t *led) {
@@ -147,7 +158,7 @@ static void _stop(app_t *app) {
   if (led != NULL) {
     hw_led_clear(led);
   }
-  _touch_stop();
+  _touch_stop(app);
   app_shutdown(0);
 }
 
