@@ -164,7 +164,10 @@ static void _hw_gpio_set_mode(hw_gpio_t *gpio, hw_gpio_mode_t mode) {
   if (ctx == NULL) {
     return;
   }
-  _hw_gpio_request(ctx->bank, ctx->pin, mode);
+  if (!_hw_gpio_request(ctx->bank, ctx->pin, mode)) {
+    sys_debugf("hw", "gpio_set_mode: failed bank=%u pin=%u mode=%u", ctx->bank,
+               ctx->pin, mode);
+  }
 }
 
 static void _hw_gpio_deinit(hw_gpio_t *gpio) {

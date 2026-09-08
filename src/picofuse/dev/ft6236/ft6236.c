@@ -46,8 +46,47 @@ static bool _dev_ft6236_read_frame(dev_ft6236_t *ft6236, uint8_t *buffer,
                               FT6236_DATA_LENGTH, 0u) == FT6236_DATA_LENGTH;
 }
 
+// FT6X36's own track ID is a 4-bit field (0-15, 0xF reserved invalid) -
+// not guaranteed to stay within 0..DEV_FT6236_MAX_POINTS-1 the way this
+// driver's array is indexed, and not guaranteed to be reported at the
+// same position within a frame from one poll to the next either. Mapping
+// an out-of-range ID to its report-order index (the previous approach)
+// broke on both counts: two simultaneously active contacts could
+// collide onto the same array slot whenever an out-of-range ID and an
+// in-range one landed on the same index across different frames -
+// silently overwriting one contact's data with the other's - and a
+// single contact's own assigned slot could migrate between polls purely
+// because report order changed, with nothing tying it back to the same
+// physical finger.
+//
+// This instead remembers which slot each hardware ID currently occupies
+// (dev_ft6236_t::slot_track_id) across polls: an ID already tracked
+// reuses its own slot; a new one claims the first free slot.
+// _dev_ft6236_parse_frame() frees the mapping for any slot that isn't
+// reported active in this frame's own set of IDs, so a lifted contact's
+// slot becomes available again for whatever claims it next.
+static uint8_t _dev_ft6236_resolve_slot(dev_ft6236_t *ft6236,
+                                        uint8_t touch_id) {
+  for (uint8_t i = 0; i < DEV_FT6236_MAX_POINTS; i++) {
+    if (ft6236->slot_track_id[i] == touch_id) {
+      return i;
+    }
+  }
+  for (uint8_t i = 0; i < DEV_FT6236_MAX_POINTS; i++) {
+    if (ft6236->slot_track_id[i] == FT6236_TRACK_ID_NONE) {
+      ft6236->slot_track_id[i] = touch_id;
+      return i;
+    }
+  }
+  // Unreachable in practice: count is already clamped to
+  // DEV_FT6236_MAX_POINTS, so there are never more active IDs in one
+  // frame than there are slots to hold them. Falls back to slot 0 rather
+  // than an out-of-bounds access if that invariant is ever wrong.
+  return 0;
+}
+
 static void
-_dev_ft6236_parse_frame(const uint8_t *buffer,
+_dev_ft6236_parse_frame(dev_ft6236_t *ft6236, const uint8_t *buffer,
                         hid_touch_t touches[DEV_FT6236_MAX_POINTS],
                         uint8_t *out_touch_count) {
   _dev_ft6236_clear_touches(touches, out_touch_count);
@@ -60,21 +99,17 @@ _dev_ft6236_parse_frame(const uint8_t *buffer,
     count = DEV_FT6236_MAX_POINTS;
   }
 
+  // Which array slots this frame actually reports active, so any
+  // slot_track_id[] entry left over afterward (a slot not in this set)
+  // can be freed - see _dev_ft6236_resolve_slot()'s own doc.
+  bool slot_seen[DEV_FT6236_MAX_POINTS] = {0};
+
   for (uint8_t index = 0u; index < count; index++) {
     const uint8_t *point = &buffer[3u + ((size_t)index * 6u)];
-    // FT6X36's own track ID is a 4-bit field (0-15, 0xF reserved
-    // invalid) - not guaranteed to stay within 0..DEV_FT6236_MAX_POINTS-1
-    // the way this array is indexed. Reported publicly as the stable
-    // array slot below, not this raw ID: otherwise a lift's own event
-    // (built from _dev_ft6236_clear_touches()'s slot-as-array-index
-    // default, since the id it should have inherited is gone the moment
-    // the controller stops reporting this contact at all) would carry a
-    // different `slot` than the down/move events for the same physical
-    // contact ever did, leaving a consumer's own per-slot tracking stuck
-    // waiting for a lift that (from its point of view) never arrives.
     uint8_t touch_id =
         (point[2] >> FT6236_TOUCH_ID_SHIFT) & FT6236_TOUCH_ID_MASK;
-    uint8_t slot = touch_id < DEV_FT6236_MAX_POINTS ? touch_id : index;
+    uint8_t slot = _dev_ft6236_resolve_slot(ft6236, touch_id);
+    slot_seen[slot] = true;
 
     hid_state_t state = _dev_ft6236_map_event(
         (point[0] >> FT6236_TOUCH_EVENT_SHIFT) & FT6236_TOUCH_EVENT_MASK);
@@ -89,6 +124,12 @@ _dev_ft6236_parse_frame(const uint8_t *buffer,
                   point[3]);
     if (state != hid_state_off && out_touch_count != NULL) {
       (*out_touch_count)++;
+    }
+  }
+
+  for (uint8_t i = 0; i < DEV_FT6236_MAX_POINTS; i++) {
+    if (!slot_seen[i]) {
+      ft6236->slot_track_id[i] = FT6236_TRACK_ID_NONE;
     }
   }
 }
@@ -127,6 +168,10 @@ dev_ft6236_t *dev_ft6236_init(hw_deviceio_t *device,
   ft6236->reset_pin = resolved.reset_pin;
   ft6236->irq_active_low = resolved.irq_active_low;
   _dev_ft6236_clear_touches(ft6236->last_touches, NULL);
+  // sys_calloc() zeroes this, but 0 is a real track ID - every slot
+  // must start explicitly free, not implicitly "assigned to ID 0".
+  memset(ft6236->slot_track_id, FT6236_TRACK_ID_NONE,
+        sizeof(ft6236->slot_track_id));
 
   if (ft6236->int_pin != NULL) {
     hw_gpio_set_mode(ft6236->int_pin, hw_gpio_pullup);
@@ -220,7 +265,7 @@ void dev_ft6236_poll(dev_ft6236_t *ft6236) {
 
   hid_touch_t touches[DEV_FT6236_MAX_POINTS];
   uint8_t touch_count = 0;
-  _dev_ft6236_parse_frame(frame, touches, &touch_count);
+  _dev_ft6236_parse_frame(ft6236, frame, touches, &touch_count);
   ft6236->had_touch = touch_count > 0u;
 
   // FT6236 has no FIFO/"new sample" flag of its own (unlike STMPE610 -

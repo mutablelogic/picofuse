@@ -21,6 +21,11 @@
 #define FT6236_EVENT_CONTACT 2u
 #define FT6236_EVENT_NONE 3u
 
+// Sentinel for dev_ft6236_t::slot_track_id meaning "no contact currently
+// assigned to this array slot" - FT6236_TOUCH_ID_MASK is only 4 bits, so
+// no real track ID (0-15) can ever equal this.
+#define FT6236_TRACK_ID_NONE 0xFFu
+
 // FT6X36 datasheet Table 3-5 "Power on/Reset/Wake Sequence Parameters" -
 // Trst (reset pulse width) and Trsi (time to first valid report after
 // resetting) minimums, both in ms. Real measured requirements, not
@@ -51,6 +56,15 @@ struct dev_ft6236_t {
                         // FT6236_IRQ_RECONCILE_MS's own doc
   dev_ft6236_callback_t callback;
   void *userdata;
+  // Which FT6236 hardware track ID (see FT6236_TOUCH_ID_MASK) currently
+  // occupies each array slot, or FT6236_TRACK_ID_NONE if the slot is
+  // free - persists across polls so a given physical contact keeps the
+  // same slot for its whole down/move/.../up lifecycle regardless of the
+  // controller's own track ID (which isn't guaranteed to stay within
+  // 0..DEV_FT6236_MAX_POINTS-1) or which position it happens to be
+  // reported at within a frame (which can change frame to frame). See
+  // _dev_ft6236_resolve_slot()'s own doc.
+  uint8_t slot_track_id[DEV_FT6236_MAX_POINTS];
   // Previous poll's touch state per slot, for dev_ft6236_poll()'s own
   // change detection - see its doc on why FT6236 needs this itself
   // (unlike a FIFO-backed controller). Struct-compared with memcmp(), so
