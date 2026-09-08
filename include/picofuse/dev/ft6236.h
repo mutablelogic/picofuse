@@ -57,7 +57,10 @@ typedef struct {
  * is @ref hid_state_on for a new contact, @ref hid_state_repeat for an
  * existing one that's still down but moved, and @ref hid_state_off for a
  * lifted one; @ref hid_touch_t::point is in panel pixels; @ref
- * hid_touch_t::slot is the controller's own track ID for this contact.
+ * hid_touch_t::slot is a stable index in `[0, DEV_FT6236_MAX_POINTS)`,
+ * not FT6236's own 4-bit hardware track ID (which has no such range
+ * guarantee) - a lift always reports the same slot its own down/move
+ * events did, for exactly this reason.
  * @param userdata User-defined data pointer passed to
  * dev_ft6236_set_callback().
  */
@@ -180,8 +183,14 @@ bool dev_ft6236_has_interrupt_pin(const dev_ft6236_t *ft6236);
  * @param ft6236 FT6236 handle.
  *
  * When an interrupt pin is configured, this function skips the I2C
- * transaction entirely when no touch is pending and the previous frame was
- * already idle. The callback set with dev_ft6236_set_callback() (if any) is
+ * transaction when no touch is pending and the previous frame was already
+ * idle - except at least once every `FT6236_IRQ_RECONCILE_MS`, regardless
+ * of the interrupt pin's own level: INT is a per-frame data-ready pulse,
+ * not a level held for the duration of a touch (see @ref
+ * dev_ft6236_register_hid's own doc), so a poll that happens to land
+ * between two pulses would otherwise never notice a touch that started
+ * and, without this, could go undetected indefinitely rather than just
+ * briefly delayed. The callback set with dev_ft6236_set_callback() (if any) is
  * invoked once per touch slot (up to @ref DEV_FT6236_MAX_POINTS) whose
  * contact state changed since the last poll - a new contact, a moved
  * contact (different X/Y from last time), or a lifted contact - never for
@@ -237,8 +246,9 @@ void dev_ft6236_poll(dev_ft6236_t *ft6236);
  * Emits a hid_event_type_touch event (via hid_event_queue_touch()) for
  * every touch dev_ft6236_poll() reports as changed - hid_state_on for a
  * new contact, hid_state_repeat for one that's still down but moved, and
- * hid_state_off for a lift - with the touch's own controller-assigned
- * track ID as the event's `slot`.
+ * hid_state_off for a lift - see dev_ft6236_callback_t's own doc for what
+ * the event's `slot` means (a stable per-contact index, not FT6236's own
+ * hardware track ID).
  *
  * There is one poll-driven code path here regardless of whether @p
  * ft6236 was given an interrupt pin at dev_ft6236_init() time - not two,

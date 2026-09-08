@@ -246,6 +246,35 @@ while marshaling either), so it's not superseded by it.
    the host builds (`build`, `build-usb`) for a general regression check
    even though this code is Pico-only.
 
+## POSIX background-thread callbacks can self-join deadlock on close
+
+Three places share the same real bug shape, found in an audit:
+`src/picofuse/net/posix/socket.c`'s connection RX thread, `src/picofuse/hw/posix/uart.c`'s RX thread, and `src/picofuse/net/posix/listener.c`'s
+accept thread. Each has *two* callback invocation sites: a final/EOF one
+that correctly calls `sys_waitgroup_done()` before invoking the callback
+(with a comment explaining why - the natural thing for a callback to do
+is close/deinit synchronously, and that call's own `sys_waitgroup_wait()`
+must not block on this very thread reaching `_done()` further down), and
+a **mid-loop one** (still legitimately running, so it can't signal done
+yet) that has no such protection. If a callback closes/deinits its own
+stream or listener from that mid-loop site - `sys_iostream_close()` on a
+socket/UART stream mid-read, or `net_listener_deinit()` from an accept
+callback wanting to "stop after first request" - the resulting
+`sys_waitgroup_wait()` self-joins the very thread it's running on.
+
+Not a simple fix: skipping the wait only in the self-join case isn't
+enough on its own, because `close()`/`deinit()` also synchronously frees
+`ctx`/closes the fd right after the wait, assuming the thread is fully
+done touching them by then. Skip only the wait but still free
+immediately, and the RX/accept thread - still running, about to loop
+again past where the callback returned - touches now-freed memory
+instead: the deadlock becomes a use-after-free. A correct fix needs the
+thread's own loop to notice it was asked to stop *from within its own
+callback* and hand off the actual teardown (mutex deinit, fd close,
+free) to its own natural exit path, rather than the external close()/
+deinit() call doing it eagerly - across all three files, which currently
+have no such handoff mechanism at all.
+
 ## Other known gaps (see inline `@todo` comments for detail)
 
 - `hw_wifi_init_device(const char *device)` - not implemented on Linux;

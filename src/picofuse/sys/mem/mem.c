@@ -269,7 +269,10 @@ void *sys_realloc(void *ptr, size_t size) {
 
   size_t current_size = 0;
   sys_mem_arena_t *owner = _sys_mem_default_owner(head, ptr, &current_size);
-  sys_assert(owner != NULL);
+  if (owner == NULL) {
+    // Not owned by any arena in the chain
+    return realloc(ptr, size);
+  }
 
   void *resized = sys_mem_arena_realloc(owner, ptr, size);
   if (resized != NULL) {
@@ -300,6 +303,10 @@ void sys_free(void *ptr) {
   }
 
   sys_mem_arena_t *owner = _sys_mem_default_owner(head, ptr, NULL);
-  sys_assert(owner != NULL);
+  if (owner == NULL) {
+    // See sys_realloc()'s own comment on the same fallback.
+    free(ptr);
+    return;
+  }
   sys_mem_arena_free(owner, ptr);
 }
