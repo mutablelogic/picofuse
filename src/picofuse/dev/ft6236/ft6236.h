@@ -28,6 +28,16 @@
 #define FT6236_RESET_PULSE_MS 5u
 #define FT6236_RESET_WAIT_MS 300u
 
+// Longest dev_ft6236_poll() is ever allowed to go without a real I2C
+// read while an interrupt pin is configured, regardless of what
+// dev_ft6236_irq_active() says - see its own doc on why relying on that
+// alone can miss a touch indefinitely. Several multiples of the Active
+// Mode frame period (~16.7ms, see FT6236_HID_MIN_POLLING_INTERVAL_MS's
+// own doc in dev/ft6236/hid.c) rather than exactly one, so the usual
+// per-poll IRQ check still does almost all of the real work - this is
+// only the fallback for the case it misses.
+#define FT6236_IRQ_RECONCILE_MS 100u
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -37,6 +47,8 @@ struct dev_ft6236_t {
   hw_gpio_t *reset_pin;
   bool irq_active_low;
   bool had_touch;
+  uint64_t last_read_ms; // 0 until the first real read - see
+                        // FT6236_IRQ_RECONCILE_MS's own doc
   dev_ft6236_callback_t callback;
   void *userdata;
   // Previous poll's touch state per slot, for dev_ft6236_poll()'s own

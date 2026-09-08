@@ -62,6 +62,16 @@ _dev_ft6236_parse_frame(const uint8_t *buffer,
 
   for (uint8_t index = 0u; index < count; index++) {
     const uint8_t *point = &buffer[3u + ((size_t)index * 6u)];
+    // FT6X36's own track ID is a 4-bit field (0-15, 0xF reserved
+    // invalid) - not guaranteed to stay within 0..DEV_FT6236_MAX_POINTS-1
+    // the way this array is indexed. Reported publicly as the stable
+    // array slot below, not this raw ID: otherwise a lift's own event
+    // (built from _dev_ft6236_clear_touches()'s slot-as-array-index
+    // default, since the id it should have inherited is gone the moment
+    // the controller stops reporting this contact at all) would carry a
+    // different `slot` than the down/move events for the same physical
+    // contact ever did, leaving a consumer's own per-slot tracking stuck
+    // waiting for a lift that (from its point of view) never arrives.
     uint8_t touch_id =
         (point[2] >> FT6236_TOUCH_ID_SHIFT) & FT6236_TOUCH_ID_MASK;
     uint8_t slot = touch_id < DEV_FT6236_MAX_POINTS ? touch_id : index;
@@ -70,7 +80,7 @@ _dev_ft6236_parse_frame(const uint8_t *buffer,
         (point[0] >> FT6236_TOUCH_EVENT_SHIFT) & FT6236_TOUCH_EVENT_MASK);
 
     touches[slot].state = state;
-    touches[slot].slot = touch_id;
+    touches[slot].slot = slot;
     touches[slot].point.x =
         (int16_t)(((uint16_t)(point[0] & FT6236_TOUCH_POS_MASK) << 8) |
                   point[1]);
@@ -183,8 +193,22 @@ void dev_ft6236_poll(dev_ft6236_t *ft6236) {
     return;
   }
 
+  uint64_t now = sys_timestamp_ms();
+  // INT is a per-frame pulse (see dev_ft6236_register_hid()'s own doc),
+  // not a level held for the duration of a touch - a poll landing between
+  // two pulses reads dev_ft6236_irq_active() as false even though a touch
+  // frame was ready moments ago and may be again moments from now, with
+  // no guarantee some later poll's own timing ever happens to line up
+  // with a pulse. Forcing a real read at least every
+  // FT6236_IRQ_RECONCILE_MS bounds how long that can ever go on for,
+  // rather than leaving a first touch (had_touch still false, so nothing
+  // else here forces a read either) possibly undetected indefinitely.
+  bool reconcile_due =
+      ft6236->last_read_ms == 0 ||
+      (now - ft6236->last_read_ms) >= FT6236_IRQ_RECONCILE_MS;
+
   if (ft6236->int_pin != NULL && !dev_ft6236_irq_active(ft6236) &&
-      !ft6236->had_touch) {
+      !ft6236->had_touch && !reconcile_due) {
     return;
   }
 
@@ -192,6 +216,7 @@ void dev_ft6236_poll(dev_ft6236_t *ft6236) {
   if (!_dev_ft6236_read_frame(ft6236, frame, sizeof(frame))) {
     return;
   }
+  ft6236->last_read_ms = now;
 
   hid_touch_t touches[DEV_FT6236_MAX_POINTS];
   uint8_t touch_count = 0;

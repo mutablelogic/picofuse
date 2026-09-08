@@ -39,19 +39,15 @@ typedef struct _hw_gpio_ctx_t {
 #define GPIO_MAX_BANKS 4
 #define GPIO_MAX_LINES GPIO_V2_LINES_MAX
 
-// Chip fds, and a static pool of one context per (bank, pin) - see the
-// note on _hw_gpio_ctx_t above for why this is a static pool rather than
-// heap-allocated per hw_gpio_init() call.
+// Chip fds, and a static pool of one context per (bank, pin)
 static int _hw_gpio_chip_fds[GPIO_MAX_BANKS];
 static _hw_gpio_ctx_t _hw_gpio_lines[GPIO_MAX_BANKS][GPIO_MAX_LINES];
 
-// Synchronization and event-monitoring thread state, set up by
-// _hw_gpio_module_init() (called from hw_init()) and torn down by
-// _hw_gpio_module_exit() (called from hw_exit()).
+// Synchronization and event-monitoring thread state
 static sys_mutex_t *_hw_gpio_mutex;
 static sys_waitgroup_t *_hw_gpio_event_waitgroup;
-static volatile bool _hw_gpio_stop = false;
-static volatile int _hw_gpio_epoll_fd = -1; // volatile for thread-safe checking
+static sys_atomic_t _hw_gpio_stop;
+static sys_atomic_t _hw_gpio_epoll_fd;
 static bool _hw_gpio_started = false;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -322,7 +318,7 @@ static bool _hw_gpio_request(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode) {
 
   // Add to epoll for input modes (with edge detection)
   if (is_input_mode) {
-    int epoll_fd = _hw_gpio_epoll_fd; // Read volatile once for consistency
+    int epoll_fd = (int)sys_atomic_get(&_hw_gpio_epoll_fd);
     if (epoll_fd >= 0) {
       struct epoll_event ev = {0};
       ev.events = EPOLLIN;
@@ -367,7 +363,8 @@ bool _hw_gpio_module_init(void) {
     }
   }
 
-  _hw_gpio_stop = false;
+  sys_atomic_init(&_hw_gpio_stop, 0);
+  sys_atomic_init(&_hw_gpio_epoll_fd, (uint32_t)-1);
   sys_waitgroup_add(_hw_gpio_event_waitgroup, 1);
   _hw_gpio_start_event_thread();
   _hw_gpio_started = true;
@@ -381,12 +378,12 @@ void _hw_gpio_module_exit(void) {
     return;
   }
 
-  _hw_gpio_stop = true;
+  sys_atomic_set(&_hw_gpio_stop, 1);
   sys_waitgroup_wait(_hw_gpio_event_waitgroup);
   sys_waitgroup_deinit(_hw_gpio_event_waitgroup);
 
-  int epoll_fd = _hw_gpio_epoll_fd;
-  _hw_gpio_epoll_fd = -1;
+  int epoll_fd = (int)sys_atomic_get(&_hw_gpio_epoll_fd);
+  sys_atomic_set(&_hw_gpio_epoll_fd, (uint32_t)-1);
   if (epoll_fd >= 0) {
     close(epoll_fd);
   }
@@ -454,7 +451,7 @@ static void _hw_gpio_close_chip(uint8_t bank) {
 
 static void _hw_gpio_remove_from_epoll(int fd) {
   // Remove from epoll if it was added (safe to call even if not in epoll)
-  int epoll_fd = _hw_gpio_epoll_fd; // Read volatile once
+  int epoll_fd = (int)sys_atomic_get(&_hw_gpio_epoll_fd);
   if (epoll_fd >= 0 && fd >= 0) {
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
   }
@@ -499,6 +496,16 @@ static int _hw_gpio_request_line(uint8_t bank, uint8_t pin, uint64_t flags) {
   return req.fd;
 }
 
+// Closes fd while still holding _hw_gpio_mutex, not after releasing it -
+// the event thread's own per-event handler takes the same lock around
+// its read(fd, ...) call (see _hw_gpio_event_thread()'s own comment), so
+// this and that read can never interleave. Closing outside the lock used
+// to leave a real window: POSIX can hand this exact fd number to an
+// unrelated open()/socket() on another thread the instant close()
+// returns, and the event thread's own read() - reading a fd it had
+// already snapshotted before this ran - could land after that reuse,
+// reading from whatever unrelated resource now owns the number instead
+// of failing outright.
 static void _hw_gpio_release_line(uint8_t bank, uint8_t pin) {
   sys_assert(bank < GPIO_MAX_BANKS);
   sys_assert(pin < GPIO_MAX_LINES);
@@ -507,14 +514,10 @@ static void _hw_gpio_release_line(uint8_t bank, uint8_t pin) {
   int fd = _hw_gpio_lines[bank][pin].fd;
   if (fd >= 0) {
     _hw_gpio_lines[bank][pin].fd = -1; // Mark as released first
-    sys_mutex_unlock(_hw_gpio_mutex);
-
-    // Remove from epoll and close outside the mutex
     _hw_gpio_remove_from_epoll(fd);
     close(fd);
-  } else {
-    sys_mutex_unlock(_hw_gpio_mutex);
   }
+  sys_mutex_unlock(_hw_gpio_mutex);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -524,10 +527,11 @@ static void _hw_gpio_event_thread(void *arg) {
   (void)arg;
   sys_debugf("hw", "gpio_event_thread: started");
 
-  while (!_hw_gpio_stop) {
+  while (sys_atomic_get(&_hw_gpio_stop) == 0) {
     // Wait for events with 100ms timeout
     struct epoll_event events[32]; // Process up to 32 events per iteration
-    int nfds = epoll_wait(_hw_gpio_epoll_fd, events, 32, 100);
+    int nfds =
+        epoll_wait((int)sys_atomic_get(&_hw_gpio_epoll_fd), events, 32, 100);
 
     if (nfds < 0) {
       sys_debugf("hw", "gpio_event_thread: epoll_wait error");
@@ -550,17 +554,26 @@ static void _hw_gpio_event_thread(void *arg) {
       // slot is never freed, only reset.
       _hw_gpio_ctx_t *ctx = events[i].data.ptr;
 
+      // Locked across the read itself, not just the fd snapshot: this
+      // event was ready as of the epoll_wait() above, so the read is
+      // never going to block waiting for data - it's a quick, bounded
+      // syscall, not an unbounded one, so holding the lock across it is
+      // cheap. Doing so is also what actually closes the race: without
+      // it, _hw_gpio_release_line() could close(fd) - and POSIX hand the
+      // same fd number to something unrelated - in the window between
+      // this snapshotting fd and this calling read(fd, ...), silently
+      // reading from whatever now owns that number instead of failing.
+      // _hw_gpio_release_line() takes this same lock around its own
+      // close(), so the two can never interleave.
       sys_mutex_lock(_hw_gpio_mutex);
       int fd = ctx->fd;
+      struct gpio_v2_line_event event;
+      ssize_t rd = fd >= 0 ? read(fd, &event, sizeof(event)) : -1;
       sys_mutex_unlock(_hw_gpio_mutex);
 
       if (fd < 0) {
         continue; // FD was released, skip it
       }
-
-      // Read the event (no mutex needed - reading from our own FD)
-      struct gpio_v2_line_event event;
-      ssize_t rd = read(fd, &event, sizeof(event));
       if (rd != (ssize_t)sizeof(event)) {
         continue;
       }
@@ -595,12 +608,12 @@ static void _hw_gpio_start_event_thread(void) {
     return;
   }
 
-  _hw_gpio_epoll_fd = epoll_fd;
+  sys_atomic_set(&_hw_gpio_epoll_fd, (uint32_t)epoll_fd);
 
   if (!sys_thread_create(_hw_gpio_event_thread, NULL)) {
     sys_debugf("hw", "gpio_event_thread: sys_thread_create failed");
     sys_waitgroup_done(_hw_gpio_event_waitgroup);
     close(epoll_fd);
-    _hw_gpio_epoll_fd = -1;
+    sys_atomic_set(&_hw_gpio_epoll_fd, (uint32_t)-1);
   }
 }
