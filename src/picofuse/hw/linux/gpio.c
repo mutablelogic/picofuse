@@ -50,6 +50,16 @@ static sys_atomic_t _hw_gpio_stop;
 static sys_atomic_t _hw_gpio_epoll_fd;
 static bool _hw_gpio_started = false;
 
+// sys_atomic_get() returns uint32_t - converting that straight to `int`
+// relies on int being exactly 32 bits for the -1 "no epoll fd" sentinel
+// to round-trip correctly (unsigned-to-signed narrowing is
+// implementation-defined otherwise). Going through int32_t first makes
+// that reinterpretation explicit and correct regardless of int's actual
+// width.
+static inline int _hw_gpio_epoll_fd_get(void) {
+  return (int)(int32_t)sys_atomic_get(&_hw_gpio_epoll_fd);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // FORWARD DECLARATIONS
 
@@ -321,7 +331,7 @@ static bool _hw_gpio_request(uint8_t bank, uint8_t pin, hw_gpio_mode_t mode) {
 
   // Add to epoll for input modes (with edge detection)
   if (is_input_mode) {
-    int epoll_fd = (int)sys_atomic_get(&_hw_gpio_epoll_fd);
+    int epoll_fd = _hw_gpio_epoll_fd_get();
     if (epoll_fd >= 0) {
       struct epoll_event ev = {0};
       ev.events = EPOLLIN;
@@ -385,7 +395,7 @@ void _hw_gpio_module_exit(void) {
   sys_waitgroup_wait(_hw_gpio_event_waitgroup);
   sys_waitgroup_deinit(_hw_gpio_event_waitgroup);
 
-  int epoll_fd = (int)sys_atomic_get(&_hw_gpio_epoll_fd);
+  int epoll_fd = _hw_gpio_epoll_fd_get();
   sys_atomic_set(&_hw_gpio_epoll_fd, (uint32_t)-1);
   if (epoll_fd >= 0) {
     close(epoll_fd);
@@ -454,7 +464,7 @@ static void _hw_gpio_close_chip(uint8_t bank) {
 
 static void _hw_gpio_remove_from_epoll(int fd) {
   // Remove from epoll if it was added (safe to call even if not in epoll)
-  int epoll_fd = (int)sys_atomic_get(&_hw_gpio_epoll_fd);
+  int epoll_fd = _hw_gpio_epoll_fd_get();
   if (epoll_fd >= 0 && fd >= 0) {
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
   }
@@ -534,7 +544,7 @@ static void _hw_gpio_event_thread(void *arg) {
     // Wait for events with 100ms timeout
     struct epoll_event events[32]; // Process up to 32 events per iteration
     int nfds =
-        epoll_wait((int)sys_atomic_get(&_hw_gpio_epoll_fd), events, 32, 100);
+        epoll_wait(_hw_gpio_epoll_fd_get(), events, 32, 100);
 
     if (nfds < 0) {
       sys_debugf("hw", "gpio_event_thread: epoll_wait error");
