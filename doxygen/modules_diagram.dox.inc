@@ -46,6 +46,9 @@ digraph modules {
   SPI         [label="SPI",                      URL="\ref SPI"];
   I2C         [label="I2C",                      URL="\ref I2C"];
   Device      [label="Device",                   URL="\ref Device"];
+  Touch       [label="Touch",                    URL="\ref Touch"];
+  Sensor      [label="Sensor",                   URL="\ref Sensor"];
+  Display     [label="Display",                  URL="\ref Display"];
   BME680      [label="BME680",                   URL="\ref BME680"];
   FT6236      [label="FT6236",                   URL="\ref FT6236"];
   STMPE610    [label="STMPE610",                 URL="\ref STMPE610"];
@@ -97,10 +100,13 @@ digraph modules {
   DeviceIO -> SPI;
   DeviceIO -> I2C;
   BlockIO -> Flash;
-  Device -> BME680;
-  Device -> FT6236;
-  Device -> STMPE610;
-  Device -> ILI9341;
+  Device -> Touch;
+  Device -> Sensor;
+  Device -> Display;
+  Touch -> FT6236;
+  Touch -> STMPE610;
+  Sensor -> BME680;
+  Display -> ILI9341;
   Application -> HID;
   HID -> HIDEvents;
   HID -> HIDKeycodes;

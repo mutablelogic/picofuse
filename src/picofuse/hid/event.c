@@ -184,6 +184,25 @@ bool hid_event_queue_metric_float(hid_device_t *device, const char *name,
   return _hid_event_push(event);
 }
 
+bool hid_event_queue_touch(hid_device_t *device, hid_state_t state,
+                          pix_point_t point, uint8_t slot, uint8_t pressure) {
+  if (device == NULL) {
+    return false;
+  }
+
+  hid_event_t *event = _hid_event_retain(device->instance, hid_event_type_touch);
+  if (event == NULL) {
+    return false;
+  }
+
+  event->device = device;
+  event->data.touch.state = state;
+  event->data.touch.point = point;
+  event->data.touch.slot = slot;
+  event->data.touch.pressure = pressure;
+  return _hid_event_push(event);
+}
+
 bool hid_event_queue_signal(hid_device_t *device, sys_env_signal_t signal) {
   if (device == NULL || signal == sys_env_signal_none) {
     return false;

@@ -21,9 +21,11 @@
  * `if ((state & hid_state_shift) != 0) { ... }`.
  */
 typedef enum {
-  hid_state_none = 0,       ///< No input state set.
-  hid_state_on = (1 << 0),  ///< Key/button is currently pressed (logical on).
-  hid_state_off = (1 << 1), ///< Key/button is currently released (logical off).
+  hid_state_none = 0,      ///< No input state set.
+  hid_state_on = (1 << 0), ///< Key/button is currently pressed (logical
+                          ///< on). For a hid_touch_t, a new touch contact.
+  hid_state_off = (1 << 1), ///< Key/button is currently released (logical
+                            ///< off). For a hid_touch_t, a lifted contact.
   hid_state_rising = hid_state_on,   ///< Alias for hid_state_on; used to
                                      ///< indicate a rising edge.
   hid_state_falling = hid_state_off, ///< Alias for hid_state_off; used to
@@ -33,7 +35,12 @@ typedef enum {
   hid_state_triple_click = (1 << 4), ///< A triple-click event was generated.
   hid_state_long_click =
       (1 << 5), ///< A long-press (long click) event was generated.
-  hid_state_repeat = (1 << 6),   ///< A repeated key/button event (auto-repeat).
+  hid_state_repeat = (1 << 6), ///< A repeated key/button event (auto-repeat).
+                              ///< For a hid_touch_t, an existing contact
+                              ///< that's still down but moved - see @ref
+                              ///< dev_ft6236_poll's own doc on the
+                              ///< guarantee that this always follows an
+                              ///< hid_state_on for the same slot.
   hid_state_function = (1 << 7), ///< Function key or mode modifier is active.
   hid_state_caps_lock = (1 << 8),    ///< Caps Lock state is active.
   hid_state_num_lock = (1 << 9),     ///< Num Lock state is active.

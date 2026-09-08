@@ -98,9 +98,7 @@ void dev_stmpe610_default_config(dev_stmpe610_config_t *config) {
   config->irq_active_low = true;
 }
 
-dev_stmpe610_t *dev_stmpe610_init(hw_deviceio_t *device, hw_gpio_t *int_pin,
-                                  dev_stmpe610_callback_t callback,
-                                  void *userdata,
+dev_stmpe610_t *dev_stmpe610_init(hw_deviceio_t *device,
                                   const dev_stmpe610_config_t *config) {
   if (device == NULL) {
     return NULL;
@@ -118,9 +116,7 @@ dev_stmpe610_t *dev_stmpe610_init(hw_deviceio_t *device, hw_gpio_t *int_pin,
   }
 
   stmpe610->device = device;
-  stmpe610->int_pin = int_pin;
-  stmpe610->callback = callback;
-  stmpe610->userdata = userdata;
+  stmpe610->int_pin = resolved.int_pin;
   stmpe610->irq_active_low = resolved.irq_active_low;
 
   if (stmpe610->int_pin != NULL) {
@@ -143,6 +139,16 @@ void dev_stmpe610_deinit(dev_stmpe610_t *stmpe610) {
     return;
   }
   sys_free(stmpe610);
+}
+
+void dev_stmpe610_set_callback(dev_stmpe610_t *stmpe610,
+                               dev_stmpe610_callback_t callback,
+                               void *userdata) {
+  if (stmpe610 == NULL) {
+    return;
+  }
+  stmpe610->callback = callback;
+  stmpe610->userdata = userdata;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -189,16 +195,17 @@ void dev_stmpe610_poll(dev_stmpe610_t *stmpe610) {
         return;
       }
     }
-    dev_stmpe610_touch_t touch = {
-        .event =
-            stmpe610->had_touch ? dev_stmpe610_touch_move : dev_stmpe610_touch_down,
-        .x = ((uint16_t)data[0] << 4) | (data[1] >> 4),
-        .y = (((uint16_t)data[1] & 0x0Fu) << 8) | data[2],
-        .z = data[3],
+    uint16_t x = ((uint16_t)data[0] << 4) | (data[1] >> 4);
+    uint16_t y = (((uint16_t)data[1] & 0x0Fu) << 8) | data[2];
+    hid_touch_t touch = {
+        .state = stmpe610->had_touch ? hid_state_repeat : hid_state_on,
+        .point = {.x = (int16_t)x, .y = (int16_t)y},
+        .slot = 0, // always 0 - single-point resistive controller
+        .pressure = data[3],
     };
     stmpe610->had_touch = true;
-    stmpe610->last_x = touch.x;
-    stmpe610->last_y = touch.y;
+    stmpe610->last_x = x;
+    stmpe610->last_y = y;
 
     // Matches Adafruit_CircuitPython_STMPE610's read_data(): once the FIFO
     // is fully drained, clear pending interrupt status - otherwise, on a
@@ -226,11 +233,13 @@ void dev_stmpe610_poll(dev_stmpe610_t *stmpe610) {
 
   if (!(tsc_ctrl & STMPE610_TSC_CTRL_TOUCHING) && stmpe610->had_touch) {
     stmpe610->had_touch = false;
-    dev_stmpe610_touch_t touch = {
-        .event = dev_stmpe610_touch_up,
-        .x = stmpe610->last_x,
-        .y = stmpe610->last_y,
-        .z = 0,
+    hid_touch_t touch = {
+        .state = hid_state_off,
+        .point = {.x = (int16_t)stmpe610->last_x,
+                  .y = (int16_t)stmpe610->last_y},
+        .slot = 0,
+        .pressure = 0, // no contact means no pressure, unlike position
+                      // (last_x/_y), which is retained for context
     };
     if (stmpe610->callback != NULL) {
       stmpe610->callback(stmpe610, &touch, stmpe610->userdata);
