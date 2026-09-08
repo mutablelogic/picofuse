@@ -4,17 +4,23 @@
 #include <stdint.h>
 #include <string.h>
 
-// Pico is the only platform in this build where the pool below can
-// genuinely be raced from two physical cores at once - see the note on
-// _hw_deviceio_alloc_handle() and hw_deviceio_deinit(). Host platforms
-// keep the plain unlocked scan already used by, e.g., _sys_iostream_alloc().
+// This pool is raced from two physical cores at once on Pico - see the
+// note on _hw_deviceio_alloc_handle() and hw_deviceio_deinit() - but
+// host platforms need this too: Linux/Darwin both support real
+// multi-threaded callers (e.g. two concurrent hw_i2c_init_device()/
+// hw_spi_init_device() calls from different threads), so an unlocked
+// scan there has exactly the same claim-the-same-slot-twice race, just
+// without a second CPU core to make it easy to hit. Same fix as
+// sys/iostream/iostream.c's own pool for the identical reason.
 #ifdef SYSTEM_NAME_PICO
 #include "../../sys/pico/sync.h"
 #define _HW_DEVICEIO_LOCK() _sys_sync_pool_lock()
 #define _HW_DEVICEIO_UNLOCK() _sys_sync_pool_unlock()
 #else
-#define _HW_DEVICEIO_LOCK()
-#define _HW_DEVICEIO_UNLOCK()
+#include <pthread.h>
+static pthread_mutex_t _hw_deviceio_lock = PTHREAD_MUTEX_INITIALIZER;
+#define _HW_DEVICEIO_LOCK() pthread_mutex_lock(&_hw_deviceio_lock)
+#define _HW_DEVICEIO_UNLOCK() pthread_mutex_unlock(&_hw_deviceio_lock)
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
