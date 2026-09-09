@@ -1,0 +1,441 @@
+#include "GPIO+Private.h"
+#include "NXTimer+Private.h"
+#include <Application/Application.h>
+#include <runtime-hw/hw.h>
+#include <runtime-net/net.h>
+#include <runtime-sys/sys.h>
+
+///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+typedef enum {
+  APP_EVENT_HW_POLL = 1,
+  APP_EVENT_NET_POLL = 2,
+  APP_EVENT_GPIO = 3,
+  APP_EVENT_TIMER = 4
+} app_event_type_t;
+
+typedef struct {
+  app_event_type_t type;
+  void *sender;
+  uint8_t pin;
+  hw_gpio_event_t event;
+} app_event_t;
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+// Define the shared application instance
+static id sharedApplication = nil;
+
+// Define the shared queue for events
+static sys_event_queue_t _app_queue = {0};
+
+// Optional hook implemented by Network/runtime-net (weak; NULL if absent)
+extern void net_poll(void) __attribute__((weak));
+
+// We call hw_poll every 50ms and net_poll every 1s
+#define NSAPPLICATION_HW_POLL_INTERVAL_MS 50
+#define NSAPPLICATION_NET_POLL_INTERVAL_MS 1000
+
+///////////////////////////////////////////////////////////////////////////////
+// CALLBACKS
+
+static void _app_gpio_callback(uint8_t pin, hw_gpio_event_t event,
+                               void *userdata) {
+  // Get the queue
+  sys_event_queue_t *queue = &_app_queue;
+  objc_assert(queue);
+
+  // If the queue is not valid, return early
+  if (!sys_event_queue_valid(queue)) {
+    return;
+  }
+
+  // Create a app_event_t for the GPIO event
+  app_event_t *evt = sys_malloc(sizeof(app_event_t));
+  if (evt == NULL) {
+    return;
+  } else {
+    evt->type = APP_EVENT_GPIO; // Set the event type
+    evt->sender = userdata;     // Set the sender
+    evt->pin = pin;             // Set the pin number
+    evt->event = event;         // Set the event type (rising|falling)
+  }
+
+  // Try and push it into the queue
+  if (sys_event_queue_try_push(queue, (void *)evt) == false) {
+    sys_free((void *)evt); // Free the payload if it cannot be pushed
+  }
+}
+
+/**
+ * @brief Callback function for application timer events.
+ */
+void _app_timer_callback(sys_timer_t *timer) {
+  sys_event_queue_t *queue = &_app_queue;
+  objc_assert(timer);
+  objc_assert(queue);
+
+  // If the queue is not valid, return early
+  if (!sys_event_queue_valid(queue)) {
+    return;
+  }
+
+  // Create a app_event_t for the GPIO event
+  app_event_t *evt = sys_malloc(sizeof(app_event_t));
+  if (evt == NULL) {
+    return;
+  } else {
+    evt->type = APP_EVENT_TIMER;   // Set the event type
+    evt->sender = timer->userdata; // Set the sender
+  }
+
+  // Try and push it into the queue
+  if (sys_event_queue_try_push(queue, (void *)evt) == false) {
+    sys_free((void *)evt); // Free the payload if it cannot be pushed
+  }
+}
+
+/**
+ * @brief Callback function for hw poll timer events.
+ */
+void _app_hw_poll_callback(sys_timer_t *timer) {
+  objc_assert(timer);
+
+  sys_event_queue_t *queue = &_app_queue;
+  objc_assert(queue);
+
+  // If the queue is not valid, return early
+  if (!sys_event_queue_valid(queue)) {
+    return;
+  }
+
+  // Create a app_event_t for the GPIO event
+  app_event_t *evt = sys_malloc(sizeof(app_event_t));
+  if (evt == NULL) {
+    return;
+  } else {
+    evt->type = APP_EVENT_HW_POLL; // Set the event type
+    evt->sender = timer->userdata; // Set the sender
+  }
+
+  // Try and push it into the queue
+  if (sys_event_queue_try_push(queue, (void *)evt) == false) {
+    sys_free((void *)evt); // Free the payload if it cannot be pushed
+  }
+}
+
+/**
+ * @brief Callback function for net poll timer events.
+ */
+void _app_net_poll_callback(sys_timer_t *timer) {
+  objc_assert(timer);
+
+  sys_event_queue_t *queue = &_app_queue;
+  objc_assert(queue);
+
+  // If the queue is not valid, return early
+  if (!sys_event_queue_valid(queue)) {
+    return;
+  }
+
+  // Create a app_event_t for the GPIO event
+  app_event_t *evt = sys_malloc(sizeof(app_event_t));
+  if (evt == NULL) {
+    return;
+  } else {
+    evt->type = APP_EVENT_NET_POLL; // Set the event type
+    evt->sender = timer->userdata;  // Set the sender
+  }
+
+  // Try and push it into the queue
+  if (sys_event_queue_try_push(queue, (void *)evt) == false) {
+    sys_free((void *)evt); // Free the payload if it cannot be pushed
+  }
+}
+
+/**
+ * @brief Callback function for power events.
+ */
+void _app_power_callback(hw_power_t *power, hw_power_flag_t flags,
+                         uint32_t value, void *user_data) {
+  (void)power;
+  (void)user_data;
+
+  if (flags & HW_POWER_BATTERY) {
+    sys_printf("CALLBACK: Power source is battery (estimated %u%%)\n", value);
+  }
+  if (flags & HW_POWER_USB) {
+    sys_printf("CALLBACK: Power source is USB (estimated %u%%)\n", value);
+  }
+  if (flags & HW_POWER_UNKNOWN) {
+    sys_printf("CALLBACK: Power source is unknown\n");
+  }
+  if (flags & HW_POWER_RESET) {
+    sys_printf("CALLBACK: Power is about to force a reset after %u ms\n",
+               value);
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+@implementation Application
+
+- (id)initWithCapacity:(size_t)capacity {
+  self = [super init];
+  if (self == nil) {
+    return nil;
+  }
+
+  // Create an event queue for the application
+  objc_assert(sys_event_queue_valid(&_app_queue) == false);
+  _app_queue = sys_event_queue_init(capacity);
+
+  // Initialize properties
+  _delegate = nil;
+  _run = NO;
+  _exitstatus = 0;
+
+  // Set the GPIO callback for the application, with the application instance
+  // as userdata
+  hw_gpio_set_callback(_app_gpio_callback, self);
+
+  // Return success
+  return self;
+}
+
+- (id)initWithArgs:(NXArray *)args capacity:(size_t)capacity {
+  self = [self initWithCapacity:capacity];
+  if (self) {
+    _args = [args retain]; // Retain the command-line arguments
+  }
+  return self;
+}
+
+- (id)init {
+  return [self initWithArgs:nil capacity:20]; // Default capacity of 20 events
+}
+
+- (void)release {
+  // Check if the shared application instance is being released
+  @synchronized([self class]) {
+    if (sharedApplication == self) {
+      sharedApplication = nil; // Set to nil to avoid dangling pointer
+    }
+  }
+
+  // Remove the GPIO callback for the application
+  hw_gpio_set_callback(NULL, NULL);
+
+  // Release retained resources (delegates are not retained)
+  [_args release];
+
+  // Finalize the event queue
+  sys_event_queue_finalize(&_app_queue);
+
+  // Clear the properties
+  _delegate = nil;
+  _args = nil;
+
+  // Call superclass release
+  [super release];
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PROPERTIES
+
+/**
+ * @brief Gets the current application delegate.
+ */
+- (id<ApplicationDelegate>)delegate {
+  return _delegate; // Return the current delegate
+}
+
+/**
+ * @brief Sets the application delegate.
+ */
+- (void)setDelegate:(id<ApplicationDelegate>)delegate {
+  _delegate = delegate;
+}
+
+/**
+ * @brief Sets command-line arguments passed to the application.
+ */
+- (void)setArgs:(NXArray *)args {
+  [_args release];       // Release previous args
+  _args = [args retain]; // Retain the new args
+}
+
+/**
+ * @brief Returns command-line arguments passed to the application.
+ */
+- (NXArray *)args {
+  if (_args == nil) {
+    // If args are not set, return an empty array
+    return [[[NXArray alloc] init] autorelease];
+  }
+  return _args; // Return the command-line arguments
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// INSTANCE METHODS
+
+- (int)run {
+  if (_run) {
+    return -1; // Already running
+  }
+
+  // We need to call hw_poll occasionally, so we set up the timer for that
+  // here
+  sys_timer_t hw_poll_timer = sys_timer_init(NSAPPLICATION_HW_POLL_INTERVAL_MS,
+                                             self, _app_hw_poll_callback);
+  if (sys_timer_start(&hw_poll_timer) == false) {
+    sys_printf("Failed to start hardware poll timer\n");
+    return -1;
+  }
+
+  // Same for net_poll occasionally, so we set up the timer for that
+  // here
+  sys_timer_t net_poll_timer = sys_timer_init(
+      NSAPPLICATION_NET_POLL_INTERVAL_MS, self, _app_net_poll_callback);
+  if (sys_timer_start(&net_poll_timer) == false) {
+    sys_printf("Failed to start network poll timer\n");
+    return -1;
+  }
+
+  // Run the loop until the stop flag is set
+  while (true) {
+    // Notify the delegate that the application has finished launching
+    // TODO: Only do this on the main thread
+    if (_run == NO && _delegate != nil) {
+      [_delegate applicationDidFinishLaunching:self];
+      _run = YES; // Set the run flag to true
+    }
+
+    // TODO: Drain the autorelease pool occasionally
+    // In our semantics, we likely have one pool which is used across threads
+
+    // Get an event from the queue
+    // The queue might be invalid, as it's been shutdown
+    app_event_t *app_event = sys_event_queue_pop(&_app_queue);
+    if (app_event == NULL) {
+      // Finalize the timer to prevent any more events
+      sys_timer_finalize(&hw_poll_timer);
+
+      // Finalize the net_poll timer
+      sys_timer_finalize(&net_poll_timer);
+
+      // Finalize the GPIO subsystem
+      // TODO: Only do this on the main thread
+      [GPIO finalize];
+
+      // No more events to process
+      break;
+    }
+
+    // Process based on event
+    switch (app_event->type) {
+    case APP_EVENT_HW_POLL:
+      hw_poll();
+      break;
+    case APP_EVENT_NET_POLL:
+      if (net_poll) {
+        net_poll();
+      }
+      break;
+    case APP_EVENT_GPIO:
+      _gpio_callback(app_event->pin, app_event->event);
+      break;
+    case APP_EVENT_TIMER: {
+      // sender is stored as void* in the event; cast to id before messaging
+      id sender = (id<RetainProtocol>)app_event->sender;
+      if (sender && [sender isKindOfClass:[NXTimer class]]) {
+        // We retain the sender to ensure it stays alive during the callback
+        [sender retain];
+        [(NXTimer *)sender timerFired];
+        [sender release];
+      }
+    } break;
+    default:
+      // Unknown event type
+      break;
+    }
+
+    // Free the allocated event - release it
+    sys_free(app_event);
+
+    // Drain the autorelease pool
+    // TODO: Only do this on the main thread, and maybe less often than once
+    // per loop iteration
+    [[NXAutoreleasePool currentPool] drain];
+  }
+
+  // Reset the flags
+  _run = NO;
+
+  // Return success
+  return _exitstatus;
+}
+
+/**
+ * @brief This method notifies the app that you want to exit the run loop.
+ */
+- (void)terminate {
+  objc_assert(sys_event_queue_valid(&_app_queue));
+
+  // Shutdown the event queue
+  // The run loop will exit on the next iteration
+  sys_event_queue_shutdown(&_app_queue);
+}
+
+/**
+ * @brief This method notifies the app that you want to exit the run loop,
+ * with a specific exit status.
+ */
+- (void)terminateWithExitStatus:(int)status {
+  _exitstatus = status;
+  [self terminate];
+}
+
+/**
+ * @brief Handles application signals.
+ * @param signal The signal received from the environment.
+ */
+- (void)signal:(NXApplicationSignal)signal {
+  id<ApplicationDelegate, ObjectProtocol> delegate =
+      (id<ApplicationDelegate, ObjectProtocol>)_delegate;
+  if (delegate &&
+      [delegate respondsToSelector:@selector(applicationReceivedSignal:)]) {
+    [delegate applicationReceivedSignal:signal];
+  } else if (signal & NXApplicationSignalTerm ||
+             signal & NXApplicationSignalQuit ||
+             signal & NXApplicationSignalInt) {
+    [self terminateWithExitStatus:-1];
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// CLASS METHODS
+
++ (id)sharedApplication {
+  @synchronized(self) {
+    // Check if the shared application instance already exists
+    if (sharedApplication != nil) {
+      return sharedApplication; // Return existing instance
+    }
+
+    // Create the shared application instance
+    sharedApplication = [[self alloc] init];
+    if (sharedApplication == nil) {
+      sys_panicf("Failed to create shared application instance");
+      return nil;
+    }
+
+    // Return the shared application instance
+    return sharedApplication;
+  }
+}
+
+@end

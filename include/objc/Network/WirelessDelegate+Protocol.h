@@ -1,0 +1,69 @@
+/**
+ * @file WirelessDelegate+Protocol.h
+ * @brief Defines the WirelessDelegateProtocol for wireless events.
+ *
+ * This file defines the WirelessDelegate protocol which provides a standardized
+ * interface for handling wireless events in the Network framework. Classes
+ * conforming to this protocol can implement methods for handling these events.
+ */
+#pragma once
+
+///////////////////////////////////////////////////////////////////////////////
+// PROTOCOL DEFINITIONS
+
+/**
+ * @brief Protocol for receiving wireless scan events.
+ * @ingroup Network
+ * @headerfile WirelessDelegate+Protocol.h Network/Network.h
+ *
+ * Classes conforming to this protocol receive callbacks for scan progress:
+ * one invocation per network discovered and a final notification on
+ * completion. Implementations should return quickly and avoid heavy work
+ * on the callback thread.
+ */
+@protocol WirelessDelegate
+
+@optional
+/**
+ * @brief Called when a wireless network is discovered during a scan.
+ * @param network The network information for the discovered access point.
+ *                This object may be short‑lived; copy fields you need to
+ *                retain beyond the scope of this callback.
+ */
+- (void)scanDidDiscoverNetwork:(NXWirelessNetwork *)network;
+
+/**
+ * @brief Called once when the current scan completes (successfully or not).
+ *
+ * No further scanDidDiscoverNetwork: callbacks will be delivered after this
+ * method for the corresponding scan operation.
+ */
+- (void)scanDidComplete;
+
+/**
+ * @brief Called when a connection attempt starts.
+ * @param network The target network.
+ */
+- (void)connectDidStart:(NXWirelessNetwork *)network;
+
+/**
+ * @brief Called if the connection fails.
+ * @param network The target network.
+ * @param error   The error code describing the failure.
+ */
+- (void)connectionFailed:(NXWirelessNetwork *)network
+               withError:(NXWirelessError)error;
+
+/**
+ * @brief Called when a connection is established.
+ * @param network The connected network.
+ */
+- (void)connected:(NXWirelessNetwork *)network;
+
+/**
+ * @brief Called after disconnecting from a network.
+ * @param network The network that was disconnected.
+ */
+- (void)disconnected:(NXWirelessNetwork *)network;
+
+@end
