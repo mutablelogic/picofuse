@@ -5,6 +5,9 @@ add_subdirectory(sys/${SYSTEM_NAME_LOWER})
 # hw provides hardware peripheral abstractions (GPIO, etc.)
 add_subdirectory(hw/${SYSTEM_NAME_LOWER})
 
+# pix provides shared pixel/display types, drawn on by dev's display backends
+add_subdirectory(pix)
+
 # dev provides drivers for external peripherals
 add_subdirectory(dev)
 

@@ -164,6 +164,10 @@ if(NOT DEFINED PICO_BOARD)
     # interactive terminal) - host-only, like test/CMakeLists.txt's own
     # hw_020.
     add_subdirectory(examples/echo/client)
+
+    # dev_sdl_init() opens a real window - meaningless on a headless Pico
+    # board, host-only like echo/client above.
+    add_subdirectory(examples/sdl)
 endif()
 
 # Hardware test runner

@@ -6,10 +6,10 @@
  * Shared type definitions used across the pixel library.
  */
 #pragma once
+#include "color.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include "color.h"
 
 /**
  * @brief Point structure representing X,Y coordinates.
@@ -61,3 +61,4 @@ typedef struct {
   size_t stride;    ///< Byte pitch between adjacent major-axis elements.
   pix_format_t fmt; ///< Pixel format used by @ref data.
 } pix_bitmap_t;
+
