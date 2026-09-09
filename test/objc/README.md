@@ -1,0 +1,139 @@
+# Test Suite Documentation
+
+This directory contains test coverage for the runtime, NXFoundation and NXApplication frameworks. Tests can be run with `make tests` from the project root directory.
+
+The tests are designed to work correctly in both debug and release builds (`RELEASE=1`), with proper handling of assertions and error conditions.
+
+The tests are organized into four main categories:
+
+## Test Categories
+
+- **Runtime System Tests** (sys_00 through sys_17): Tests for low-level system functionality including memory management, I/O operations, threading, synchronization primitives, event queues, cross-core communication, hash table operations, environment information, and atomic operations.
+- **Objective-C Runtime Tests** (runtime_01 through runtime_37): Tests for the Objective-C runtime system functionality.
+- **NXFoundation Tests** (NXFoundation_01 through NXFoundation_24): Tests for the NXFoundation framework classes and functionality.
+- **NXApplication Tests** (NXApplication_01 only): Tests for the NXApplication framework classes and functionality.
+- **Runtime Hardware Interface Tests** (hw_00 through hw_03): Tests for low-level hardware interface functionality.
+- **Pixel Tests** (pix_01): Tests for the pixel and display system functionality.
+
+---
+
+## NXFoundation Tests
+
+| Test Name | Purpose | Description |
+|-----------|---------|-------------|
+| NXFoundation_01 | Zone Management | Tests zone allocation, default zone setup, and deallocation. |
+| NXFoundation_02 | Basic Object Creation | Tests object creation, class verification, and release. |
+| NXFoundation_03 | Class Hierarchy Testing | Tests inheritance and type checking with TestA/TestB hierarchy. |
+| NXFoundation_04 | String Operations | Tests NXString creation, C string interoperability, and length validation. |
+| NXFoundation_05 | Object Description | Tests object description generation and memory management. |
+| NXFoundation_06 | Autorelease Pool Testing | Tests autorelease pool creation, management, and cleanup. |
+| NXFoundation_07 | Thread Sleep Operations | Tests threading with `[NXThread sleepForTimeInterval:]`. |
+| NXFoundation_08 | Application Runner | Tests application execution with `[NXApplication run]`. |
+| NXFoundation_09 | Date and Time Operations | Tests NXDate creation, intervals, descriptions, and comparisons. |
+| NXFoundation_10 | Arena Allocator | Tests zone-based memory allocation and cleanup. |
+| NXFoundation_11 | Architecture Information | Tests comprehensive system architecture detection (bits, endianness, cores, OS, processor). |
+| NXFoundation_12 | Random Number Generation | Tests random 32-bit integer generation and validation. |
+| NXFoundation_13 | Time Interval Operations | Tests time constants, arithmetic, conversions, and formatting. |
+| NXFoundation_14 | Date Edge Cases | Tests NXDate overflow and edge cases with large intervals. |
+| NXFoundation_15 | Number Boolean Operations | Tests NXNumber boolean functionality and arithmetic. |
+| NXFoundation_16 | Random Number Statistics | Tests random number quality, duplicates, and distribution. |
+| NXFoundation_17 | Null Value Testing | Tests NXNull singleton functionality and consistency. |
+| NXFoundation_18 | String Method Testing | Tests NXString formatting, comparison, operations, and JSON escaping. |
+| NXFoundation_19 | Number Testing | Tests NXNumber types, conversions, edge cases, and memory management. |
+| NXFoundation_20 | JSON Protocol Testing | Tests JSONProtocol conformance for core types with Base64 serialization. |
+| NXFoundation_21 | Array Testing | Tests NXArray creation, access, JSON serialization, and mutable operations. |
+| NXFoundation_22 | Data Operations | Tests NXData storage, encoding, append operations, and equality comparisons. |
+| NXFoundation_23 | NXLog Testing | Tests enhanced NXLog functionality with custom format handlers (%@ object formatting, %t time intervals), character count validation, nil handling, and mixed format specifiers. |
+| NXFoundation_24 | NXMap Testing | Tests comprehensive NXMap functionality including lifecycle management (initWithCapacity, factory methods), core operations (setObject:forKey: with proper overwrite handling and same-object edge cases, objectForKey:, removeObjectForKey:, removeAllObjects), memory management with proper object release and retain, iterator operations, and edge case handling with null values and empty maps. |
+
+---
+
+## Pixel Tests
+
+| Test Name | Purpose | Description |
+|-----------|---------|-------------|
+| pix_01 | SDL Display Creation | Tests SDL3 display initialization and finalization: `pix_sdl_display_init()` with valid window creation, parameter validation (NULL title, zero size), `pix_display_finalize()` with proper resource cleanup, and edge case handling. |
+
+---
+
+## Runtime Tests
+
+| Test Name | Purpose | Description |
+|-----------|---------|-------------|
+| runtime_01 | Basic Object Introspection | Tests object/class introspection: `object_getClassName()`, `object_getClass()`, equality. |
+| runtime_02 | Custom Class Testing | Tests runtime behavior with custom classes and introspection. |
+| runtime_03 | Constant String Testing | Tests NXConstantString: creation, length, C string conversion, equality. |
+| runtime_04 | Getter/Setter Method Testing | Tests getter/setter methods with custom Test class. |
+| runtime_05 | Instance Variable Access | Tests instance variable access with custom objects. |
+| runtime_06 | Category Method Testing | Tests category method functionality with description methods. |
+| runtime_08 | Method Chaining | Tests method chaining and `[[Foo foo] bar]` patterns. |
+| runtime_09 | Method Type Conflict Resolution | Tests method signature conflicts between class/instance methods. |
+| runtime_10 | Class Method Dispatch | Tests class method invocation with type casting. |
+| runtime_11 | Root Class Testing | Tests custom root class with `OBJC_ROOT_CLASS`. |
+| runtime_12 | Root Class with Subclass | Tests root class inheritance with subclass hierarchy. |
+| runtime_13 | Multiple Subclass Testing | Tests root class with multiple subclasses. |
+| runtime_14 | Instance Variables and Accessors | Tests root class subclass with instance variables and accessors. |
+| runtime_15 | Method Selector Testing | Tests hidden `_cmd` argument and `sel_getName()`. |
+| runtime_16 | Type Encoding Testing | Tests `@encode` directive and type encoding constants. |
+| runtime_17 | Enumeration and Bitfields | Tests enumeration types with bitfield instance variables. |
+| runtime_18 | Complex Bitfield Structures | Tests complex bitfield structures as instance variables. |
+| runtime_19 | Forward Class Declaration | Tests `@class` forward declarations and incomplete types. |
+| runtime_20 | Function Message Dispatch | Tests function-based message dispatch and dynamic methods. |
+| runtime_21 | Informal Protocol Testing | Tests informal protocols (categories) with method addition. |
+| runtime_22 | Class Initialization | Tests `+initialize` method behavior and inheritance. |
+| runtime_23 | Automatic Initialize Call | Tests automatic `+initialize` invocation and class state setup. |
+| runtime_24 | Category Method Override | Tests method override behavior with category precedence. |
+| runtime_25 | Basic Protocol Adoption | Tests protocol definition, adoption, and conformance validation. |
+| runtime_26 | Protocol Type Variables | Tests protocol-typed variables (`id<Protocol>`) and method invocation. |
+| runtime_27 | Multiple Protocol Adoption | Tests multiple protocol conformance and implementation. |
+| runtime_28 | Protocol Adoption in Category | Tests protocol adoption through categories. |
+| runtime_29 | Protocol Runtime Access | Tests runtime protocol access with `@protocol()`. |
+| runtime_30 | Protocol Definition and Access | Tests protocol definition and runtime access with `proto_getName()`. |
+| runtime_31 | Protocol Inheritance | Tests protocol inheritance and conformance checking. |
+| runtime_32 | Protocol Object Properties | Tests protocol object validation and operations. |
+| runtime_33 | Protocol Identity and Equality | Tests protocol identity, comparison, and uniqueness. |
+| runtime_34 | Variadic Method Arguments | Tests variadic methods with `va_list` and variable arguments. |
+| runtime_35 | Static Variables in Classes | Tests static variables within class implementations. |
+| runtime_36 | Static Functions in Classes | Tests static functions within class implementations. |
+| runtime_37 | Selector Name Access | Tests selector creation and name retrieval with `sel_getName()`. |
+
+---
+
+## System Tests
+
+| Test Name | Purpose | Description |
+|-----------|---------|-------------|
+| sys_00 | Memory System Functions | Tests `sys_malloc()`, `sys_free()`, `sys_memset()`, `sys_memcpy()`, `sys_memmove()`, `sys_memcmp()`. |
+| sys_01 | Printf System Functions | Tests `sys_printf()`, `sys_sprintf()`, and `sys_vsprintf()` with 102 tests covering format specifiers, width modifiers, and buffer overflow. |
+| sys_02 | Date and Time System Functions | Tests `sys_date_*` functions: current date/time acquisition, UTC/local time conversion, date/time component extraction and setting, nanosecond precision comparison, timezone handling, parameter validation, gmtime/timegm integration. |
+| sys_03 | Thread System Functions | Tests `sys_thread_numcores()` with validation and boundary checks. |
+| sys_04 | Random Number Generation | Tests `sys_random_uint32()` and `sys_random_uint64()` with distribution testing. |
+| sys_05 | Hash Function Testing | Tests `sys_hash_*` functions with MD5/SHA-256 algorithms and test vectors. |
+| sys_06 | Input/Output System Functions | Tests `sys_printf()` formatting with integers, characters, and strings. |
+| sys_07 | Mutex Functions | Tests `sys_mutex_*` initialization, locking, unlocking, and error handling. |
+| sys_08 | Condition Variable Functions | Tests `sys_cond_*` initialization, signaling, broadcast, and timedwait. |
+| sys_09 | Thread Creation Functions | Tests `sys_thread_*` functions: numcores detection, thread creation/execution, core-specific creation, error handling, sleep edge cases. |
+| sys_10 | Threading Stress Tests | High contention mutex, producer/consumer, race condition detection, extreme stress (21K ops), CPU affinity. |
+| sys_11 | Waitgroup Synchronization | Basic/delayed coordination, result collection, high-load stress (5K ops), error handling. |
+| sys_12 | Event Queue Operations | Basic ops, overflow/overwrite, threading, peek-before-acquire, shutdown, high volume (800 events), rapid shutdown, mixed operations. |
+| sys_13 | Event Queue Cross-Core Communication | Tests event queue initialization, basic push/pop operations, multicore producer-consumer patterns, timeout behavior, and error handling with bidirectional communication between cores. |
+| sys_14 | Dual-Core Event Queue with Timers | Tests dual-core event queue consumption with timer-driven event production, cross-core event mixing, high-load scenarios with atomic counters, and timer-based coordination. |
+| sys_15 | Hash Table Operations | Tests comprehensive hash table functionality including basic operations (init, put, get by key/value), collision handling with linear probing, automatic chaining/growth, deletion operations, iteration, edge cases with replacement callbacks, and count/capacity tracking across chained tables. |
+| sys_16 | Environment Information | Tests environment information functions including `sys_env_serial()`, `sys_env_name()`, and `sys_env_version()` with validation of non-null return values, non-empty strings, and consistency across multiple calls. |
+| sys_17 | Atomic Operations | Tests `sys_atomic_*` API for initialization, get/set semantics, and atomic increment/decrement returning the post-operation value using a uint32_t counter. |
+
+---
+
+## File System Tests
+
+| Test Name | Purpose | Description |
+|-----------|---------|-------------|
+| fs_01 | Volume Init Size | Creates a RAM volume with requested size and verifies actual capacity is >= requested; finalizes volume. |
+| fs_02 | Directory Iteration Basics | Creates directories, iterates root, and validates iterator lifecycle and entry reporting. |
+| fs_03 | File-Backed Volume + Dirs | Opens file-backed volume, creates directories, lists entries, and reports total/free/used sizes. |
+| fs_04 | Dir Create/Delete Stress | Creates and removes many directories on a RAM volume; validates stat, entry counts, and free space deltas. |
+| fs_05 | Basic File I/O | Creates a RAM volume, creates a file, writes known payload, seeks to start, reads back, verifies size and contents. |
+| fs_06 | Append and Partial I/O | Verifies partial writes and reads across multiple calls, EOF behavior (read returns 0), and appending by reopening and seeking to end, with final content check. |
+| fs_07 | Overwrite/Seek/Extend | Large writes across blocks, mid-file overwrite, invalid large seek rejection, seek-beyond-EOF then write to extend file and verify tail/size. |
+| fs_08 | Boundary Interleaved I/O | Partial writes around block boundaries with overlapping regions and interleaved reads; validates overlap resolution and final size. |
+| fs_09 | Rename and Move | Creates files then renames within a directory, moves across directories, and renames a directory containing a file; verifies content and stat results at each step. |
