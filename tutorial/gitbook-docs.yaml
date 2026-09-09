@@ -1,7 +1,6 @@
 $schema: https://api.gitbook.com/gitbook-docs.yaml
-version: 1
 site:
-  title: Picofuse
+  title: picofuse
   structure:
     - type: space
       key: space-tutorial
@@ -9,4 +8,4 @@ site:
       path: tutorial
       default: true
       content:
-        directory: .
+        directory: ./
