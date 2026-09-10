@@ -44,8 +44,9 @@ typedef enum {
  * @ingroup Pixel
  */
 typedef enum {
-  PIX_SET,   ///< Overwrite the destination outright, ignoring its previous
-             ///< color and the drawn color's own alpha.
+  PIX_SET,   ///< Overwrite the destination outright with the drawn color as
+             ///< given, alpha channel included - no compositing against the
+             ///< destination's previous color.
   PIX_BLEND, ///< Alpha-composite the drawn color over the destination's
              ///< existing color ("src over dst") - see @ref pix_color_blend.
 } pix_op_t;

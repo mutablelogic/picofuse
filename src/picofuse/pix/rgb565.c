@@ -14,18 +14,37 @@ static inline pix_color_t _pix_bitmap_rgb565_get_unpacked(uint16_t packed) {
   return PIX_COLOR_RGB(r, g, b);
 }
 
+// bitmap->data plus a computed byte offset isn't guaranteed 2-byte aligned
+// (an arbitrary bitmap->stride, or an odd point.x, can each land on an odd
+// address) - a raw uint16_t* cast and dereference on a misaligned address
+// is undefined behavior in C, and can genuinely fault on some embedded
+// targets (Cortex-M0 notably, which is what RP2040 - this project's own
+// primary target - uses). memcpy() sidesteps the alignment requirement
+// entirely; compilers already optimize a fixed 2-byte memcpy() down to
+// whatever load/store the target can actually do (an unaligned one, or the
+// correct byte-wise sequence where that's not available), so this costs
+// nothing on platforms where the naive cast would've been fine anyway.
+static inline uint16_t _pix_bitmap_rgb565_load(const uint8_t *p) {
+  uint16_t packed;
+  memcpy(&packed, p, sizeof(packed));
+  return packed;
+}
+
+static inline void _pix_bitmap_rgb565_store(uint8_t *p, uint16_t packed) {
+  memcpy(p, &packed, sizeof(packed));
+}
+
 pix_color_t _pix_bitmap_rgb565_get_pixel(const pix_bitmap_t *bitmap,
                                          pix_point_t point) {
-  const uint8_t *row =
-      (const uint8_t *)bitmap->data + (size_t)point.y * bitmap->stride;
-  uint16_t px = ((const uint16_t *)(const void *)row)[point.x];
-  return _pix_bitmap_rgb565_get_unpacked(px);
+  const uint8_t *p = (const uint8_t *)bitmap->data +
+                     (size_t)point.y * bitmap->stride + (size_t)point.x * 2;
+  return _pix_bitmap_rgb565_get_unpacked(_pix_bitmap_rgb565_load(p));
 }
 
 void _pix_bitmap_rgb565_set_pixel(pix_bitmap_t *bitmap, pix_point_t point,
                                   pix_color_t color) {
-  uint8_t *row = (uint8_t *)bitmap->data + (size_t)point.y * bitmap->stride;
-  uint16_t *p = (uint16_t *)(void *)row + point.x;
+  uint8_t *p = (uint8_t *)bitmap->data + (size_t)point.y * bitmap->stride +
+              (size_t)point.x * 2;
 
   if (bitmap->op == PIX_BLEND) {
     uint8_t a = pix_color_a(color);
@@ -36,11 +55,12 @@ void _pix_bitmap_rgb565_set_pixel(pix_bitmap_t *bitmap, pix_point_t point,
       // RGB565 stores no alpha of its own - treat the existing pixel as
       // fully opaque for the blend (_pix_bitmap_rgb565_get_unpacked()
       // does exactly that, via PIX_COLOR_RGB()).
-      color = pix_color_blend(color, _pix_bitmap_rgb565_get_unpacked(*p));
+      pix_color_t dst = _pix_bitmap_rgb565_get_unpacked(_pix_bitmap_rgb565_load(p));
+      color = pix_color_blend(color, dst);
     }
   }
 
-  *p = _pix_bitmap_rgb565_get_packed(color);
+  _pix_bitmap_rgb565_store(p, _pix_bitmap_rgb565_get_packed(color));
 }
 
 void _pix_bitmap_rgb565_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
@@ -63,7 +83,8 @@ void _pix_bitmap_rgb565_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
     // The packed 16-bit value's own two bytes happen to be equal (true for
     // e.g. black/white/grays that round-trip cleanly through 5-6-5) -
     // every byte in the fill is then identical too, so memset() can fill a
-    // whole row in one call instead of one pixel at a time.
+    // whole row in one call instead of one pixel at a time. memset() is
+    // byte-wise, so it has no alignment requirement to worry about either.
     if (hi == lo) {
       for (uint16_t dy = 0; dy < size.h; dy++) {
         uint8_t *row = (uint8_t *)bitmap->data +
@@ -75,12 +96,12 @@ void _pix_bitmap_rgb565_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
     }
 
     for (uint16_t dy = 0; dy < size.h; dy++) {
-      uint8_t *base = (uint8_t *)bitmap->data +
-                      (size_t)(origin.y + dy) * bitmap->stride +
-                      (size_t)origin.x * 2;
-      uint16_t *row = (uint16_t *)(void *)base;
+      uint8_t *p = (uint8_t *)bitmap->data +
+                  (size_t)(origin.y + dy) * bitmap->stride +
+                  (size_t)origin.x * 2;
       for (uint16_t dx = 0; dx < size.w; dx++) {
-        row[dx] = packed;
+        _pix_bitmap_rgb565_store(p, packed);
+        p += 2;
       }
     }
     return;
@@ -90,14 +111,14 @@ void _pix_bitmap_rgb565_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
   // there's no bulk write; blend each one in place, one pass, no separate
   // read/write buffer.
   for (uint16_t dy = 0; dy < size.h; dy++) {
-    uint8_t *base = (uint8_t *)bitmap->data +
-                    (size_t)(origin.y + dy) * bitmap->stride +
-                    (size_t)origin.x * 2;
-    uint16_t *row = (uint16_t *)(void *)base;
+    uint8_t *p = (uint8_t *)bitmap->data +
+                (size_t)(origin.y + dy) * bitmap->stride +
+                (size_t)origin.x * 2;
     for (uint16_t dx = 0; dx < size.w; dx++) {
-      pix_color_t blended =
-          pix_color_blend(color, _pix_bitmap_rgb565_get_unpacked(row[dx]));
-      row[dx] = _pix_bitmap_rgb565_get_packed(blended);
+      pix_color_t dst = _pix_bitmap_rgb565_get_unpacked(_pix_bitmap_rgb565_load(p));
+      pix_color_t blended = pix_color_blend(color, dst);
+      _pix_bitmap_rgb565_store(p, _pix_bitmap_rgb565_get_packed(blended));
+      p += 2;
     }
   }
 }

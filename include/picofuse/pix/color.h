@@ -97,11 +97,27 @@ static inline uint8_t pix_color_a(pix_color_t color) {
  * may want to special-case those rather than call this.
  */
 static inline pix_color_t pix_color_blend(pix_color_t src, pix_color_t dst) {
-  uint16_t sa = pix_color_a(src);
-  uint16_t ia = 255u - sa;
-  uint8_t r = (uint8_t)((pix_color_r(src) * sa + pix_color_r(dst) * ia + 127u) / 255u);
-  uint8_t g = (uint8_t)((pix_color_g(src) * sa + pix_color_g(dst) * ia + 127u) / 255u);
-  uint8_t b = (uint8_t)((pix_color_b(src) * sa + pix_color_b(dst) * ia + 127u) / 255u);
-  uint8_t a = (uint8_t)(sa + (pix_color_a(dst) * ia + 127u) / 255u);
-  return PIX_COLOR_RGBA(r, g, b, a);
+  uint32_t sa = pix_color_a(src);
+  uint32_t da = pix_color_a(dst);
+  uint32_t ia = 255u - sa;
+
+  // dst's RGB must be weighted by dst's own alpha too - a partially
+  // transparent dst shouldn't contribute its raw RGB at full strength, the
+  // same way its own draw would only have partially covered whatever was
+  // beneath it. The result is then un-premultiplied by the composited
+  // alpha, since pix_color_t stores straight (not premultiplied) RGB.
+  uint32_t out_a = sa + (da * ia + 127u) / 255u;
+  if (out_a == 0) {
+    return PIX_COLOR_NONE;
+  }
+
+  uint32_t denom = out_a * 255u;
+  uint32_t half = denom / 2u;
+  uint8_t r = (uint8_t)((pix_color_r(src) * sa * 255u +
+                        pix_color_r(dst) * da * ia + half) / denom);
+  uint8_t g = (uint8_t)((pix_color_g(src) * sa * 255u +
+                        pix_color_g(dst) * da * ia + half) / denom);
+  uint8_t b = (uint8_t)((pix_color_b(src) * sa * 255u +
+                        pix_color_b(dst) * da * ia + half) / denom);
+  return PIX_COLOR_RGBA(r, g, b, (uint8_t)out_a);
 }
