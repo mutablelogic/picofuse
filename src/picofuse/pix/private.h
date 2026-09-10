@@ -1,6 +1,7 @@
 #pragma once
 #include <picofuse/pix.h>
 #include <picofuse/sys/atomic.h>
+#include <stddef.h>
 
 ///////////////////////////////////////////////////////////////////////////////
 // LOCK
@@ -18,6 +19,21 @@ extern pthread_mutex_t _pix_display_lock;
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
+
+/**
+ * @brief Backend-specific bitmap operations - see `pix_bitmap_t::ops`'s own
+ * doc. A NULL entry means "no accelerated version" - the matching
+ * `pix_bitmap_*()` public function falls back to its own default instead
+ * (a plain direct-memory path for `get_pixel`/`set_pixel`; repeated
+ * `set_pixel` calls, so still routed back through `ops->set_pixel` if that
+ * one *is* implemented, for `fill_rect`).
+ */
+struct pix_bitmap_ops_t {
+  pix_color_t (*get_pixel)(const pix_bitmap_t *bitmap, pix_point_t point);
+  void (*set_pixel)(pix_bitmap_t *bitmap, pix_point_t point, pix_color_t color);
+  void (*fill_rect)(pix_bitmap_t *bitmap, pix_point_t origin, pix_size_t size,
+                    pix_color_t color);
+};
 
 /**
  * @brief Display operations structure.
@@ -131,6 +147,18 @@ struct pix_display_t {
   _Alignas(max_align_t) uint8_t context[PIX_DISPLAY_CONTEXT_SIZE];
 };
 
+/** @brief Recovers the owning display from one of its own `bitmap` field -
+ * valid only for a `pix_bitmap_t*` a backend already knows came from
+ * `&display->bitmap` (e.g. what `ops->lock()` returned - see
+ * `pix_display_t::bitmap`'s own doc). Lets a `pix_bitmap_ops_t` callback,
+ * which only ever receives a `pix_bitmap_t*`, reach back to display-level
+ * state it needs - e.g. dev/sdl/sdl.c's own fill_rect, which needs its
+ * renderer. */
+static inline pix_display_t *_pix_bitmap_display(const pix_bitmap_t *bitmap) {
+  return (pix_display_t *)((const uint8_t *)bitmap -
+                           offsetof(pix_display_t, bitmap));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
@@ -138,7 +166,7 @@ struct pix_display_t {
 extern pix_display_t _pix_display_pool[PIX_DISPLAY_POOL_CAPACITY];
 
 ///////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS (see display.c)
+// PRIVATE METHODS
 
 /**
  * @brief Claim a display handle from the fixed pool.
@@ -188,3 +216,45 @@ void _pix_display_free(pix_display_t *display);
  * @param display The display to draw. Must be valid and due.
  */
 void _pix_display_draw(pix_display_t *display);
+
+/**
+ * @brief Direct-memory pixel get/set, one pair per pix_format_t - see
+ * src/picofuse/pix/{rgba32,rgb888,rgb565,mono}.c. Only ever called by
+ * bitmap.c's own pix_bitmap_get_pixel()/pix_bitmap_set_pixel(), once
+ * @p bitmap is already known in-bounds and `bitmap->ops` has been checked
+ * and ruled out - not public API, and not bounds-checked here.
+ */
+pix_color_t _pix_bitmap_rgba32_get_pixel(const pix_bitmap_t *bitmap,
+                                         pix_point_t point);
+void _pix_bitmap_rgba32_set_pixel(pix_bitmap_t *bitmap, pix_point_t point,
+                                  pix_color_t color);
+pix_color_t _pix_bitmap_rgb888_get_pixel(const pix_bitmap_t *bitmap,
+                                         pix_point_t point);
+void _pix_bitmap_rgb888_set_pixel(pix_bitmap_t *bitmap, pix_point_t point,
+                                  pix_color_t color);
+pix_color_t _pix_bitmap_rgb565_get_pixel(const pix_bitmap_t *bitmap,
+                                         pix_point_t point);
+void _pix_bitmap_rgb565_set_pixel(pix_bitmap_t *bitmap, pix_point_t point,
+                                  pix_color_t color);
+pix_color_t _pix_bitmap_mono_get_pixel(const pix_bitmap_t *bitmap,
+                                       pix_point_t point);
+void _pix_bitmap_mono_set_pixel(pix_bitmap_t *bitmap, pix_point_t point,
+                                pix_color_t color);
+
+/**
+ * @brief Direct-memory rect fill, one per pix_format_t - see
+ * src/picofuse/pix/{rgba32,rgb888,rgb565,mono}.c. Only ever called by
+ * bitmap.c's own pix_bitmap_fill_rect(), once @p origin/@p size are already
+ * clipped to @p bitmap's own bounds and `bitmap->ops`/`bitmap->data` have
+ * both been checked - not public API, and not bounds-checked here. Free to
+ * use a bulk write (`memset()`, say) wherever the format allows it, unlike
+ * the get/set_pixel pair above.
+ */
+void _pix_bitmap_rgba32_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
+                                  pix_size_t size, pix_color_t color);
+void _pix_bitmap_rgb888_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
+                                  pix_size_t size, pix_color_t color);
+void _pix_bitmap_rgb565_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
+                                  pix_size_t size, pix_color_t color);
+void _pix_bitmap_mono_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
+                                pix_size_t size, pix_color_t color);

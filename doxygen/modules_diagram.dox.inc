@@ -56,6 +56,7 @@ digraph modules {
   SDL         [label="SDL",                      URL="\ref SDL"];
   Pixels      [label="Pixels",                    URL="\ref Pixel"];
   PixelDisplay [label="Display",                 URL="\ref PixelDisplay"];
+  PixelBitmap [label="Bitmap",                   URL="\ref PixelBitmap"];
   Application [label="Application",              URL="\ref Application"];
   HID         [label="HID",                      URL="\ref HID"];
   HIDEvents   [label="Events",                   URL="\ref HIDEvents"];
@@ -111,6 +112,7 @@ digraph modules {
   Display -> ILI9341;
   Display -> SDL;
   Pixels -> PixelDisplay;
+  Pixels -> PixelBitmap;
   Application -> HID;
   HID -> HIDEvents;
   HID -> HIDKeycodes;

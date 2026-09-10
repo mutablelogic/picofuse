@@ -17,6 +17,14 @@
 typedef uint32_t pix_color_t;
 
 /**
+ * @def PIX_COLOR_NONE
+ * @ingroup Pixel
+ * @brief Fully transparent (all channels zero) - a "no color" sentinel,
+ * distinct from the opaque @ref PIX_COLOR_BLACK.
+ */
+#define PIX_COLOR_NONE 0x00000000u
+
+/**
  * @def PIX_COLOR_RED
  * @def PIX_COLOR_GREEN
  * @def PIX_COLOR_BLUE

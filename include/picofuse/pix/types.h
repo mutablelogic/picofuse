@@ -8,7 +8,6 @@
 #pragma once
 #include "color.h"
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 /**
@@ -47,18 +46,4 @@ typedef enum {
 typedef enum {
   PIX_SET ///< Set pixel operation
 } pix_op_t;
-
-/**
- * @brief Plain in-memory pixel bitmap descriptor.
- * @ingroup Pixel
- * @details Describes a block of raw pixel memory with no backing device -
- * no ctx and no lock/unlock/clear/set/copy methods; callers read and
- * write @ref data directly.
- */
-typedef struct {
-  void *data;       ///< Pointer to bitmap memory.
-  pix_size_t size;  ///< Bitmap dimensions in pixels.
-  size_t stride;    ///< Byte pitch between adjacent major-axis elements.
-  pix_format_t fmt; ///< Pixel format used by @ref data.
-} pix_bitmap_t;
 

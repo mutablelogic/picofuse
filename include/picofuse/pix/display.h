@@ -11,7 +11,7 @@
  * backend itself and by the display pool, never by a public API caller.
  */
 #pragma once
-#include "types.h"
+#include "bitmap.h"
 #include <stdbool.h>
 
 /**

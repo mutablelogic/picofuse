@@ -12,11 +12,9 @@ static pix_display_t *_display = NULL;
 #define SDL_EXAMPLE_INTERVAL_MS 1000u
 
 // Called once per redraw with a locked, ready-to-draw-into bitmap - see
-// pix_display_draw_t's own doc. No bitmap-drawing helpers exist yet (that's
-// next), so this fills every pixel by hand; bitmap->fmt is always
-// PIX_FMT_RGB565 here since that's what dev_sdl_init() below was asked for.
-// The fill color rotates on every call (three phase-shifted sawtooths, one
-// per channel), purely so successive redraws are visibly distinguishable.
+// pix_display_draw_t's own doc. The fill color rotates on every call (three
+// phase-shifted sawtooths, one per channel), purely so successive redraws
+// are visibly distinguishable.
 static void _on_draw(pix_display_t *display, pix_bitmap_t *bitmap,
                      void *userdata) {
   (void)display;
@@ -26,16 +24,7 @@ static void _on_draw(pix_display_t *display, pix_bitmap_t *bitmap,
   pix_color_t color = PIX_COLOR_RGB(hue, (uint8_t)(hue + 85), (uint8_t)(hue + 170));
   hue += 32;
 
-  uint16_t packed = (uint16_t)(((pix_color_r(color) >> 3) << 11) |
-                               ((pix_color_g(color) >> 2) << 5) |
-                               (pix_color_b(color) >> 3));
-
-  for (uint16_t y = 0; y < bitmap->size.h; y++) {
-    uint16_t *row = (uint16_t *)((uint8_t *)bitmap->data + y * bitmap->stride);
-    for (uint16_t x = 0; x < bitmap->size.w; x++) {
-      row[x] = packed;
-    }
-  }
+  pix_bitmap_fill_rect(bitmap, (pix_point_t){0}, bitmap->size, color);
 
   sys_printf("Draw callback: cleared %ux%u bitmap\n", bitmap->size.w,
             bitmap->size.h);
