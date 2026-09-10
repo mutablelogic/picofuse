@@ -72,26 +72,25 @@ static bool _dev_sdl_create_texture(pix_display_t *display) {
   SDL_PixelFormatEnum sdl_format = _dev_sdl_pixel_format(display->bitmap.fmt);
   if (sdl_format == SDL_PIXELFORMAT_UNKNOWN) {
     sys_debugf("sdl",
-              "_dev_sdl_create_texture: no SDL pixel format for "
-              "pix_format_t %d",
-              (int)display->bitmap.fmt);
+               "_dev_sdl_create_texture: no SDL pixel format for "
+               "pix_format_t %d",
+               (int)display->bitmap.fmt);
     return false;
   }
 
   ctx->renderer = SDL_CreateRenderer(ctx->window, -1, 0);
   if (ctx->renderer == NULL) {
     sys_debugf("sdl", "_dev_sdl_create_texture: SDL_CreateRenderer failed: %s",
-              SDL_GetError());
+               SDL_GetError());
     return false;
   }
 
-  ctx->texture = SDL_CreateTexture(ctx->renderer, sdl_format,
-                                   SDL_TEXTUREACCESS_STREAMING,
-                                   display->bitmap.size.w,
-                                   display->bitmap.size.h);
+  ctx->texture =
+      SDL_CreateTexture(ctx->renderer, sdl_format, SDL_TEXTUREACCESS_STREAMING,
+                        display->bitmap.size.w, display->bitmap.size.h);
   if (ctx->texture == NULL) {
     sys_debugf("sdl", "_dev_sdl_create_texture: SDL_CreateTexture failed: %s",
-              SDL_GetError());
+               SDL_GetError());
     SDL_DestroyRenderer(ctx->renderer);
     ctx->renderer = NULL;
     return false;
@@ -118,7 +117,7 @@ static void _dev_sdl_destroy_texture(_dev_sdl_ctx_t *ctx) {
 
 // Locks ctx->texture for direct pixel access and updates display->bitmap
 // (size/fmt are already set - see pix_display_t::bitmap's own doc) with
-// the result, so the caller (only ever _pix_display_poll(), immediately
+// the result, so the caller (only ever _pix_display_draw(), immediately
 // before it runs the display's draw callback - see pix_display_ops_t::lock's
 // own doc) gets a bitmap that's ready to draw into.
 static pix_bitmap_t *_dev_sdl_lock(pix_display_t *display) {
@@ -127,7 +126,7 @@ static pix_bitmap_t *_dev_sdl_lock(pix_display_t *display) {
   int pitch = 0;
   if (SDL_LockTexture(ctx->texture, NULL, &pixels, &pitch) != 0) {
     sys_debugf("sdl", "_dev_sdl_lock: SDL_LockTexture failed: %s",
-              SDL_GetError());
+               SDL_GetError());
     return NULL;
   }
   display->bitmap.data = pixels;
@@ -152,17 +151,17 @@ static void _dev_sdl_unlock(pix_display_t *display) {
 
   if (SDL_RenderCopy(ctx->renderer, ctx->texture, NULL, NULL) != 0) {
     sys_debugf("sdl", "_dev_sdl_unlock: SDL_RenderCopy failed: %s",
-              SDL_GetError());
+               SDL_GetError());
     return;
   }
   SDL_RenderPresent(ctx->renderer);
 }
 
-// @todo Events aren't actually handled yet (window close, resize, input,
-// ...) - just drained and logged, so the queue doesn't back up and SDL
-// doesn't consider the window unresponsive. Checking dirty_origin/
-// dirty_size below (so an undamaged display doesn't redraw just because
-// its interval elapsed) comes next.
+/**
+ * @brief Poll an SDL display for events and determine if it needs a redraw.
+ * @param display The display to poll.
+ * @return `true` if the display should be redrawn, `false` otherwise.
+ */
 static bool _dev_sdl_poll(pix_display_t *display) {
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
@@ -195,16 +194,7 @@ static void _dev_sdl_deinit(pix_display_t *display) {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-/**
- * @brief Initialize an SDL display.
- * @param title The window title.
- * @param size The display size.
- * @param format The pixel format.
- * @param flags Initialization flags.
- * @param interval_ms Minimum time between flushes, in ms - `0` for no rate
- * limit ("as often as possible"). See `_dev_sdl_ctx_t::interval_ms`.
- * @return Pointer to the initialized display, or NULL on failure.
- */
+// See dev/sdl.h for the public doc.
 pix_display_t *dev_sdl_init(const char *title, pix_size_t size,
                             pix_format_t format, dev_sdl_flags_t flags,
                             uint16_t interval_ms) {

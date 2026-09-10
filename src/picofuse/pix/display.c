@@ -1,6 +1,6 @@
 #include "private.h"
 #include <picofuse/sys/debugf.h>
-#include <picofuse/sys/timestamp.h>
+#include <picofuse/sys/sleep.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -48,6 +48,7 @@ pix_display_t *_pix_display_alloc(const pix_display_ops_t *ops, pix_size_t size,
     display->draw_userdata = NULL;
     display->bitmap =
         (pix_bitmap_t){.data = NULL, .size = size, .stride = 0, .fmt = format};
+    sys_atomic_init(&display->polling, 0);
     display->ops = ops;
   }
   _PIX_DISPLAY_UNLOCK();
@@ -67,21 +68,19 @@ void _pix_display_free(pix_display_t *display) {
   _PIX_DISPLAY_UNLOCK();
 }
 
-void _pix_display_poll(pix_display_t *display) {
-  if (!_pix_display_valid(display) || display->ops->poll == NULL) {
-    return;
-  }
-  bool due = display->ops->poll(display);
-  if (!due) {
-    return;
-  }
-
-  // Stamped as soon as the backend reports due
-  display->ts = sys_timestamp_ms();
+void _pix_display_draw(pix_display_t *display) {
+  // Snapshot together, under the same lock pix_display_set_callback() uses
+  // to write them - otherwise a concurrent call to it could change `draw`
+  // (or clear it to NULL) between the check below and the call further
+  // down, or pair a new `draw` with a stale `draw_userdata`.
+  _PIX_DISPLAY_LOCK();
+  pix_display_draw_t draw = display->draw;
+  void *draw_userdata = display->draw_userdata;
+  _PIX_DISPLAY_UNLOCK();
 
   // If there's no draw callback or the lock/unlock operations aren't
   // implemented, bail early.
-  if (display->draw == NULL || display->ops->lock == NULL ||
+  if (draw == NULL || display->ops->lock == NULL ||
       display->ops->unlock == NULL) {
     return;
   }
@@ -92,7 +91,7 @@ void _pix_display_poll(pix_display_t *display) {
   }
 
   // Draw and then unlock
-  display->draw(display, bitmap, display->draw_userdata);
+  draw(display, bitmap, draw_userdata);
   display->ops->unlock(display);
 }
 
@@ -104,14 +103,23 @@ void pix_display_set_callback(pix_display_t *display,
   if (!_pix_display_valid(display)) {
     return;
   }
+  _PIX_DISPLAY_LOCK();
   display->draw = callback;
   display->draw_userdata = userdata;
+  _PIX_DISPLAY_UNLOCK();
 }
 
 void pix_display_deinit(pix_display_t *display) {
   if (!_pix_display_valid(display)) {
     return;
   }
+
+  // Wait for any in-flight pix_poll() on this display to finish before
+  // tearing it down - no pool lock needed, `polling` is atomic.
+  while (sys_atomic_get(&display->polling) != 0) {
+    sys_sleep_ms(1);
+  }
+
   sys_debugf("pix", "pix_display_deinit: deinit display %p", (void *)display);
   if (display->ops->deinit != NULL) {
     display->ops->deinit(display);

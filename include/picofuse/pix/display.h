@@ -1,6 +1,7 @@
 /**
  * @file display.h
  * @brief Opaque display handle.
+ * @defgroup PixelDisplay Display
  * @ingroup Pixel
  *
  * A display is a backend-agnostic handle onto a real screen - dev/sdl.h
@@ -15,13 +16,13 @@
 
 /**
  * @brief Opaque display descriptor.
- * @ingroup Pixel
+ * @ingroup PixelDisplay
  */
 typedef struct pix_display_t pix_display_t;
 
 /**
  * @brief Maximum number of concurrently active displays.
- * @ingroup Pixel
+ * @ingroup PixelDisplay
  *
  * Displays come from a small fixed-size pool, not the heap - see
  * `src/picofuse/pix/private.h`. Override by defining
@@ -33,7 +34,7 @@ typedef struct pix_display_t pix_display_t;
 
 /**
  * @brief Size in bytes of backend-private state embedded in each display.
- * @ingroup Pixel
+ * @ingroup PixelDisplay
  *
  * Sized for dev/sdl.h's own context (window/renderer/texture pointers plus
  * bookkeeping - see src/picofuse/dev/sdl/sdl.c's `_dev_sdl_ctx_t`), the
@@ -49,7 +50,7 @@ typedef struct pix_display_t pix_display_t;
 
 /**
  * @brief Draw callback signature.
- * @ingroup Pixel
+ * @ingroup PixelDisplay
  * @param display The display being drawn.
  * @param bitmap The display's bitmap, already locked for direct pixel
  * access - the callback should draw into it, but never lock/unlock it
@@ -59,8 +60,8 @@ typedef struct pix_display_t pix_display_t;
  * Called internally, from within `pix_poll()`, whenever this display's
  * backend reports it's due a redraw - never called directly.
  */
-typedef void (*pix_display_draw_t)(pix_display_t *display,
-                                   pix_bitmap_t *bitmap, void *userdata);
+typedef void (*pix_display_draw_t)(pix_display_t *display, pix_bitmap_t *bitmap,
+                                   void *userdata);
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
@@ -70,7 +71,7 @@ typedef void (*pix_display_draw_t)(pix_display_t *display,
 
 /**
  * @brief Register the function that draws this display's contents.
- * @ingroup Pixel
+ * @ingroup PixelDisplay
  * @param display The display to set the callback on. A no-op if invalid.
  * @param callback Called whenever @p display is due a redraw, or `NULL` to
  * clear a previously registered callback.
@@ -81,7 +82,7 @@ void pix_display_set_callback(pix_display_t *display,
 
 /**
  * @brief Deinitialize a display and release it back to the pool.
- * @ingroup Pixel
+ * @ingroup PixelDisplay
  * @param display The display to deinitialize. Safe to call on NULL.
  */
 void pix_display_deinit(pix_display_t *display);
@@ -96,8 +97,8 @@ void pix_display_deinit(pix_display_t *display);
 
 /**
  * @brief Service whichever allocated display needs updating.
- * @ingroup Pixel
- * @return `true` if a display a found and polled.
+ * @ingroup PixelDisplay
+ * @return `true` if a display is found and polled.
  *
  * Call this from the application's own main loop. It picks the next
  * display which needs updated, polls it, and - if its backend reports it's

@@ -53,7 +53,9 @@ digraph modules {
   FT6236      [label="FT6236",                   URL="\ref FT6236"];
   STMPE610    [label="STMPE610",                 URL="\ref STMPE610"];
   ILI9341     [label="ILI9341",                  URL="\ref ILI9341"];
+  SDL         [label="SDL",                      URL="\ref SDL"];
   Pixels      [label="Pixels",                    URL="\ref Pixel"];
+  PixelDisplay [label="Display",                 URL="\ref PixelDisplay"];
   Application [label="Application",              URL="\ref Application"];
   HID         [label="HID",                      URL="\ref HID"];
   HIDEvents   [label="Events",                   URL="\ref HIDEvents"];
@@ -107,6 +109,8 @@ digraph modules {
   Touch -> STMPE610;
   Sensor -> BME680;
   Display -> ILI9341;
+  Display -> SDL;
+  Pixels -> PixelDisplay;
   Application -> HID;
   HID -> HIDEvents;
   HID -> HIDKeycodes;
