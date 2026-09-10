@@ -117,9 +117,23 @@ void pix_display_deinit(pix_display_t *display) {
     return;
   }
 
-  // Wait for any in-flight pix_poll() on this display to finish before
-  // tearing it down - no pool lock needed, `polling` is atomic.
-  while (sys_atomic_get(&display->polling) != 0) {
+  // Claim the display for teardown the same way pix_poll()'s own
+  // _pix_poll_claim() claims it for a poll round - observing `polling == 0`
+  // and setting it back to 1 have to happen as one step under the pool
+  // lock, not as a separate unlocked check-then-act, otherwise a
+  // pix_poll() on another thread/core could slip in and claim the display
+  // for itself in the gap between this function seeing `polling` hit 0 and
+  // actually calling ops->deinit(), racing teardown against an in-flight
+  // poll/draw. Held through _pix_display_free() below, so no pix_poll()
+  // can claim this display at all from here on.
+  for (;;) {
+    _PIX_DISPLAY_LOCK();
+    if (sys_atomic_get(&display->polling) == 0) {
+      sys_atomic_set(&display->polling, 1);
+      _PIX_DISPLAY_UNLOCK();
+      break;
+    }
+    _PIX_DISPLAY_UNLOCK();
     sys_sleep_ms(1);
   }
 
@@ -128,4 +142,5 @@ void pix_display_deinit(pix_display_t *display) {
     display->ops->deinit(display);
   }
   _pix_display_free(display);
+  sys_atomic_set(&display->polling, 0);
 }
