@@ -24,7 +24,9 @@ typedef struct pix_bitmap_ops_t pix_bitmap_ops_t;
  * @ref data directly.
  */
 typedef struct {
-  void *data;       ///< Pointer to bitmap memory.
+  void *data;       ///< Pointer to bitmap memory, or `NULL` if the backend
+                    ///< keeps no direct memory representation, or the
+                    ///< bitmap hasn't been retained for drawing on.
   pix_size_t size;  ///< Bitmap dimensions in pixels.
   size_t stride;    ///< Byte pitch between adjacent major-axis elements.
   pix_format_t fmt; ///< Pixel format used by @ref data.

@@ -4,11 +4,13 @@
  * @defgroup PixelDisplay Display
  * @ingroup Pixel
  *
- * A display is a backend-agnostic handle onto a real screen - dev/sdl.h
- * (and, in future, other display backends) is what actually creates one.
- * The vtable a backend implements to become one is private - see
- * `src/picofuse/pix/private.h` - since it's only ever needed by the
- * backend itself and by the display pool, never by a public API caller.
+ * Displays can be created by a backend, which returns a pix_display_t
+ * handle. The backends are:
+ *
+ * - SDL: `dev_sdl_init()`
+ *
+ * A display is usually backed by a bitmap buffer of a specific pixel
+ * format, but how that's implemented is up to the backend.
  */
 #pragma once
 #include "bitmap.h"
@@ -24,9 +26,8 @@ typedef struct pix_display_t pix_display_t;
  * @brief Maximum number of concurrently active displays.
  * @ingroup PixelDisplay
  *
- * Displays come from a small fixed-size pool, not the heap - see
- * `src/picofuse/pix/private.h`. Override by defining
- * `PIX_DISPLAY_POOL_CAPACITY` at compile time.
+ * Displays come from a small fixed-size pool, not the heap. Override by
+ * defining `PIX_DISPLAY_POOL_CAPACITY` at compile time.
  */
 #ifndef PIX_DISPLAY_POOL_CAPACITY
 #define PIX_DISPLAY_POOL_CAPACITY 1u
@@ -36,13 +37,9 @@ typedef struct pix_display_t pix_display_t;
  * @brief Size in bytes of backend-private state embedded in each display.
  * @ingroup PixelDisplay
  *
- * Sized for dev/sdl.h's own context (window/renderer/texture pointers plus
- * bookkeeping - see src/picofuse/dev/sdl/sdl.c's `_dev_sdl_ctx_t`), the
- * largest backend today. Must be defined identically for every translation
- * unit that touches `pix_display_t` - it sizes a fixed embedded buffer, not
- * a per-backend allocation, so a per-target override here would silently
- * disagree with `picofuse-pix`'s own build of the same struct. Override by
- * defining `PIX_DISPLAY_CONTEXT_SIZE` globally at compile time instead.
+ * Default fits the SDL backend's context, the largest today. Must be
+ * defined identically everywhere `pix_display_t` is used - override by
+ * defining `PIX_DISPLAY_CONTEXT_SIZE` globally at compile time.
  */
 #ifndef PIX_DISPLAY_CONTEXT_SIZE
 #define PIX_DISPLAY_CONTEXT_SIZE 64u
@@ -97,7 +94,7 @@ void pix_display_deinit(pix_display_t *display);
 
 /**
  * @brief Service whichever allocated display needs updating.
- * @ingroup PixelDisplay
+ * @ingroup Pixel
  * @return `true` if a display is found and polled.
  *
  * Call this from the application's own main loop. It picks the next
