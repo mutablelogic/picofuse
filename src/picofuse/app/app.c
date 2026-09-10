@@ -1,6 +1,7 @@
 #include <picofuse/app.h>
 #include <picofuse/hid.h>
 #include <picofuse/hw.h>
+#include <picofuse/pix.h>
 #include <picofuse/sys.h>
 
 #if defined(SYSTEM_NAME_PICO)
@@ -134,6 +135,7 @@ static void _app_poll(void) {
   if (_app->hid != NULL) {
     (void)hid_poll(_app->hid);
   }
+  pix_poll();
 }
 
 static void _app_on_exit(uint8_t worker) {

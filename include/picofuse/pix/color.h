@@ -17,6 +17,14 @@
 typedef uint32_t pix_color_t;
 
 /**
+ * @def PIX_COLOR_NONE
+ * @ingroup Pixel
+ * @brief Fully transparent (all channels zero) - a "no color" sentinel,
+ * distinct from the opaque @ref PIX_COLOR_BLACK.
+ */
+#define PIX_COLOR_NONE 0x00000000u
+
+/**
  * @def PIX_COLOR_RED
  * @def PIX_COLOR_GREEN
  * @def PIX_COLOR_BLUE
@@ -77,4 +85,39 @@ static inline uint8_t pix_color_b(pix_color_t color) {
  */
 static inline uint8_t pix_color_a(pix_color_t color) {
   return (uint8_t)color;
+}
+
+/**
+ * @brief Alpha-composite @p src over @p dst ("over" compositing).
+ * @ingroup Pixel
+ * @param src The color being drawn.
+ * @param dst The color already there.
+ * @return The blended color. Exactly @p src when @p src is fully opaque,
+ * exactly @p dst when @p src is fully transparent - callers on a hot path
+ * may want to special-case those rather than call this.
+ */
+static inline pix_color_t pix_color_blend(pix_color_t src, pix_color_t dst) {
+  uint32_t sa = pix_color_a(src);
+  uint32_t da = pix_color_a(dst);
+  uint32_t ia = 255u - sa;
+
+  // dst's RGB must be weighted by dst's own alpha too - a partially
+  // transparent dst shouldn't contribute its raw RGB at full strength, the
+  // same way its own draw would only have partially covered whatever was
+  // beneath it. The result is then un-premultiplied by the composited
+  // alpha, since pix_color_t stores straight (not premultiplied) RGB.
+  uint32_t out_a = sa + (da * ia + 127u) / 255u;
+  if (out_a == 0) {
+    return PIX_COLOR_NONE;
+  }
+
+  uint32_t denom = out_a * 255u;
+  uint32_t half = denom / 2u;
+  uint8_t r = (uint8_t)((pix_color_r(src) * sa * 255u +
+                        pix_color_r(dst) * da * ia + half) / denom);
+  uint8_t g = (uint8_t)((pix_color_g(src) * sa * 255u +
+                        pix_color_g(dst) * da * ia + half) / denom);
+  uint8_t b = (uint8_t)((pix_color_b(src) * sa * 255u +
+                        pix_color_b(dst) * da * ia + half) / denom);
+  return PIX_COLOR_RGBA(r, g, b, (uint8_t)out_a);
 }

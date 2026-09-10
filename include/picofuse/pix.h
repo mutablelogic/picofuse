@@ -10,3 +10,5 @@
 #pragma once
 #include "pix/color.h"
 #include "pix/types.h"
+#include "pix/bitmap.h"
+#include "pix/display.h"
