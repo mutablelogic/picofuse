@@ -177,9 +177,13 @@ static void _dev_sdl_bitmap_set_pixel(pix_bitmap_t *bitmap, pix_point_t point,
   pix_display_t *display = _pix_bitmap_display(bitmap);
   _dev_sdl_ctx_t *ctx = _pix_display_context(display);
 
-  // No blending - a set overwrites, same as the direct-memory writes
-  // elsewhere.
-  SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
+  // PIX_BLEND (bitmap->op's default - see pix_bitmap_t::op's own doc) lets
+  // SDL's own GPU blending do the alpha-compositing math, rather than
+  // reading back the destination pixel and blending it ourselves the way
+  // the direct-memory formats (rgba32.c/rgb888.c/rgb565.c) have to.
+  SDL_SetRenderDrawBlendMode(ctx->renderer, bitmap->op == PIX_BLEND
+                                                ? SDL_BLENDMODE_BLEND
+                                                : SDL_BLENDMODE_NONE);
   SDL_SetRenderDrawColor(ctx->renderer, pix_color_r(color), pix_color_g(color),
                          pix_color_b(color), pix_color_a(color));
   if (SDL_RenderDrawPoint(ctx->renderer, point.x, point.y) != 0) {
@@ -197,9 +201,10 @@ static void _dev_sdl_bitmap_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
   pix_display_t *display = _pix_bitmap_display(bitmap);
   _dev_sdl_ctx_t *ctx = _pix_display_context(display);
 
-  // No blending - a fill overwrites, same as pix_bitmap_set_pixel()'s own
-  // direct-memory writes elsewhere.
-  SDL_SetRenderDrawBlendMode(ctx->renderer, SDL_BLENDMODE_NONE);
+  // See _dev_sdl_bitmap_set_pixel()'s own doc on PIX_BLEND vs PIX_SET here.
+  SDL_SetRenderDrawBlendMode(ctx->renderer, bitmap->op == PIX_BLEND
+                                                ? SDL_BLENDMODE_BLEND
+                                                : SDL_BLENDMODE_NONE);
   SDL_SetRenderDrawColor(ctx->renderer, pix_color_r(color), pix_color_g(color),
                          pix_color_b(color), pix_color_a(color));
 

@@ -40,10 +40,13 @@ typedef enum {
 } pix_format_t;
 
 /**
- * @brief Pixel operation types for drawing operations.
+ * @brief Compositing mode for drawing operations.
  * @ingroup Pixel
  */
 typedef enum {
-  PIX_SET ///< Set pixel operation
+  PIX_SET,   ///< Overwrite the destination outright, ignoring its previous
+             ///< color and the drawn color's own alpha.
+  PIX_BLEND, ///< Alpha-composite the drawn color over the destination's
+             ///< existing color ("src over dst") - see @ref pix_color_blend.
 } pix_op_t;
 

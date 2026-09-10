@@ -86,3 +86,22 @@ static inline uint8_t pix_color_b(pix_color_t color) {
 static inline uint8_t pix_color_a(pix_color_t color) {
   return (uint8_t)color;
 }
+
+/**
+ * @brief Alpha-composite @p src over @p dst ("over" compositing).
+ * @ingroup Pixel
+ * @param src The color being drawn.
+ * @param dst The color already there.
+ * @return The blended color. Exactly @p src when @p src is fully opaque,
+ * exactly @p dst when @p src is fully transparent - callers on a hot path
+ * may want to special-case those rather than call this.
+ */
+static inline pix_color_t pix_color_blend(pix_color_t src, pix_color_t dst) {
+  uint16_t sa = pix_color_a(src);
+  uint16_t ia = 255u - sa;
+  uint8_t r = (uint8_t)((pix_color_r(src) * sa + pix_color_r(dst) * ia + 127u) / 255u);
+  uint8_t g = (uint8_t)((pix_color_g(src) * sa + pix_color_g(dst) * ia + 127u) / 255u);
+  uint8_t b = (uint8_t)((pix_color_b(src) * sa + pix_color_b(dst) * ia + 127u) / 255u);
+  uint8_t a = (uint8_t)(sa + (pix_color_a(dst) * ia + 127u) / 255u);
+  return PIX_COLOR_RGBA(r, g, b, a);
+}

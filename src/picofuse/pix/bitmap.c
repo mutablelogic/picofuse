@@ -125,3 +125,10 @@ void pix_bitmap_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
     return;
   }
 }
+
+void pix_bitmap_set_op(pix_bitmap_t *bitmap, pix_op_t op) {
+  if (bitmap == NULL) {
+    return;
+  }
+  bitmap->op = op;
+}

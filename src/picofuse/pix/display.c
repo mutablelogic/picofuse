@@ -46,8 +46,11 @@ pix_display_t *_pix_display_alloc(const pix_display_ops_t *ops, pix_size_t size,
     display->ts = 0;
     display->draw = NULL;
     display->draw_userdata = NULL;
-    display->bitmap =
-        (pix_bitmap_t){.data = NULL, .size = size, .stride = 0, .fmt = format};
+    display->bitmap = (pix_bitmap_t){.data = NULL,
+                                     .size = size,
+                                     .stride = 0,
+                                     .fmt = format,
+                                     .op = PIX_BLEND};
     sys_atomic_init(&display->polling, 0);
     display->ops = ops;
   }
