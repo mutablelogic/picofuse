@@ -25,13 +25,15 @@ extern pthread_mutex_t _pix_display_lock;
  * doc. A NULL entry means "no accelerated version" - the matching
  * `pix_bitmap_*()` public function falls back to its own default instead
  * (a plain direct-memory path for `get_pixel`/`set_pixel`; repeated
- * `set_pixel` calls, so still routed back through `ops->set_pixel` if that
- * one *is* implemented, for `fill_rect`).
+ * `set_pixel`/`fill_rect` calls - so still routed back through those own
+ * `ops` entries if implemented - for `fill_rect`/`draw_line` respectively).
  */
 struct pix_bitmap_ops_t {
   pix_color_t (*get_pixel)(const pix_bitmap_t *bitmap, pix_point_t point);
   void (*set_pixel)(pix_bitmap_t *bitmap, pix_point_t point, pix_color_t color);
   void (*fill_rect)(pix_bitmap_t *bitmap, pix_point_t origin, pix_size_t size,
+                    pix_color_t color);
+  void (*draw_line)(pix_bitmap_t *bitmap, pix_point_t a, pix_point_t b,
                     pix_color_t color);
 };
 

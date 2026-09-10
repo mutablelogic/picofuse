@@ -83,6 +83,21 @@ void pix_bitmap_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
                           pix_size_t size, pix_color_t color);
 
 /**
+ * @brief Draw a straight line between two points.
+ * @ingroup PixelBitmap
+ * @param bitmap The bitmap to write to.
+ * @param a One endpoint.
+ * @param b The other endpoint.
+ * @param color The color to draw with - see pix_bitmap_set_pixel()'s own
+ * doc on compositing.
+ *
+ * Silently clips to @p bitmap's own bounds - a no-op if @p bitmap is
+ * invalid.
+ */
+void pix_bitmap_draw_line(pix_bitmap_t *bitmap, pix_point_t a, pix_point_t b,
+                          pix_color_t color);
+
+/**
  * @brief Change a bitmap's compositing mode.
  * @ingroup PixelBitmap
  * @param bitmap The bitmap to change. A no-op if invalid.

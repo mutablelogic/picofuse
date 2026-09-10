@@ -11,14 +11,16 @@ static pix_display_t *_display = NULL;
 // is visibly throttled rather than firing on every poll.
 #define SDL_EXAMPLE_INTERVAL_MS 1000u
 
-// How many random rectangles to scatter on top of the black clear, and the
-// range of side lengths (in pixels) each one is drawn from.
+// How many random rectangles/lines to scatter on top of the black clear,
+// and the range of rectangle side lengths (in pixels) each one is drawn
+// from.
 #define SDL_EXAMPLE_RECT_COUNT 8u
 #define SDL_EXAMPLE_RECT_MIN_SIZE 10u
 #define SDL_EXAMPLE_RECT_MAX_SIZE 60u
+#define SDL_EXAMPLE_LINE_COUNT 8u
 
 // Random alpha too, not just RGB - bitmap->op defaults to PIX_BLEND (see
-// pix_bitmap_t::op's own doc), so overlapping rects actually blend into
+// pix_bitmap_t::op's own doc), so overlapping shapes actually blend into
 // each other and into the black clear beneath them, rather than each one
 // just overwriting whatever was there.
 static pix_color_t _random_color(void) {
@@ -28,11 +30,18 @@ static pix_color_t _random_color(void) {
                         (uint8_t)sys_random_uint32());
 }
 
+static pix_point_t _random_point(pix_size_t bounds) {
+  return (pix_point_t){
+      .x = (int16_t)(sys_random_uint32() % bounds.w),
+      .y = (int16_t)(sys_random_uint32() % bounds.h),
+  };
+}
+
 // Called once per redraw with a locked, ready-to-draw-into bitmap - see
 // pix_display_draw_t's own doc. Clears to black, then scatters a handful of
-// randomly placed, sized, colored and semi-transparent rectangles on top -
-// pix_bitmap_fill_rect() clips each one to the bitmap's own bounds on its
-// own, so a rect can safely hang off any edge.
+// randomly placed, sized, colored and semi-transparent rectangles and lines
+// on top - pix_bitmap_fill_rect()/pix_bitmap_draw_line() each clip to the
+// bitmap's own bounds on their own, so a shape can safely hang off any edge.
 static void _on_draw(pix_display_t *display, pix_bitmap_t *bitmap,
                      void *userdata) {
   (void)display;
@@ -41,10 +50,7 @@ static void _on_draw(pix_display_t *display, pix_bitmap_t *bitmap,
   pix_bitmap_fill_rect(bitmap, (pix_point_t){0}, bitmap->size, PIX_COLOR_BLACK);
 
   for (unsigned i = 0; i < SDL_EXAMPLE_RECT_COUNT; i++) {
-    pix_point_t origin = {
-        .x = (int16_t)(sys_random_uint32() % bitmap->size.w),
-        .y = (int16_t)(sys_random_uint32() % bitmap->size.h),
-    };
+    pix_point_t origin = _random_point(bitmap->size);
     pix_size_t size = {
         .w = (uint16_t)(SDL_EXAMPLE_RECT_MIN_SIZE +
                         sys_random_uint32() % (SDL_EXAMPLE_RECT_MAX_SIZE -
@@ -56,8 +62,15 @@ static void _on_draw(pix_display_t *display, pix_bitmap_t *bitmap,
     pix_bitmap_fill_rect(bitmap, origin, size, _random_color());
   }
 
-  sys_printf("Draw callback: %ux%u bitmap, %u rects\n", bitmap->size.w,
-            bitmap->size.h, SDL_EXAMPLE_RECT_COUNT);
+  for (unsigned i = 0; i < SDL_EXAMPLE_LINE_COUNT; i++) {
+    pix_point_t a = _random_point(bitmap->size);
+    pix_point_t b = _random_point(bitmap->size);
+    pix_bitmap_draw_line(bitmap, a, b, _random_color());
+  }
+
+  sys_printf("Draw callback: %ux%u bitmap, %u rects, %u lines\n",
+            bitmap->size.w, bitmap->size.h, SDL_EXAMPLE_RECT_COUNT,
+            SDL_EXAMPLE_LINE_COUNT);
 }
 
 static void _on_start(app_t *app, void *userdata) {

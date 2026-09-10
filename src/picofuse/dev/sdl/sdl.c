@@ -45,6 +45,8 @@ static void _dev_sdl_bitmap_set_pixel(pix_bitmap_t *bitmap, pix_point_t point,
                                       pix_color_t color);
 static void _dev_sdl_bitmap_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
                                       pix_size_t size, pix_color_t color);
+static void _dev_sdl_bitmap_draw_line(pix_bitmap_t *bitmap, pix_point_t a,
+                                      pix_point_t b, pix_color_t color);
 
 // GPU-accelerated ops for a bitmap returned by _dev_sdl_lock() - this
 // display's ctx->texture is SDL_TEXTUREACCESS_TARGET (see
@@ -56,6 +58,7 @@ static const pix_bitmap_ops_t _dev_sdl_bitmap_ops = {
     .get_pixel = _dev_sdl_bitmap_get_pixel,
     .set_pixel = _dev_sdl_bitmap_set_pixel,
     .fill_rect = _dev_sdl_bitmap_fill_rect,
+    .draw_line = _dev_sdl_bitmap_draw_line,
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -212,6 +215,25 @@ static void _dev_sdl_bitmap_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
       .x = origin.x, .y = origin.y, .w = size.w, .h = size.h};
   if (SDL_RenderFillRect(ctx->renderer, &rect) != 0) {
     sys_debugf("sdl", "_dev_sdl_bitmap_fill_rect: SDL_RenderFillRect failed: %s",
+              SDL_GetError());
+  }
+}
+
+// GPU-accelerated draw_line for a bitmap _dev_sdl_lock() returned - see
+// _dev_sdl_bitmap_fill_rect()'s own doc; same active-render-target
+// requirement and PIX_BLEND/PIX_SET handling.
+static void _dev_sdl_bitmap_draw_line(pix_bitmap_t *bitmap, pix_point_t a,
+                                      pix_point_t b, pix_color_t color) {
+  pix_display_t *display = _pix_bitmap_display(bitmap);
+  _dev_sdl_ctx_t *ctx = _pix_display_context(display);
+
+  SDL_SetRenderDrawBlendMode(ctx->renderer, bitmap->op == PIX_BLEND
+                                                ? SDL_BLENDMODE_BLEND
+                                                : SDL_BLENDMODE_NONE);
+  SDL_SetRenderDrawColor(ctx->renderer, pix_color_r(color), pix_color_g(color),
+                         pix_color_b(color), pix_color_a(color));
+  if (SDL_RenderDrawLine(ctx->renderer, a.x, a.y, b.x, b.y) != 0) {
+    sys_debugf("sdl", "_dev_sdl_bitmap_draw_line: SDL_RenderDrawLine failed: %s",
               SDL_GetError());
   }
 }

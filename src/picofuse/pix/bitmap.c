@@ -10,6 +10,40 @@ static inline bool _pix_bitmap_in_bounds(const pix_bitmap_t *bitmap,
          (uint16_t)point.y < bitmap->size.h;
 }
 
+// General (non-axis-aligned) case for pix_bitmap_draw_line() - a plain
+// integer Bresenham walk, one pix_bitmap_set_pixel() call per point. There's
+// no bulk-write shortcut here the way fill_rect() has memset(): a diagonal
+// line's pixels aren't contiguous in memory, so this is already about as
+// fast as the direct-memory path gets - set_pixel() itself already carries
+// the bounds-check/ops-dispatch/blend logic, no need to duplicate any of it
+// here.
+static void _pix_bitmap_draw_line(pix_bitmap_t *bitmap, pix_point_t a,
+                                  pix_point_t b, pix_color_t color) {
+  int32_t x0 = a.x, y0 = a.y, x1 = b.x, y1 = b.y;
+  int32_t dx = x1 > x0 ? x1 - x0 : x0 - x1;
+  int32_t sx = x0 < x1 ? 1 : -1;
+  int32_t dy = -(y1 > y0 ? y1 - y0 : y0 - y1);
+  int32_t sy = y0 < y1 ? 1 : -1;
+  int32_t error = dx + dy;
+
+  for (;;) {
+    pix_bitmap_set_pixel(bitmap, (pix_point_t){.x = (int16_t)x0, .y = (int16_t)y0},
+                         color);
+    if (x0 == x1 && y0 == y1) {
+      return;
+    }
+    int32_t e2 = 2 * error;
+    if (e2 >= dy) {
+      error += dy;
+      x0 += sx;
+    }
+    if (e2 <= dx) {
+      error += dx;
+      y0 += sy;
+    }
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -124,6 +158,40 @@ void pix_bitmap_fill_rect(pix_bitmap_t *bitmap, pix_point_t origin,
     _pix_bitmap_mono_fill_rect(bitmap, origin, size, color);
     return;
   }
+}
+
+void pix_bitmap_draw_line(pix_bitmap_t *bitmap, pix_point_t a, pix_point_t b,
+                          pix_color_t color) {
+  if (bitmap == NULL) {
+    return;
+  }
+  if (bitmap->ops != NULL && bitmap->ops->draw_line != NULL) {
+    bitmap->ops->draw_line(bitmap, a, b, color);
+    return;
+  }
+
+  // Horizontal and vertical lines are each just a one-pixel-thick rect -
+  // delegate to fill_rect() rather than re-deriving its memset()/blend
+  // logic here. A single point (a == b) matches the horizontal case below
+  // and draws correctly as a 1x1 fill.
+  if (a.y == b.y) {
+    int16_t x0 = a.x < b.x ? a.x : b.x;
+    int16_t x1 = a.x < b.x ? b.x : a.x;
+    pix_bitmap_fill_rect(bitmap, (pix_point_t){.x = x0, .y = a.y},
+                         (pix_size_t){.w = (uint16_t)(x1 - x0 + 1), .h = 1},
+                         color);
+    return;
+  }
+  if (a.x == b.x) {
+    int16_t y0 = a.y < b.y ? a.y : b.y;
+    int16_t y1 = a.y < b.y ? b.y : a.y;
+    pix_bitmap_fill_rect(bitmap, (pix_point_t){.x = a.x, .y = y0},
+                         (pix_size_t){.w = 1, .h = (uint16_t)(y1 - y0 + 1)},
+                         color);
+    return;
+  }
+
+  _pix_bitmap_draw_line(bitmap, a, b, color);
 }
 
 void pix_bitmap_set_op(pix_bitmap_t *bitmap, pix_op_t op) {
