@@ -15,8 +15,10 @@ these yet, just the list of what's next:
   on, and on-chip flash alone (already done) isn't the target for it.
   See the flash core-1/core-0 marshaling section below, which exists
   specifically because of this dependency.
-- **Networking protocols** - HTTP client/server, MQTT client, DNS
+- **Networking protocols** - HTTP client/server, DNS
   client/server, DHCP server.
+- **MQTT client** - Sub QoS 1 & 2 - receiving messages with higher
+  quality of service.
 - **Displays** - e-ink, TFT, Linux framebuffer, SDL (host builds). Design
   intent so far: a `pix_t` registry, same shape as `hid_t` (`hid_init()`/
   `hid_register_*()`/`hid_deregister()`/`hid_poll()`) - `pix_register_
@@ -59,6 +61,10 @@ these yet, just the list of what's next:
      LVGL discussion; this is roughly aiming at LVGL's own scope, as a
      picofuse-native alternative to actually integrating LVGL itself.
 - **Bluetooth** - BLE and classic.
+- **Data Structures** - Generic Value, Linked list, map and tree
+  (for DOM/parser/layout trees).
+- **Parsers** - URL parser (and decoding query parameters and escapes),
+  HTTP request parser, JSON stream parser, IP address parser (IP4 & 6)
 - **CI/CD** - build and publish picofuse distributions for Linux and
   Darwin.
 - **SD card and other mass storage** - another `hw/block.h` backend,

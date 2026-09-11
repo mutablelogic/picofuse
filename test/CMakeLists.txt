@@ -1198,3 +1198,38 @@ picofuse_test(net_020
 	LIBRARIES picofuse-net
 	TESTRUNNER_TIMEOUT 15
 )
+
+# sys_iostream_eof() over a local loopback connection - detects a
+# peer-closed TCP connection distinct from "nothing to read yet" - see
+# net_021/main.c's own comment.
+picofuse_test(net_021
+	net_021/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# Regression: a PUBACK arriving after net_mqtt_publish()'s own timeout_ms
+# already gave up on it locally used to crash the process - see
+# net_022/main.c's own comment.
+picofuse_test(net_022
+	net_022/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# net_mqtt_publish() rejects a topic too long to encode its 2-byte length
+# prefix, rather than silently corrupting the wire - see net_023/main.c's
+# own comment.
+picofuse_test(net_023
+	net_023/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# Keepalive: automatic PINGREQ/PINGRESP round trip doesn't crash or
+# disconnect the connection - see net_024/main.c's own comment.
+picofuse_test(net_024
+	net_024/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)

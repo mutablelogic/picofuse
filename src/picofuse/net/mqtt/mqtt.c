@@ -25,6 +25,7 @@ void net_mqtt_default_config(net_mqtt_config_t *config) {
   config->client_id = _net_mqtt_generate_client_id();
   config->username = NULL;
   config->password = NULL;
+  config->keepalive_s = 0;
 }
 
 net_mqtt_t *net_mqtt_init(const net_addr_t *addr, uint16_t port,
@@ -57,17 +58,24 @@ net_mqtt_t *net_mqtt_init(const net_addr_t *addr, uint16_t port,
   _net_mqtt_singleton.addr = *addr;
   _net_mqtt_singleton.port = (port != 0) ? port : NET_MQTT_PORT;
   _net_mqtt_singleton.timeout_ms = timeout_ms;
+  _net_mqtt_singleton.keepalive_s =
+      (config->keepalive_s != 0) ? config->keepalive_s : _NET_MQTT_KEEPALIVE_S;
   _net_mqtt_singleton.callback = NULL;
   _net_mqtt_singleton.userdata = NULL;
   _net_mqtt_singleton.connected = false;
   _net_mqtt_singleton.conn = NULL;
   _net_mqtt_singleton.next_message_id = 0;
   _net_mqtt_singleton.next_packet_id = 0;
+  _net_mqtt_singleton.ping_outstanding = false;
+  _net_mqtt_singleton.ping_sent_at_ms = 0;
   _net_mqtt_singleton.publish.state = _net_mqtt_publish_idle;
+  _net_mqtt_singleton.publish.last_timed_out_packet_id = 0;
   _net_mqtt_singleton.subscribe.state = _net_mqtt_subscribe_idle;
   _net_mqtt_singleton.subscribe.topic = NULL;
+  _net_mqtt_singleton.subscribe.last_timed_out_packet_id = 0;
   _net_mqtt_singleton.unsubscribe.state = _net_mqtt_unsubscribe_idle;
   _net_mqtt_singleton.unsubscribe.topic = NULL;
+  _net_mqtt_singleton.unsubscribe.last_timed_out_packet_id = 0;
   for (size_t i = 0; i < NET_MQTT_TOPIC_CAPACITY; i++) {
     _net_mqtt_singleton.topics[i].active = false;
   }

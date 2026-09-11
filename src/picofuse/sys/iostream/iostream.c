@@ -92,6 +92,13 @@ bool sys_iostream_set_callback(sys_iostream_t *s,
   return s->ops->set_callback(s, callback, userdata);
 }
 
+bool sys_iostream_eof(sys_iostream_t *s) {
+  if (s == NULL || s->ops->eof == NULL) {
+    return false;
+  }
+  return s->ops->eof(s);
+}
+
 int sys_iostream_peek(sys_iostream_t *s) {
   if (s == NULL) {
     return SYS_IOSTREAM_EOF;

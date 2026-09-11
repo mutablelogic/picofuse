@@ -13,12 +13,9 @@
 // simply truncated (see sys_sprintf()'s own truncation semantics).
 #define NET_MQTT_CREDENTIAL_SIZE 128
 
-// A topic filter longer than this is simply truncated (see
-// sys_sprintf()'s own truncation semantics) - generous for the nested
-// path-like filters MQTT topics typically are.
-#define NET_MQTT_TOPIC_FILTER_SIZE 128
 
-// Fixed internally
+// Default for net_mqtt_config_t::keepalive_s when left 0 - see its own
+// doc.
 #define _NET_MQTT_KEEPALIVE_S 60
 
 // An incoming PUBLISH payload this size or smaller is read into a stack
@@ -54,6 +51,8 @@
 #define _NET_MQTT_PACKET_UNSUBSCRIBE 0xA2 // Reserved flags fixed at 0x2,
                                           // like SUBSCRIBE/PUBREL.
 #define _NET_MQTT_PACKET_UNSUBACK 0xB0
+#define _NET_MQTT_PACKET_PINGREQ 0xC0
+#define _NET_MQTT_PACKET_PINGRESP 0xD0
 #define _NET_MQTT_PACKET_DISCONNECT 0xE0
 
 // PUBLISH's own QoS bits (bits 2-1 of its fixed header byte, alongside
@@ -121,6 +120,18 @@ typedef struct {
                        // PUBLISH itself went out, so net_poll() can
                        // notice a PUBACK that never arrives within
                        // timeout_ms of it.
+  uint16_t last_timed_out_packet_id; // 0 (never a real packet id - see
+                       // net_mqtt_t::next_packet_id's own doc) if the
+                       // last publish didn't time out, or its packet_id
+                       // if it did - see
+                       // _net_mqtt_poll_publish_check_timeout()'s own
+                       // doc on why: a PUBACK/PUBREC/PUBCOMP that turns
+                       // up late, after the timeout already gave up and
+                       // freed the slot for a new publish, is matched
+                       // against this instead of asserting against
+                       // whatever's using the slot now, and quietly
+                       // discarded rather than either crashing or being
+                       // misread as a reply to something else entirely.
 } _net_mqtt_publish_pending_t;
 
 // What (if anything) net_poll() (poll.c) needs to do for this handle's
@@ -171,6 +182,13 @@ typedef struct {
                        // fills it in (or, on denial/failure,
                        // _net_mqtt_topic_free()s it back) rather than
                        // needing to find a slot itself at confirm time.
+  uint16_t last_timed_out_packet_id; // Same tombstone as
+                       // _net_mqtt_publish_pending_t's own field - see
+                       // its doc. The reserved topics[] slot is already
+                       // freed by the time this is set (see
+                       // _net_mqtt_poll_subscribe_check_timeout()'s own
+                       // doc), so a late SUBACK matching this is just
+                       // read and discarded, nothing left to fill in.
 } _net_mqtt_subscribe_pending_t;
 
 // What (if anything) net_poll() (poll.c) needs to do for this handle's
@@ -214,6 +232,18 @@ typedef struct {
                             // false) until UNSUBACK actually confirms -
                             // the subscription (and whatever messages it
                             // may still deliver) stays live until then.
+  uint16_t last_timed_out_packet_id; // Same tombstone as
+                       // _net_mqtt_publish_pending_t's own field - see
+                       // its doc. A late UNSUBACK matching this is just
+                       // discarded, same as publish/subscribe's own -
+                       // the target topic is left exactly as
+                       // _net_mqtt_poll_unsubscribe_check_timeout() left
+                       // it (still active/subscribed, as far as this
+                       // client can tell) rather than retroactively
+                       // updated, since by the time a late reply could
+                       // arrive this field may already have been reused
+                       // by a newer, unrelated net_mqtt_unsubscribe()
+                       // call for a different filter.
 } _net_mqtt_unsubscribe_pending_t;
 
 // A singleton, not a pool - see net_mqtt_t's own doc on why.
@@ -221,6 +251,12 @@ struct net_mqtt_t {
   net_addr_t addr;
   uint16_t port;
   uint32_t timeout_ms;
+  uint16_t keepalive_s; // Resolved from net_mqtt_config_t::keepalive_s at
+                        // init time (never 0 after that - see
+                        // net_mqtt_init()'s own doc) - both sent in
+                        // CONNECT and used to schedule this client's own
+                        // automatic PINGREQ keepalives (see poll.c's
+                        // _net_mqtt_poll_ping_send()).
   char client_id[NET_MQTT_CLIENT_ID_SIZE];
   char username[NET_MQTT_CREDENTIAL_SIZE]; // Empty string - not "" vs.
                                            // NULL - means "not set".
@@ -257,6 +293,27 @@ struct net_mqtt_t {
                            // the protocol itself reserves it, unlike
                            // next_message_id where 0 is just our own
                            // "failure" sentinel.
+  bool ping_outstanding; // True from the moment an automatic PINGREQ is
+                        // sent until either a PINGRESP arrives or
+                        // ping_sent_at_ms's own timeout gives up on it
+                        // (see poll.c's _net_mqtt_poll_ping_send()/
+                        // _net_mqtt_poll_ping_check_timeout()). Only one
+                        // outstanding at a time, same reasoning as
+                        // publish/subscribe/unsubscribe's own one-at-a-
+                        // time slots - simpler here still, since there's
+                        // nothing to distinguish a second one from.
+  uint64_t ping_sent_at_ms; // Dual purpose: while !ping_outstanding, when
+                            // the last PINGREQ went out (or connected,
+                            // whichever's more recent) - used to decide
+                            // when the next one is due. While
+                            // ping_outstanding, when *this* one went out
+                            // - used to notice a PINGRESP that never
+                            // arrives within timeout_ms (treated as the
+                            // whole connection being dead, not just one
+                            // operation - see
+                            // _net_mqtt_poll_ping_check_timeout()'s own
+                            // doc on why that's different from every
+                            // other check_timeout in this module).
   _net_mqtt_publish_pending_t publish; // Guarded by lock.
   _net_mqtt_subscribe_pending_t subscribe; // Guarded by lock.
   _net_mqtt_unsubscribe_pending_t unsubscribe; // Guarded by lock.
@@ -288,10 +345,11 @@ void _net_mqtt_fire_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event);
  * connected, abandons any staged/in-flight publish, subscribe, or
  * unsubscribe request (see net_mqtt_publish()/net_mqtt_subscribe()/
  * net_mqtt_unsubscribe()'s own doc on that being a silent abandonment),
- * and forgets every confirmed subscription in @p mqtt's topics - once
- * the connection is gone, for any reason, none of them are still being
+ * forgets every confirmed subscription in @p mqtt's topics - once the
+ * connection is gone, for any reason, none of them are still being
  * delivered to regardless (see net_mqtt_disconnect()'s own doc on why
- * that's true even for a clean disconnect, not just an unexpected drop).
+ * that's true even for a clean disconnect, not just an unexpected drop)
+ * - and clears ping_outstanding (nothing left to get a PINGRESP for).
  * Caller must already hold `lock` and must fire a
  * net_mqtt_event_disconnected event itself once it's released - this
  * doesn't fire one on its own, since it never unlocks (see this module's

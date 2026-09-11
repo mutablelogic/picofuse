@@ -80,8 +80,8 @@ bool net_mqtt_connect(net_mqtt_t *mqtt) {
   buf[pos++] = 'T';
   buf[pos++] = _NET_MQTT_PROTOCOL_LEVEL;
   buf[pos++] = connect_flags;
-  buf[pos++] = (uint8_t)(_NET_MQTT_KEEPALIVE_S >> 8);
-  buf[pos++] = (uint8_t)(_NET_MQTT_KEEPALIVE_S & 0xFF);
+  buf[pos++] = (uint8_t)(mqtt->keepalive_s >> 8);
+  buf[pos++] = (uint8_t)(mqtt->keepalive_s & 0xFF);
 
   // Payload: Client Identifier, then [User Name], then [Password] - this
   // exact order, per the spec (no Will fields, since this client doesn't
@@ -127,6 +127,11 @@ bool net_mqtt_connect(net_mqtt_t *mqtt) {
 
   mqtt->conn = conn;
   mqtt->connected = true;
+  // Starting point for _net_mqtt_poll_ping_send()'s own scheduling -
+  // "just connected" counts as recent activity, so the first automatic
+  // PINGREQ is due keepalive_s from now, not immediately.
+  mqtt->ping_outstanding = false;
+  mqtt->ping_sent_at_ms = sys_timestamp_ms();
   sys_mutex_unlock(mqtt->lock);
 
   net_mqtt_event_t event = {.type = net_mqtt_event_connected};

@@ -42,6 +42,7 @@ void _net_mqtt_abort_connection_locked(net_mqtt_t *mqtt) {
   mqtt->subscribe.state = _net_mqtt_subscribe_idle;
   mqtt->unsubscribe.topic = NULL;
   mqtt->unsubscribe.state = _net_mqtt_unsubscribe_idle;
+  mqtt->ping_outstanding = false; // Nothing left to get a PINGRESP for.
 
   // Every confirmed subscription is forgotten too - see this function's
   // own doc on why that's correct even for a clean disconnect, not just

@@ -6,17 +6,24 @@
 // _net_mqtt_unsubscribe_state_t's own doc for the states themselves.
 // Incoming replies are read via _net_mqtt_poll_read_dispatch() below,
 // which peeks the fixed header's type nibble first and routes to the
-// matching per-type handler - each handler that's a reply to something
-// this client itself sent then sys_assert()s that its own state machine
-// agrees it should be expecting exactly that type, rather than
-// independently peeking and guessing "is this mine?" the way this file
-// used to. That guess-per-handler pattern was only safe while PUBACK/
-// PUBREC/PUBCOMP shared one state machine with nothing else ever
-// arriving unprompted; SUBACK/UNSUBACK (more than one kind of reply
-// legitimately in flight at once) and unprompted incoming PUBLISH
-// delivery (not a reply to anything at all, so nothing to assert against
-// - see _net_mqtt_poll_read_publish()'s own doc) both break that
-// assumption - the dispatcher is what makes routing them all safe.
+// matching per-type handler, rather than each handler independently
+// peeking and guessing "is this mine?" the way this file used to. That
+// guess-per-handler pattern was only safe while PUBACK/PUBREC/PUBCOMP
+// shared one state machine with nothing else ever arriving unprompted;
+// SUBACK/UNSUBACK (more than one kind of reply legitimately in flight at
+// once) and unprompted incoming PUBLISH delivery (not a reply to
+// anything at all - see _net_mqtt_poll_read_publish()'s own doc) both
+// break that assumption - the dispatcher is what makes routing them all
+// safe.
+//
+// A reply handler still checks its own packet id against the operation
+// it's currently tracking, but never asserts on a mismatch - a reply
+// whose packet id doesn't match anything currently pending, but does
+// match the last one of its kind that locally timed out, is a legitimate
+// late reply (see each _net_mqtt_poll_*_check_timeout()'s own doc on
+// last_timed_out_packet_id) and is read and quietly discarded rather
+// than treated as a bug or a connection-ending anomaly. Only a packet id
+// matching *neither* is treated as one.
 //
 // _net_mqtt_poll() (bottom of this file) is the only place in this
 // module that touches _net_mqtt_singleton directly - it's the root entry
@@ -261,61 +268,119 @@ static bool _net_mqtt_poll_unsubscribe_send(net_mqtt_t *mqtt) {
   return true;
 }
 
-// Reads+validates a fixed 4-byte "simple ack" packet - the shape PUBACK,
-// PUBREC, PUBCOMP, and UNSUBACK all share: fixed header, Remaining
-// Length always 2, a 2-byte packet id, no payload (SUBACK is the odd one
-// out - it also carries return codes, so it needs its own reader below).
-// Caller must already hold the lock and must already have confirmed (via
-// _net_mqtt_poll_read_dispatch()'s own peek) that a packet of
-// expected_type is actually waiting - this only validates its shape and
-// packet id, it doesn't check presence. Purely a wire-level helper - no
-// net_mqtt_t needed.
+// Sends an automatic PINGREQ once mqtt->keepalive_s has elapsed since the
+// last one (or since connecting, whichever's more recent) - see
+// net_mqtt_config_t::keepalive_s's own doc on why: a compliant broker
+// drops a connection with no traffic from this client for roughly 1.5x
+// that interval, and nothing else in this module sends anything
+// unprompted. PINGREQ is a small, fixed-shape packet, much like
+// DISCONNECT/PUBREL - carries no packet id, so there's nothing to match
+// its PINGRESP against beyond "one was outstanding" (see
+// _net_mqtt_poll_read_pingresp()'s own doc).
+static bool _net_mqtt_poll_ping_send(net_mqtt_t *mqtt) {
+  sys_mutex_lock(mqtt->lock);
+
+  if (mqtt->ping_outstanding ||
+      sys_timestamp_ms() - mqtt->ping_sent_at_ms <
+          (uint64_t)mqtt->keepalive_s * 1000) {
+    sys_mutex_unlock(mqtt->lock);
+    return false;
+  }
+
+  sys_iostream_t *conn = mqtt->conn;
+  uint32_t timeout_ms = mqtt->timeout_ms;
+  uint8_t pingreq[2] = {_NET_MQTT_PACKET_PINGREQ, 0x00};
+  if (!_net_mqtt_write_exact(conn, pingreq, sizeof(pingreq), timeout_ms)) {
+    _net_mqtt_abort_connection_locked(mqtt);
+    sys_mutex_unlock(mqtt->lock);
+    _net_mqtt_poll_fail(mqtt, 0, "PINGREQ write failed");
+    return true;
+  }
+
+  mqtt->ping_outstanding = true;
+  mqtt->ping_sent_at_ms = sys_timestamp_ms();
+  sys_mutex_unlock(mqtt->lock);
+  return true;
+}
+
+// Reads+validates the shape of a fixed 4-byte "simple ack" packet - the
+// shape PUBACK, PUBREC, PUBCOMP, and UNSUBACK all share: fixed header,
+// Remaining Length always 2, a 2-byte packet id, no payload (SUBACK is
+// the odd one out - it also carries return codes, so it needs its own
+// reader below). Caller must already hold the lock and must already
+// have confirmed (via _net_mqtt_poll_read_dispatch()'s own peek) that a
+// packet of expected_type is actually waiting - this only validates
+// shape/type, not presence. Doesn't judge whether @p out_packet_id is
+// the one the caller actually wants - see each reply handler's own doc
+// on why that's decided by the caller, not here (a late reply for an
+// operation this client already gave up on is a valid, expected case,
+// not a shape violation). Purely a wire-level helper - no net_mqtt_t
+// needed.
+// @return false only on a short read/timeout or a type/length mismatch -
+// a genuinely malformed packet, not just an unexpected packet id.
 static bool _net_mqtt_poll_read_ack(sys_iostream_t *conn, uint32_t timeout_ms,
                                     uint8_t expected_type,
-                                    uint16_t expected_packet_id) {
+                                    uint16_t *out_packet_id) {
   uint8_t buf[4];
   if (!_net_mqtt_read_exact(conn, buf, sizeof(buf), timeout_ms)) {
     return false;
   }
-  uint16_t got_packet_id = (uint16_t)((buf[2] << 8) | buf[3]);
-  return buf[0] == expected_type && buf[1] == 0x02 &&
-        got_packet_id == expected_packet_id;
+  if (buf[0] != expected_type || buf[1] != 0x02) {
+    return false;
+  }
+  *out_packet_id = (uint16_t)((buf[2] << 8) | buf[3]);
+  return true;
 }
 
 // Reads the PUBACK for the QoS 1 publish currently awaited - completes
 // it (fires net_mqtt_event_sent) on a match. Caller (the dispatcher)
 // already holds the lock and has already peeked a PUBACK type byte.
+//
+// A PUBACK whose packet id doesn't match the publish currently pending
+// isn't necessarily a protocol violation - it may be a late reply for a
+// publish this client already gave up on (see
+// _net_mqtt_poll_publish_check_timeout()'s own doc on why that's
+// expected, not a bug) - so that case is checked for explicitly and
+// discarded quietly rather than asserted against. Only a packet id
+// matching *neither* the current publish nor the last one that timed
+// out is treated as a genuine anomaly.
 static bool _net_mqtt_poll_publish_read_puback(net_mqtt_t *mqtt) {
-  // Anything but qos1_wait_puback here means the dispatcher routed a
-  // PUBACK to a state machine that wasn't expecting one - a genuine
-  // internal-consistency bug (or a stray/duplicate PUBACK from the
-  // broker after we'd already given up on it - see
-  // _net_mqtt_poll_publish_check_timeout()'s own doc), not something to
-  // silently paper over.
-  sys_assert(mqtt->publish.state == _net_mqtt_publish_qos1_wait_puback);
-
   sys_iostream_t *conn = mqtt->conn;
   uint32_t timeout_ms = mqtt->timeout_ms;
-  uint32_t message_id = mqtt->publish.message_id;
-  uint16_t packet_id = mqtt->publish.packet_id;
 
+  uint16_t got_packet_id;
   if (!_net_mqtt_poll_read_ack(conn, timeout_ms, _NET_MQTT_PACKET_PUBACK,
-                               packet_id)) {
-    _net_mqtt_abort_connection_locked(mqtt); // also resets publish.state
+                               &got_packet_id)) {
+    _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, message_id, "malformed or unexpected PUBACK");
+    _net_mqtt_poll_fail(mqtt, 0, "malformed PUBACK");
     return true;
   }
 
-  const char *topic = mqtt->publish.topic;
-  mqtt->publish.state = _net_mqtt_publish_idle;
-  sys_cond_broadcast(mqtt->publish_cond);
-  sys_mutex_unlock(mqtt->lock);
+  if (mqtt->publish.state == _net_mqtt_publish_qos1_wait_puback &&
+      got_packet_id == mqtt->publish.packet_id) {
+    uint32_t message_id = mqtt->publish.message_id;
+    const char *topic = mqtt->publish.topic;
+    mqtt->publish.state = _net_mqtt_publish_idle;
+    sys_cond_broadcast(mqtt->publish_cond);
+    sys_mutex_unlock(mqtt->lock);
 
-  net_mqtt_event_t sent_event = {
-      .type = net_mqtt_event_sent,
-      .data.sent = {.topic = topic, .message_id = message_id}};
-  _net_mqtt_fire_event(mqtt, &sent_event);
+    net_mqtt_event_t sent_event = {
+        .type = net_mqtt_event_sent,
+        .data.sent = {.topic = topic, .message_id = message_id}};
+    _net_mqtt_fire_event(mqtt, &sent_event);
+    return true;
+  }
+
+  if (got_packet_id == mqtt->publish.last_timed_out_packet_id) {
+    sys_mutex_unlock(mqtt->lock); // Late reply - already read, already
+                                  // reported failed; nothing left to do.
+    return true;
+  }
+
+  _net_mqtt_abort_connection_locked(mqtt);
+  sys_mutex_unlock(mqtt->lock);
+  _net_mqtt_poll_fail(mqtt, 0, "unexpected PUBACK");
   return true;
 }
 
@@ -323,70 +388,99 @@ static bool _net_mqtt_poll_publish_read_puback(net_mqtt_t *mqtt) {
 // immediately sends PUBREL - a small, fixed-shape packet, much like
 // DISCONNECT - and moves to qos2_wait_pubcomp: *not* done yet, see that
 // state's own doc on why. Caller (the dispatcher) already holds the lock
-// and has already peeked a PUBREC type byte.
+// and has already peeked a PUBREC type byte. Same late-reply handling as
+// _net_mqtt_poll_publish_read_puback()'s own doc - except a late PUBREC
+// deliberately does *not* trigger sending PUBREL in response, since the
+// operation's already been reported failed; the broker may hold that
+// message's QoS 2 state a little longer than ideal as a result, until
+// its own retry/session-expiry handles it.
 static bool _net_mqtt_poll_publish_read_pubrec(net_mqtt_t *mqtt) {
-  sys_assert(mqtt->publish.state == _net_mqtt_publish_qos2_wait_pubrec);
-
   sys_iostream_t *conn = mqtt->conn;
   uint32_t timeout_ms = mqtt->timeout_ms;
-  uint32_t message_id = mqtt->publish.message_id;
-  uint16_t packet_id = mqtt->publish.packet_id;
 
+  uint16_t got_packet_id;
   if (!_net_mqtt_poll_read_ack(conn, timeout_ms, _NET_MQTT_PACKET_PUBREC,
-                               packet_id)) {
-    _net_mqtt_abort_connection_locked(mqtt); // also resets publish.state
-    sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, message_id, "malformed or unexpected PUBREC");
-    return true;
-  }
-
-  // PUBREL: fixed header (type + spec-mandated reserved flags, already
-  // complete in _NET_MQTT_PACKET_PUBREL - see its own doc), Remaining
-  // Length always 2, then the same packet id PUBREC just confirmed.
-  uint8_t pubrel[4] = {_NET_MQTT_PACKET_PUBREL, 0x02, (uint8_t)(packet_id >> 8),
-                       (uint8_t)(packet_id & 0xFF)};
-  if (!_net_mqtt_write_exact(conn, pubrel, sizeof(pubrel), timeout_ms)) {
+                               &got_packet_id)) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, message_id, "PUBREL write failed");
+    _net_mqtt_poll_fail(mqtt, 0, "malformed PUBREC");
     return true;
   }
 
-  mqtt->publish.state = _net_mqtt_publish_qos2_wait_pubcomp;
-  mqtt->publish.sent_at_ms = sys_timestamp_ms();
+  if (mqtt->publish.state == _net_mqtt_publish_qos2_wait_pubrec &&
+      got_packet_id == mqtt->publish.packet_id) {
+    // PUBREL: fixed header (type + spec-mandated reserved flags, already
+    // complete in _NET_MQTT_PACKET_PUBREL - see its own doc), Remaining
+    // Length always 2, then the same packet id PUBREC just confirmed.
+    uint8_t pubrel[4] = {_NET_MQTT_PACKET_PUBREL, 0x02,
+                         (uint8_t)(got_packet_id >> 8),
+                         (uint8_t)(got_packet_id & 0xFF)};
+    if (!_net_mqtt_write_exact(conn, pubrel, sizeof(pubrel), timeout_ms)) {
+      uint32_t message_id = mqtt->publish.message_id;
+      _net_mqtt_abort_connection_locked(mqtt);
+      sys_mutex_unlock(mqtt->lock);
+      _net_mqtt_poll_fail(mqtt, message_id, "PUBREL write failed");
+      return true;
+    }
+
+    mqtt->publish.state = _net_mqtt_publish_qos2_wait_pubcomp;
+    mqtt->publish.sent_at_ms = sys_timestamp_ms();
+    sys_mutex_unlock(mqtt->lock);
+    return true;
+  }
+
+  if (got_packet_id == mqtt->publish.last_timed_out_packet_id) {
+    sys_mutex_unlock(mqtt->lock);
+    return true;
+  }
+
+  _net_mqtt_abort_connection_locked(mqtt);
   sys_mutex_unlock(mqtt->lock);
+  _net_mqtt_poll_fail(mqtt, 0, "unexpected PUBREC");
   return true;
 }
 
 // Reads the PUBCOMP for the QoS 2 publish currently awaited - the final
 // leg of the chain; a match here is what actually completes a QoS 2
 // publish (fires net_mqtt_event_sent). Caller (the dispatcher) already
-// holds the lock and has already peeked a PUBCOMP type byte.
+// holds the lock and has already peeked a PUBCOMP type byte. Same
+// late-reply handling as _net_mqtt_poll_publish_read_puback()'s own doc.
 static bool _net_mqtt_poll_publish_read_pubcomp(net_mqtt_t *mqtt) {
-  sys_assert(mqtt->publish.state == _net_mqtt_publish_qos2_wait_pubcomp);
-
   sys_iostream_t *conn = mqtt->conn;
   uint32_t timeout_ms = mqtt->timeout_ms;
-  uint32_t message_id = mqtt->publish.message_id;
-  uint16_t packet_id = mqtt->publish.packet_id;
 
+  uint16_t got_packet_id;
   if (!_net_mqtt_poll_read_ack(conn, timeout_ms, _NET_MQTT_PACKET_PUBCOMP,
-                               packet_id)) {
-    _net_mqtt_abort_connection_locked(mqtt); // also resets publish.state
+                               &got_packet_id)) {
+    _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, message_id, "malformed or unexpected PUBCOMP");
+    _net_mqtt_poll_fail(mqtt, 0, "malformed PUBCOMP");
     return true;
   }
 
-  const char *topic = mqtt->publish.topic;
-  mqtt->publish.state = _net_mqtt_publish_idle;
-  sys_cond_broadcast(mqtt->publish_cond);
-  sys_mutex_unlock(mqtt->lock);
+  if (mqtt->publish.state == _net_mqtt_publish_qos2_wait_pubcomp &&
+      got_packet_id == mqtt->publish.packet_id) {
+    uint32_t message_id = mqtt->publish.message_id;
+    const char *topic = mqtt->publish.topic;
+    mqtt->publish.state = _net_mqtt_publish_idle;
+    sys_cond_broadcast(mqtt->publish_cond);
+    sys_mutex_unlock(mqtt->lock);
 
-  net_mqtt_event_t sent_event = {
-      .type = net_mqtt_event_sent,
-      .data.sent = {.topic = topic, .message_id = message_id}};
-  _net_mqtt_fire_event(mqtt, &sent_event);
+    net_mqtt_event_t sent_event = {
+        .type = net_mqtt_event_sent,
+        .data.sent = {.topic = topic, .message_id = message_id}};
+    _net_mqtt_fire_event(mqtt, &sent_event);
+    return true;
+  }
+
+  if (got_packet_id == mqtt->publish.last_timed_out_packet_id) {
+    sys_mutex_unlock(mqtt->lock);
+    return true;
+  }
+
+  _net_mqtt_abort_connection_locked(mqtt);
+  sys_mutex_unlock(mqtt->lock);
+  _net_mqtt_poll_fail(mqtt, 0, "unexpected PUBCOMP");
   return true;
 }
 
@@ -405,59 +499,78 @@ static bool _net_mqtt_poll_publish_read_pubcomp(net_mqtt_t *mqtt) {
 // whole packet is always exactly 5 bytes - read directly rather than via
 // the shared _net_mqtt_poll_read_ack() helper, which assumes Remaining
 // Length 2.
+//
+// Same late-reply handling as _net_mqtt_poll_publish_read_puback()'s own
+// doc: a packet id matching the subscribe that timed out, not the one
+// currently pending, is a late reply and is discarded - its topics[]
+// slot was already freed back at timeout (see
+// _net_mqtt_poll_subscribe_check_timeout()'s own doc), so there's
+// nothing left to fill in even on a success return code.
 static bool _net_mqtt_poll_subscribe_read_suback(net_mqtt_t *mqtt) {
-  sys_assert(mqtt->subscribe.state == _net_mqtt_subscribe_wait_suback);
-
   sys_iostream_t *conn = mqtt->conn;
   uint32_t timeout_ms = mqtt->timeout_ms;
-  uint32_t message_id = mqtt->subscribe.message_id;
-  uint16_t packet_id = mqtt->subscribe.packet_id;
-  _net_mqtt_topic_t *topic = mqtt->subscribe.topic;
 
   uint8_t buf[5];
   bool ok = _net_mqtt_read_exact(conn, buf, sizeof(buf), timeout_ms);
-  uint16_t got_packet_id = ok ? (uint16_t)((buf[2] << 8) | buf[3]) : 0;
-  if (!ok || buf[0] != _NET_MQTT_PACKET_SUBACK || buf[1] != 0x03 ||
-      got_packet_id != packet_id) {
-    _net_mqtt_abort_connection_locked(mqtt); // also resets subscribe.state
+  if (!ok || buf[0] != _NET_MQTT_PACKET_SUBACK || buf[1] != 0x03) {
+    _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, message_id, "malformed or unexpected SUBACK");
+    _net_mqtt_poll_fail(mqtt, 0, "malformed SUBACK");
     return true;
   }
-
+  uint16_t got_packet_id = (uint16_t)((buf[2] << 8) | buf[3]);
   uint8_t return_code = buf[4];
-  if (return_code == 0x80) {
-    // Denied - the subscription never actually happened, so the slot
-    // reserved for it at stage time never gets used.
-    _net_mqtt_topic_free(mqtt, topic);
+
+  if (mqtt->subscribe.state == _net_mqtt_subscribe_wait_suback &&
+      got_packet_id == mqtt->subscribe.packet_id) {
+    uint32_t message_id = mqtt->subscribe.message_id;
+    _net_mqtt_topic_t *topic = mqtt->subscribe.topic;
+
+    if (return_code == 0x80) {
+      // Denied - the subscription never actually happened, so the slot
+      // reserved for it at stage time never gets used.
+      _net_mqtt_topic_free(mqtt, topic);
+      mqtt->subscribe.topic = NULL;
+      mqtt->subscribe.state = _net_mqtt_subscribe_idle;
+      sys_cond_broadcast(mqtt->publish_cond);
+      sys_mutex_unlock(mqtt->lock);
+
+      net_mqtt_event_t error_event = {
+          .type = net_mqtt_event_error,
+          .data.error = {.message = "broker refused SUBSCRIBE",
+                         .message_id = message_id}};
+      _net_mqtt_fire_event(mqtt, &error_event);
+      return true;
+    }
+
+    // Success - fill in the slot _net_mqtt_topic_alloc() reserved back
+    // at stage time (see _net_mqtt_subscribe_pending_t::topic's own
+    // doc).
+    net_mqtt_qos_t granted_qos = (net_mqtt_qos_t)return_code;
+    sys_sprintf(topic->filter, sizeof(topic->filter), "%s",
+               mqtt->subscribe.filter);
+    topic->granted_qos = granted_qos;
+
     mqtt->subscribe.topic = NULL;
     mqtt->subscribe.state = _net_mqtt_subscribe_idle;
     sys_cond_broadcast(mqtt->publish_cond);
     sys_mutex_unlock(mqtt->lock);
 
-    net_mqtt_event_t error_event = {
-        .type = net_mqtt_event_error,
-        .data.error = {.message = "broker refused SUBSCRIBE",
-                       .message_id = message_id}};
-    _net_mqtt_fire_event(mqtt, &error_event);
+    net_mqtt_event_t subscribed_event = {
+        .type = net_mqtt_event_subscribed,
+        .data.subscribed = {.granted_qos = granted_qos, .message_id = message_id}};
+    _net_mqtt_fire_event(mqtt, &subscribed_event);
     return true;
   }
 
-  // Success - fill in the slot _net_mqtt_topic_alloc() reserved back at
-  // stage time (see _net_mqtt_subscribe_pending_t::topic's own doc).
-  net_mqtt_qos_t granted_qos = (net_mqtt_qos_t)return_code;
-  sys_sprintf(topic->filter, sizeof(topic->filter), "%s", mqtt->subscribe.filter);
-  topic->granted_qos = granted_qos;
+  if (got_packet_id == mqtt->subscribe.last_timed_out_packet_id) {
+    sys_mutex_unlock(mqtt->lock);
+    return true;
+  }
 
-  mqtt->subscribe.topic = NULL;
-  mqtt->subscribe.state = _net_mqtt_subscribe_idle;
-  sys_cond_broadcast(mqtt->publish_cond);
+  _net_mqtt_abort_connection_locked(mqtt);
   sys_mutex_unlock(mqtt->lock);
-
-  net_mqtt_event_t subscribed_event = {
-      .type = net_mqtt_event_subscribed,
-      .data.subscribed = {.granted_qos = granted_qos, .message_id = message_id}};
-  _net_mqtt_fire_event(mqtt, &subscribed_event);
+  _net_mqtt_poll_fail(mqtt, 0, "unexpected SUBACK");
   return true;
 }
 
@@ -468,33 +581,50 @@ static bool _net_mqtt_poll_subscribe_read_suback(net_mqtt_t *mqtt) {
 // holds the lock and has already peeked an UNSUBACK type byte. UNSUBACK
 // carries no return codes (unlike SUBACK) - just the packet id - so it
 // fits the same fixed 4-byte shape as PUBACK/PUBREC/PUBCOMP.
+//
+// Same late-reply handling as _net_mqtt_poll_publish_read_puback()'s own
+// doc: a packet id matching the unsubscribe that timed out, not the one
+// currently pending, is a late reply - discarded without touching the
+// target topic (see _net_mqtt_unsubscribe_pending_t::last_timed_out_packet_id's
+// own doc on why: by the time it could arrive, mqtt->unsubscribe.topic
+// may already belong to a newer, unrelated net_mqtt_unsubscribe() call).
 static bool _net_mqtt_poll_unsubscribe_read_unsuback(net_mqtt_t *mqtt) {
-  sys_assert(mqtt->unsubscribe.state == _net_mqtt_unsubscribe_wait_unsuback);
-
   sys_iostream_t *conn = mqtt->conn;
   uint32_t timeout_ms = mqtt->timeout_ms;
-  uint32_t message_id = mqtt->unsubscribe.message_id;
-  uint16_t packet_id = mqtt->unsubscribe.packet_id;
-  _net_mqtt_topic_t *topic = mqtt->unsubscribe.topic;
 
+  uint16_t got_packet_id;
   if (!_net_mqtt_poll_read_ack(conn, timeout_ms, _NET_MQTT_PACKET_UNSUBACK,
-                               packet_id)) {
-    _net_mqtt_abort_connection_locked(mqtt); // also resets unsubscribe.state
+                               &got_packet_id)) {
+    _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, message_id, "malformed or unexpected UNSUBACK");
+    _net_mqtt_poll_fail(mqtt, 0, "malformed UNSUBACK");
     return true;
   }
 
-  topic->active = false; // Confirmed gone.
-  mqtt->unsubscribe.topic = NULL;
-  mqtt->unsubscribe.state = _net_mqtt_unsubscribe_idle;
-  sys_cond_broadcast(mqtt->publish_cond);
-  sys_mutex_unlock(mqtt->lock);
+  if (mqtt->unsubscribe.state == _net_mqtt_unsubscribe_wait_unsuback &&
+      got_packet_id == mqtt->unsubscribe.packet_id) {
+    uint32_t message_id = mqtt->unsubscribe.message_id;
+    mqtt->unsubscribe.topic->active = false; // Confirmed gone.
+    mqtt->unsubscribe.topic = NULL;
+    mqtt->unsubscribe.state = _net_mqtt_unsubscribe_idle;
+    sys_cond_broadcast(mqtt->publish_cond);
+    sys_mutex_unlock(mqtt->lock);
 
-  net_mqtt_event_t unsubscribed_event = {
-      .type = net_mqtt_event_unsubscribed,
-      .data.unsubscribed = {.message_id = message_id}};
-  _net_mqtt_fire_event(mqtt, &unsubscribed_event);
+    net_mqtt_event_t unsubscribed_event = {
+        .type = net_mqtt_event_unsubscribed,
+        .data.unsubscribed = {.message_id = message_id}};
+    _net_mqtt_fire_event(mqtt, &unsubscribed_event);
+    return true;
+  }
+
+  if (got_packet_id == mqtt->unsubscribe.last_timed_out_packet_id) {
+    sys_mutex_unlock(mqtt->lock);
+    return true;
+  }
+
+  _net_mqtt_abort_connection_locked(mqtt);
+  sys_mutex_unlock(mqtt->lock);
+  _net_mqtt_poll_fail(mqtt, 0, "unexpected UNSUBACK");
   return true;
 }
 
@@ -630,6 +760,38 @@ static bool _net_mqtt_poll_read_publish(net_mqtt_t *mqtt) {
   return true;
 }
 
+// Reads the PINGRESP for the automatic PINGREQ currently outstanding -
+// pure keepalive plumbing, invisible to the caller (no event fires
+// either way). Caller (the dispatcher) already holds the lock and has
+// already peeked a PINGRESP type byte.
+//
+// Unlike every other reply this module reads, PINGRESP carries no packet
+// id - there's only ever one outstanding ping to begin with (see
+// net_mqtt_t::ping_outstanding's own doc), so there's nothing to
+// distinguish "the one we're waiting for" from a stray one, and no
+// reason to try: a well-formed PINGRESP is always accepted regardless of
+// whether ping_outstanding happens to be true right now (a late one,
+// arriving just as _net_mqtt_poll_ping_check_timeout() already gave up
+// on it, is still perfectly good evidence the broker is alive) - clearing
+// ping_outstanding is a no-op if it was already false.
+static bool _net_mqtt_poll_read_pingresp(net_mqtt_t *mqtt) {
+  sys_iostream_t *conn = mqtt->conn;
+  uint32_t timeout_ms = mqtt->timeout_ms;
+
+  uint8_t buf[2];
+  if (!_net_mqtt_read_exact(conn, buf, sizeof(buf), timeout_ms) ||
+      buf[0] != _NET_MQTT_PACKET_PINGRESP || buf[1] != 0x00) {
+    _net_mqtt_abort_connection_locked(mqtt);
+    sys_mutex_unlock(mqtt->lock);
+    _net_mqtt_poll_fail(mqtt, 0, "malformed PINGRESP");
+    return true;
+  }
+
+  mqtt->ping_outstanding = false;
+  sys_mutex_unlock(mqtt->lock);
+  return true;
+}
+
 // Peeks whatever incoming packet is waiting, if any, and routes it to
 // the handler for its fixed-header type - see this file's own top-of-
 // file note on why routing by type up front (rather than each handler
@@ -644,8 +806,24 @@ static bool _net_mqtt_poll_read_dispatch(net_mqtt_t *mqtt) {
   sys_iostream_t *conn = mqtt->conn;
   int peeked = sys_iostream_peek(conn);
   if (peeked < 0) {
+    if (!sys_iostream_eof(conn)) {
+      sys_mutex_unlock(mqtt->lock);
+      return false; // Nothing's arrived yet - still connected.
+    }
+    // The peer's actually gone - sys_iostream_peek() alone can't tell
+    // that apart from "nothing's arrived yet" (see sys_iostream_eof()'s
+    // own doc on why), so without this check an idle dropped connection
+    // would sit here reporting "nothing to do" forever and never emit
+    // the net_mqtt_event_disconnected documented for exactly this case
+    // ("...or an unexpected drop noticed during net_poll()"). No error
+    // event - same silent-abandonment treatment net_mqtt_publish()/
+    // net_mqtt_subscribe()/net_mqtt_unsubscribe() already document for a
+    // disconnect happening while one of them is staged/in flight.
+    _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    return false; // Nothing's arrived yet.
+    net_mqtt_event_t disconnected_event = {.type = net_mqtt_event_disconnected};
+    _net_mqtt_fire_event(mqtt, &disconnected_event);
+    return true;
   }
 
   // Only the fixed header's high nibble identifies the packet type - the
@@ -667,13 +845,15 @@ static bool _net_mqtt_poll_read_dispatch(net_mqtt_t *mqtt) {
     return _net_mqtt_poll_unsubscribe_read_unsuback(mqtt); // unlocks itself
   case _NET_MQTT_PACKET_PUBLISH:
     return _net_mqtt_poll_read_publish(mqtt); // unlocks itself
+  case _NET_MQTT_PACKET_PINGRESP:
+    return _net_mqtt_poll_read_pingresp(mqtt); // unlocks itself
   default:
-    // PINGRESP reading isn't implemented yet (see this file's own
-    // top-of-file note). Either way there's nowhere for this packet to
-    // go - and it can't just be left on the wire for a future poll() to
-    // reconsider, since that would desync framing for whatever's read
-    // next - so for now it's treated the same as a malformed reply from
-    // an operation that was actually pending.
+    // Nothing else is a packet type this client can ever legitimately
+    // receive - there's nowhere for it to go, and it can't just be left
+    // on the wire for a future poll() to reconsider, since that would
+    // desync framing for whatever's read next - so it's treated the
+    // same as a malformed reply from an operation that was actually
+    // pending.
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
     _net_mqtt_poll_fail(mqtt, 0, "unexpected or not-yet-supported packet type");
@@ -689,10 +869,11 @@ static bool _net_mqtt_poll_read_dispatch(net_mqtt_t *mqtt) {
 // PUBREC, just resend PUBREL) yet; just frees the slot and reports the
 // failure. Doesn't tear down the connection - one slow/lost reply isn't
 // necessarily a dead connection, so future publishes still get to try
-// their own luck. Note this means a reply that turns up *after* this
-// fires will still be sitting on the wire for the next
-// _net_mqtt_poll_read_dispatch() call - which, having nothing pending
-// to match it against, will trip that dispatcher's own sys_assert().
+// their own luck. Records the packet id being abandoned as
+// last_timed_out_packet_id first - a reply that turns up *after* this
+// fires is still matched against that in the read handlers (see
+// _net_mqtt_poll_publish_read_puback()'s own doc) and quietly discarded,
+// rather than asserted against whatever's using the slot by then.
 static bool _net_mqtt_poll_publish_check_timeout(net_mqtt_t *mqtt) {
   sys_mutex_lock(mqtt->lock);
 
@@ -708,6 +889,7 @@ static bool _net_mqtt_poll_publish_check_timeout(net_mqtt_t *mqtt) {
   }
 
   uint32_t message_id = mqtt->publish.message_id;
+  mqtt->publish.last_timed_out_packet_id = mqtt->publish.packet_id;
   mqtt->publish.state = _net_mqtt_publish_idle;
   sys_cond_broadcast(mqtt->publish_cond);
   sys_mutex_unlock(mqtt->lock);
@@ -722,9 +904,10 @@ static bool _net_mqtt_poll_publish_check_timeout(net_mqtt_t *mqtt) {
 
 // Fails a subscribe whose SUBACK never arrived within timeout_ms of the
 // SUBSCRIBE this module sent for it - same reasoning as
-// _net_mqtt_poll_publish_check_timeout(), including the same note on a
-// late SUBACK then tripping the dispatcher's sys_assert(). Frees the
-// topics[] slot reserved at stage time, same as an explicit denial.
+// _net_mqtt_poll_publish_check_timeout(), including the same
+// last_timed_out_packet_id tombstone for a reply that turns up later.
+// Frees the topics[] slot reserved at stage time, same as an explicit
+// denial.
 static bool _net_mqtt_poll_subscribe_check_timeout(net_mqtt_t *mqtt) {
   sys_mutex_lock(mqtt->lock);
 
@@ -735,6 +918,7 @@ static bool _net_mqtt_poll_subscribe_check_timeout(net_mqtt_t *mqtt) {
   }
 
   uint32_t message_id = mqtt->subscribe.message_id;
+  mqtt->subscribe.last_timed_out_packet_id = mqtt->subscribe.packet_id;
   _net_mqtt_topic_free(mqtt, mqtt->subscribe.topic);
   mqtt->subscribe.topic = NULL;
   mqtt->subscribe.state = _net_mqtt_subscribe_idle;
@@ -749,10 +933,11 @@ static bool _net_mqtt_poll_subscribe_check_timeout(net_mqtt_t *mqtt) {
 }
 
 // Fails an unsubscribe whose UNSUBACK never arrived within timeout_ms -
-// same reasoning as _net_mqtt_poll_subscribe_check_timeout(). The target
-// topics[] slot is left exactly as it was (still active/subscribed) -
-// unlike a subscribe's reserved slot, there's nothing tentative about it
-// to free; as far as this client can tell, it's still subscribed.
+// same reasoning as _net_mqtt_poll_subscribe_check_timeout(), including
+// the same last_timed_out_packet_id tombstone. The target topics[] slot
+// is left exactly as it was (still active/subscribed) - unlike a
+// subscribe's reserved slot, there's nothing tentative about it to free;
+// as far as this client can tell, it's still subscribed.
 static bool _net_mqtt_poll_unsubscribe_check_timeout(net_mqtt_t *mqtt) {
   sys_mutex_lock(mqtt->lock);
 
@@ -763,6 +948,7 @@ static bool _net_mqtt_poll_unsubscribe_check_timeout(net_mqtt_t *mqtt) {
   }
 
   uint32_t message_id = mqtt->unsubscribe.message_id;
+  mqtt->unsubscribe.last_timed_out_packet_id = mqtt->unsubscribe.packet_id;
   mqtt->unsubscribe.topic = NULL;
   mqtt->unsubscribe.state = _net_mqtt_unsubscribe_idle;
   sys_cond_broadcast(mqtt->publish_cond);
@@ -772,6 +958,31 @@ static bool _net_mqtt_poll_unsubscribe_check_timeout(net_mqtt_t *mqtt) {
       .type = net_mqtt_event_error,
       .data.error = {.message = "UNSUBACK timed out", .message_id = message_id}};
   _net_mqtt_fire_event(mqtt, &error_event);
+  return true;
+}
+
+// Fails the *connection* (not just one operation, unlike every other
+// check_timeout in this file) if a PINGRESP never arrives within
+// timeout_ms of the PINGREQ sent for it - a broker that won't even
+// answer a keepalive ping is reasonably presumed dead outright, not just
+// slow to reply to one particular request, so this fires
+// net_mqtt_event_disconnected the same way sys_iostream_eof() noticing a
+// dropped connection does (see _net_mqtt_poll_read_dispatch()'s own
+// doc), rather than an isolated net_mqtt_event_error.
+static bool _net_mqtt_poll_ping_check_timeout(net_mqtt_t *mqtt) {
+  sys_mutex_lock(mqtt->lock);
+
+  if (!mqtt->ping_outstanding ||
+      sys_timestamp_ms() - mqtt->ping_sent_at_ms < mqtt->timeout_ms) {
+    sys_mutex_unlock(mqtt->lock);
+    return false;
+  }
+
+  _net_mqtt_abort_connection_locked(mqtt);
+  sys_mutex_unlock(mqtt->lock);
+
+  net_mqtt_event_t disconnected_event = {.type = net_mqtt_event_disconnected};
+  _net_mqtt_fire_event(mqtt, &disconnected_event);
   return true;
 }
 
@@ -794,6 +1005,9 @@ bool _net_mqtt_poll(void) {
   if (_net_mqtt_poll_unsubscribe_send(mqtt)) {
     return true;
   }
+  if (_net_mqtt_poll_ping_send(mqtt)) {
+    return true;
+  }
   if (_net_mqtt_poll_read_dispatch(mqtt)) {
     return true;
   }
@@ -803,5 +1017,8 @@ bool _net_mqtt_poll(void) {
   if (_net_mqtt_poll_subscribe_check_timeout(mqtt)) {
     return true;
   }
-  return _net_mqtt_poll_unsubscribe_check_timeout(mqtt);
+  if (_net_mqtt_poll_unsubscribe_check_timeout(mqtt)) {
+    return true;
+  }
+  return _net_mqtt_poll_ping_check_timeout(mqtt);
 }

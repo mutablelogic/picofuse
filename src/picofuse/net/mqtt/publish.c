@@ -1,4 +1,5 @@
 #include "private.h"
+#include <string.h>
 
 // _net_mqtt_next_message_id()/_net_mqtt_next_packet_id() are shared with
 // subscribe.c - both operations draw packet ids from the same namespace
@@ -66,6 +67,32 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
     return 0;
   }
 
+  // Topic Name Length is a 2-byte field on the wire (see
+  // _net_mqtt_poll_publish_send()'s own doc) - a topic this client can't
+  // even encode a correct length prefix for is rejected here rather than
+  // silently truncating that prefix while still writing the full topic
+  // bytes, which would desync the connection's framing for whatever's
+  // sent after it.
+  size_t topic_len = strlen(topic);
+  if (topic_len > 0xFFFF) {
+    return 0;
+  }
+
+  // Remaining Length itself is checked in full 64-bit arithmetic, not
+  // narrowed to uint32_t first - topic_len/payload_len are size_t, with
+  // no ceiling of their own on a 64-bit host, so summing them as
+  // uint32_t could wrap around to a small value that looks valid while
+  // still writing every real byte, corrupting framing the same way an
+  // unchecked topic_len would. 0x0FFFFFFF is the protocol's own ceiling
+  // - see _net_mqtt_encode_length()'s own doc.
+  bool needs_packet_id = qos == net_mqtt_qos_1 || qos == net_mqtt_qos_2;
+  uint64_t remaining_length = 2 + (uint64_t)topic_len +
+                              (needs_packet_id ? 2u : 0u) +
+                              (uint64_t)payload_len;
+  if (remaining_length > 0x0FFFFFFFu) {
+    return 0;
+  }
+
   sys_mutex_lock(mqtt->lock);
 
   // Wait for either a free publish slot or a disconnect - see
@@ -81,10 +108,24 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
   // timedwait()'s own convention for 0 is the opposite ("wait forever"),
   // so it's never actually called with 0; a single predicate check
   // stands in for it instead, consistent with the rest of the module.
+  //
+  // publish_cond is shared well beyond just this wait (subscribe/
+  // unsubscribe wait on it too, and it's broadcast on every disconnect),
+  // so a wake here is routinely spurious as far as this particular call
+  // is concerned - re-passing the full timeout_ms to each
+  // sys_cond_timedwait() call would let those unrelated wakes keep
+  // restarting the clock, so a caller could block well past its own
+  // documented timeout_ms under sustained unrelated traffic. Tracking
+  // elapsed time against a fixed deadline instead keeps the *total* wait
+  // bounded by timeout_ms regardless of how many spurious wakes happen
+  // along the way.
   uint32_t timeout_ms = mqtt->timeout_ms;
+  uint64_t wait_start_ms = sys_timestamp_ms();
   while (mqtt->connected && mqtt->publish.state != _net_mqtt_publish_idle) {
-    if (timeout_ms == 0 ||
-        !sys_cond_timedwait(mqtt->publish_cond, mqtt->lock, timeout_ms)) {
+    uint64_t elapsed_ms = sys_timestamp_ms() - wait_start_ms;
+    if (timeout_ms == 0 || elapsed_ms >= timeout_ms ||
+        !sys_cond_timedwait(mqtt->publish_cond, mqtt->lock,
+                            timeout_ms - (uint32_t)elapsed_ms)) {
       sys_mutex_unlock(mqtt->lock);
       return 0; // Timed out (or timeout_ms == 0) still waiting for a
                 // free slot.
@@ -99,14 +140,20 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
   uint32_t message_id;
   switch (qos) {
   case net_mqtt_qos_0:
-    message_id = _net_mqtt_publish_stage_qos0(mqtt, topic, payload, payload_len, retain);
+    message_id =
+        _net_mqtt_publish_stage_qos0(mqtt, topic, payload, payload_len, retain);
     break;
   case net_mqtt_qos_1:
-    message_id = _net_mqtt_publish_stage_qos1(mqtt, topic, payload, payload_len, retain);
+    message_id =
+        _net_mqtt_publish_stage_qos1(mqtt, topic, payload, payload_len, retain);
     break;
   case net_mqtt_qos_2:
-    message_id = _net_mqtt_publish_stage_qos2(mqtt, topic, payload, payload_len, retain);
+    message_id =
+        _net_mqtt_publish_stage_qos2(mqtt, topic, payload, payload_len, retain);
     break;
+  default:
+    sys_mutex_unlock(mqtt->lock);
+    return 0;
   }
 
   sys_mutex_unlock(mqtt->lock);

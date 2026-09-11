@@ -88,9 +88,10 @@ test_main_sys(0) {
   sys_printf("[net_019] SUBACK granted qos=%d, id=%u\n", (int)g_last_granted_qos,
             (unsigned)sub_id);
 
-  // Subscribing to the exact same filter again is a second, independent
-  // request (MQTT allows re-subscribing to update QoS) - not blocked by
-  // the first, since it already completed and freed the slot.
+  // Unsubscribing from that same filter is a second, independent
+  // request, on its own separate pending slot - not blocked by the
+  // subscribe above, since that one already completed and freed its own
+  // slot regardless.
   uint32_t unsub_id = net_mqtt_unsubscribe(mqtt, "picofuse/test/net_019");
   test_assert(unsub_id != 0);
   test_assert(unsub_id > sub_id);

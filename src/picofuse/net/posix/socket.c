@@ -353,6 +353,17 @@ static ptrdiff_t _net_conn_ops_seek(sys_iostream_t *s, ptrdiff_t offset,
   return ok ? 0 : -1;
 }
 
+// The RX thread clears ctx->running the moment it stops - whether from a
+// peer-closed TCP connection (recv() == 0), a socket error, or this
+// stream's own sys_iostream_close() asking it to (see that function's
+// own doc) - so by the time it's 0, this stream will never produce more
+// data. sys_atomic_t, so safe to read from any thread without ctx->lock
+// - see ctx->running's own doc.
+static bool _net_conn_ops_eof(sys_iostream_t *s) {
+  _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
+  return sys_atomic_get(&ctx->running) == 0;
+}
+
 static bool _net_conn_ops_set_callback(sys_iostream_t *s,
                                        sys_iostream_callback_t callback,
                                        void *userdata) {
@@ -380,6 +391,7 @@ static const sys_iostream_ops_t _net_conn_ops = {
     .seek = _net_conn_ops_seek,
     .set_callback = _net_conn_ops_set_callback,
     .close = _net_conn_ops_close,
+    .eof = _net_conn_ops_eof,
 };
 
 sys_iostream_t *_net_wrap_connected_fd(int fd, net_proto_t proto) {

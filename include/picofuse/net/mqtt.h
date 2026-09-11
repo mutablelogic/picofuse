@@ -30,6 +30,19 @@ extern "C" {
 #define NET_MQTT_TOPIC_CAPACITY 8
 #endif
 
+/**
+ * @def NET_MQTT_TOPIC_FILTER_SIZE
+ * @ingroup NetworkMQTT
+ * @brief Maximum length, in bytes including the terminating NUL, of a
+ * topic filter passed to net_mqtt_subscribe()/net_mqtt_unsubscribe().
+ * Both reject (return 0) a filter that doesn't fit, rather than silently
+ * truncating it - a truncated filter would subscribe to (or unsubscribe
+ * from) a different topic than the one actually requested.
+ */
+#ifndef NET_MQTT_TOPIC_FILTER_SIZE
+#define NET_MQTT_TOPIC_FILTER_SIZE 128
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -68,9 +81,8 @@ typedef enum {
  * it's a per-message property of the MQTT protocol itself (each PUBLISH/
  * SUBSCRIBE carries its own), not a connection-level setting, so it'll be
  * a parameter on those calls rather than living here. Session state
- * (clean session vs. resumed) and keep-alive timing aren't exposed either
- * - the implementation always connects with a clean session and its own
- * fixed keep-alive interval.
+ * (clean session vs. resumed) isn't exposed either - the implementation
+ * always connects with a clean session.
  */
 typedef struct {
   const char *client_id; ///< MQTT client identifier sent in CONNECT. `NULL`
@@ -79,6 +91,16 @@ typedef struct {
                          ///< empty sends none.
   const char *password;  ///< Optional password sent in CONNECT. Only ever
                          ///< sent alongside a non-empty username.
+  uint16_t keepalive_s;  ///< Keep-alive interval, in seconds, sent in
+                         ///< CONNECT - `0` defaults to 60. A compliant
+                         ///< broker drops the connection after roughly
+                         ///< 1.5x this interval with no traffic from this
+                         ///< client; net_poll() sends an automatic
+                         ///< PINGREQ once this much time has passed since
+                         ///< the last one (or since connecting), so this
+                         ///< rarely needs setting explicitly - lower it
+                         ///< only for a broker/network that needs faster
+                         ///< liveness detection, or for testing.
 } net_mqtt_config_t;
 
 /**
@@ -172,11 +194,17 @@ typedef struct {
  */
 typedef struct {
   const char *message; ///< Human-readable description of what failed.
-  uint32_t message_id; ///< The id net_mqtt_publish() returned for the
-                       ///< call this error belongs to, if any - `0` if
-                       ///< this error isn't tied to a specific publish
-                       ///< (`0` is never a real net_mqtt_publish() id -
-                       ///< see its own doc).
+  uint32_t message_id; ///< The id net_mqtt_publish()/net_mqtt_subscribe()/
+                       ///< net_mqtt_unsubscribe() returned for the call
+                       ///< this error belongs to, if any - `0` if this
+                       ///< error isn't tied to a specific one of those
+                       ///< calls (a connection-level failure, say). All
+                       ///< three draw from the same id space (see
+                       ///< net_mqtt_publish()'s own doc on
+                       ///< next_message_id), so a nonzero value here is
+                       ///< unambiguous regardless of which kind of call
+                       ///< it came from - `0` is never a real id from any
+                       ///< of them.
 } net_mqtt_error_t;
 
 /**
@@ -227,6 +255,7 @@ typedef void (*net_mqtt_event_callback_t)(net_mqtt_t *mqtt,
  * environment's own name and serial number - the same one net_mqtt_init()
  * falls back to when passed `NULL` directly, so calling this first isn't
  * required. username/password default to `NULL` (no authentication).
+ * keepalive_s defaults to `0` (net_mqtt_init()'s own 60-second default).
  * Useful for a caller that wants the defaults as a starting
  * point to then override just one or two fields.
  */
@@ -241,8 +270,8 @@ void net_mqtt_default_config(net_mqtt_config_t *config);
  * @param timeout_ms How long the client waits for a reply before giving up,
  * on every call made with the returned handle.
  * @param config Optional pointer to extended connection settings - see
- * net_mqtt_config_t. Pass `NULL` for an auto-generated client_id (same as
- * net_mqtt_default_config()'s own defaults).
+ * net_mqtt_config_t. Pass `NULL` for an auto-generated client_id and a
+ * 60-second keepalive (same as net_mqtt_default_config()'s own defaults).
  * @return Handle for net_mqtt operations, or NULL if @p addr was `NULL`,
  * or another handle is already active - see net_mqtt_t's own doc on why
  * there's no pool.
@@ -395,11 +424,13 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
  * @ingroup NetworkMQTT
  * @param mqtt Handle from net_mqtt_init(), must be connected.
  * @param topic Topic filter - may include MQTT wildcards (`+` for a
- * single level, `#` as a trailing multi-level match). Copied, not
- * borrowed - unlike net_mqtt_publish()'s @p topic, there's no need to
- * keep this valid after the call returns (it's copied into the
- * subscription table immediately, since a confirmed subscription has to
- * outlive the call either way).
+ * single level, `#` as a trailing multi-level match). Must fit within
+ * NET_MQTT_TOPIC_FILTER_SIZE bytes including its terminating NUL, or
+ * this fails (see @return) - copied, not borrowed, unlike
+ * net_mqtt_publish()'s @p topic, there's no need to keep this valid
+ * after the call returns (it's copied into the subscription table
+ * immediately, since a confirmed subscription has to outlive the call
+ * either way).
  * @param qos Maximum delivery guarantee requested for this subscription -
  * see net_mqtt_qos_t. The broker may grant a lower QoS than requested,
  * never higher - see net_mqtt_subscribed_t::granted_qos. Only
@@ -407,9 +438,9 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
  * net_mqtt_qos_2 currently just fails (see @return).
  * @return A message id (never 0) if the request was accepted for
  * sending - not yet sent, see below. `0` if @p mqtt was NULL, @p topic
- * was NULL, @p qos wasn't net_mqtt_qos_0, NET_MQTT_TOPIC_CAPACITY active
- * filters are already in use, or - after waiting, see below - @p mqtt
- * wasn't/isn't connected.
+ * was NULL, too long (see its own doc), @p qos wasn't net_mqtt_qos_0,
+ * NET_MQTT_TOPIC_CAPACITY active filters are already in use, or - after
+ * waiting, see below - @p mqtt wasn't/isn't connected.
  *
  * Same staged design as net_mqtt_publish(), for the identical reason -
  * see its own doc: this stages the request and returns, net_poll() does
@@ -434,11 +465,14 @@ uint32_t net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
  * @param mqtt Handle from net_mqtt_init(), must be connected.
  * @param topic Topic filter previously passed to net_mqtt_subscribe() -
  * must match exactly, not just overlap. Copied, not borrowed - same
- * reasoning as net_mqtt_subscribe()'s own @p topic.
+ * reasoning as net_mqtt_subscribe()'s own @p topic (including its
+ * NET_MQTT_TOPIC_FILTER_SIZE limit, though nothing longer could ever
+ * have been successfully subscribed to in the first place).
  * @return A message id (never 0) if the request was accepted for
  * sending - not yet sent, see below. `0` if @p mqtt was NULL, @p topic
- * was NULL or not currently subscribed (see net_mqtt_subscribe()), or -
- * after waiting, see below - @p mqtt wasn't/isn't connected.
+ * was NULL, too long, or not currently subscribed (see
+ * net_mqtt_subscribe()), or - after waiting, see below - @p mqtt
+ * wasn't/isn't connected.
  *
  * Same staged design as net_mqtt_subscribe(), for the identical reason -
  * see its own doc: this stages the request and returns, net_poll() does

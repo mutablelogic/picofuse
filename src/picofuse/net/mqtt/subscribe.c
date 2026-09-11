@@ -52,17 +52,28 @@ uint32_t net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
     return 0; // Only QoS 0 is implemented so far - see net_mqtt_subscribe()'s
               // own doc.
   }
+  if (strlen(topic) >= sizeof(mqtt->subscribe.filter)) {
+    return 0; // Wouldn't fit NET_MQTT_TOPIC_FILTER_SIZE - see its own
+              // doc on why this is rejected rather than left to
+              // sys_sprintf()'s own silent truncation below, which would
+              // subscribe to a different filter than the one requested.
+  }
 
   sys_mutex_lock(mqtt->lock);
 
   // Wait for either a free subscribe slot or a disconnect - same rules,
-  // same shared publish_cond, and the same timeout_ms == 0 convention as
-  // net_mqtt_publish() - see its own doc for the full reasoning.
+  // same shared publish_cond, same timeout_ms == 0 convention, and the
+  // same fixed-deadline (not re-armed on every spurious/unrelated wake)
+  // timing as net_mqtt_publish() - see its own doc for the full
+  // reasoning on both.
   uint32_t timeout_ms = mqtt->timeout_ms;
+  uint64_t wait_start_ms = sys_timestamp_ms();
   while (mqtt->connected &&
          mqtt->subscribe.state != _net_mqtt_subscribe_idle) {
-    if (timeout_ms == 0 ||
-        !sys_cond_timedwait(mqtt->publish_cond, mqtt->lock, timeout_ms)) {
+    uint64_t elapsed_ms = sys_timestamp_ms() - wait_start_ms;
+    if (timeout_ms == 0 || elapsed_ms >= timeout_ms ||
+        !sys_cond_timedwait(mqtt->publish_cond, mqtt->lock,
+                            timeout_ms - (uint32_t)elapsed_ms)) {
       sys_mutex_unlock(mqtt->lock);
       return 0; // Timed out (or timeout_ms == 0) still waiting for a
                 // free slot.
@@ -97,19 +108,31 @@ uint32_t net_mqtt_unsubscribe(net_mqtt_t *mqtt, const char *topic) {
   if (mqtt == NULL || mqtt != &_net_mqtt_singleton || topic == NULL) {
     return 0;
   }
+  if (strlen(topic) >= sizeof(mqtt->unsubscribe.filter)) {
+    return 0; // Same reasoning as net_mqtt_subscribe()'s own check -
+              // moot in practice, since nothing this long could ever
+              // have been successfully subscribed to in the first
+              // place, but that's exactly what makes it safe to reject
+              // here too rather than let sys_sprintf() silently
+              // truncate it below into matching some other, shorter
+              // filter by coincidence.
+  }
 
   sys_mutex_lock(mqtt->lock);
 
   // Wait for either a free unsubscribe slot or a disconnect - independent
   // of subscribe's own slot (see _net_mqtt_unsubscribe_state_t's own
   // doc), but otherwise the same rules/shared publish_cond/timeout_ms ==
-  // 0 convention as net_mqtt_publish() - see its own doc for the full
-  // reasoning.
+  // 0 convention/fixed-deadline timing as net_mqtt_publish() - see its
+  // own doc for the full reasoning on both.
   uint32_t timeout_ms = mqtt->timeout_ms;
+  uint64_t wait_start_ms = sys_timestamp_ms();
   while (mqtt->connected &&
          mqtt->unsubscribe.state != _net_mqtt_unsubscribe_idle) {
-    if (timeout_ms == 0 ||
-        !sys_cond_timedwait(mqtt->publish_cond, mqtt->lock, timeout_ms)) {
+    uint64_t elapsed_ms = sys_timestamp_ms() - wait_start_ms;
+    if (timeout_ms == 0 || elapsed_ms >= timeout_ms ||
+        !sys_cond_timedwait(mqtt->publish_cond, mqtt->lock,
+                            timeout_ms - (uint32_t)elapsed_ms)) {
       sys_mutex_unlock(mqtt->lock);
       return 0; // Timed out (or timeout_ms == 0) still waiting for a
                 // free slot.
