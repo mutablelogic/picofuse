@@ -58,6 +58,7 @@ test_main_hw(0) {
     sys_sleep_ms(1500);
   }
 
+  pix_display_deinit(display);
   hw_deviceio_deinit(device);
   hw_gpio_deinit(bl);
   hw_gpio_deinit(cs);

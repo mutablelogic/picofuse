@@ -47,12 +47,13 @@ static const uint8_t _st7701_bk3_select[] = {0x77, 0x01, 0x00, 0x00, 0x13};
 // Longest argument list any single _dev_st7701_command() call below needs.
 #define ST7701_MAX_COMMAND_ARGS 16u
 
+// Ma
+#define ST7701_LNESET_MAX_HEIGHT 1024u // Line[6:0] is 7 bits: (127+1)*8
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// Backend-private per-display state, stored in pix_display_t's own
-// embedded context (see _pix_display_context()) rather than a separately
-// allocated handle - same shape as dev/sdl's _dev_sdl_ctx_t.
+// ST7701 context
 typedef struct {
   hw_deviceio_t *device;
   hw_pwm_t *bl_pwm; // Optional - NULL if bl_pin wasn't given, or its PWM failed
@@ -137,90 +138,120 @@ static float _dev_st7701_backlight_duty_percent(uint8_t brightness) {
 }
 
 // Panel bring-up sequence, adapted from Pimoroni's own ST7701::common_init()
-// - register tuning specific to Presto's own 480x480 panel (TL040WVS03CT15
-// -H1263A per their comments), not documented in the ST7701 datasheet
-// itself.
-static bool _dev_st7701_common_init(pix_display_t *display,
+// - mostly gamma/voltage/"Forbidden Knowledge" tuning specific to Presto's
+// own TL040WVS03CT15-H1263A glass, not documented in the ST7701 datasheet
+// itself (LNESET is the one exception - see its own comment below).
+static bool _dev_st7701_common_init(pix_display_t *display, pix_size_t size,
                                     const dev_st7701_config_t *config) {
-  _dev_st7701_command(display, ST7701_SWRESET, NULL, 0);
+  // Accumulated with short-circuiting `&&`, so a failed transfer both
+  // gets reported and stops any further commands from being issued -
+  // not just a discarded-result, always-true rubber stamp.
+  bool ok = _dev_st7701_command(display, ST7701_SWRESET, NULL, 0);
   sys_sleep_ms(150);
 
-  _dev_st7701_bk0_enable(display);
-  _dev_st7701_command(display, ST7701_BK0_LNESET, (const uint8_t[]){0x3b, 0x00},
-                      2);
-  _dev_st7701_command(display, ST7701_BK0_PORCTRL,
-                      (const uint8_t[]){0x0d, 0x02}, 2);
-  _dev_st7701_command(display, ST7701_BK0_INVSET, (const uint8_t[]){0x31, 0x01},
-                      2);
-  _dev_st7701_command(display, ST7701_BK0_COLCTRL, (const uint8_t[]){0x08}, 1);
-  _dev_st7701_command(display, ST7701_BK0_PVGAMCTRL,
-                      (const uint8_t[]){0x00, 0x11, 0x18, 0x0e, 0x11, 0x06,
-                                        0x07, 0x08, 0x07, 0x22, 0x04, 0x12,
-                                        0x0f, 0xaa, 0x31, 0x18},
-                      16);
-  _dev_st7701_command(display, ST7701_BK0_NVGAMCTRL,
-                      (const uint8_t[]){0x00, 0x11, 0x19, 0x0e, 0x12, 0x07,
-                                        0x08, 0x08, 0x08, 0x22, 0x04, 0x11,
-                                        0x11, 0xa9, 0x32, 0x18},
-                      16);
-  _dev_st7701_command(display, ST7701_BK0_RGBCTRL,
-                      (const uint8_t[]){0x80, 0x2e, 0x0e}, 3);
+  // NL = (Line[6:0]+1)*8 (ST7701 datasheet 12.3.2.6) - dev_st7701_init()
+  // already validated size.h is a positive multiple of 8 within range.
+  uint8_t line = (uint8_t)(size.h / 8 - 1);
+  ok = ok && _dev_st7701_bk0_enable(display);
+  ok = ok && _dev_st7701_command(display, ST7701_BK0_LNESET,
+                                 (const uint8_t[]){line, 0x00}, 2);
+  ok = ok && _dev_st7701_command(display, ST7701_BK0_PORCTRL,
+                                 (const uint8_t[]){0x0d, 0x02}, 2);
+  ok = ok && _dev_st7701_command(display, ST7701_BK0_INVSET,
+                                 (const uint8_t[]){0x31, 0x01}, 2);
+  ok = ok && _dev_st7701_command(display, ST7701_BK0_COLCTRL,
+                                 (const uint8_t[]){0x08}, 1);
+  ok = ok &&
+       _dev_st7701_command(display, ST7701_BK0_PVGAMCTRL,
+                           (const uint8_t[]){0x00, 0x11, 0x18, 0x0e, 0x11, 0x06,
+                                             0x07, 0x08, 0x07, 0x22, 0x04, 0x12,
+                                             0x0f, 0xaa, 0x31, 0x18},
+                           16);
+  ok = ok &&
+       _dev_st7701_command(display, ST7701_BK0_NVGAMCTRL,
+                           (const uint8_t[]){0x00, 0x11, 0x19, 0x0e, 0x12, 0x07,
+                                             0x08, 0x08, 0x08, 0x22, 0x04, 0x11,
+                                             0x11, 0xa9, 0x32, 0x18},
+                           16);
+  ok = ok && _dev_st7701_command(display, ST7701_BK0_RGBCTRL,
+                                 (const uint8_t[]){0x80, 0x2e, 0x0e}, 3);
 
-  _dev_st7701_bk1_enable(display);
-  _dev_st7701_command(display, ST7701_BK1_VHRS, (const uint8_t[]){0x60}, 1);
-  _dev_st7701_command(display, ST7701_BK1_VCOMS, (const uint8_t[]){0x32}, 1);
-  _dev_st7701_command(display, ST7701_BK1_VGHSS, (const uint8_t[]){0x07}, 1);
-  _dev_st7701_command(display, ST7701_BK1_TESTCMD, (const uint8_t[]){0x80}, 1);
-  _dev_st7701_command(display, ST7701_BK1_VGLS, (const uint8_t[]){0x49}, 1);
-  _dev_st7701_command(display, ST7701_BK1_PWCTRL1, (const uint8_t[]){0x85}, 1);
-  _dev_st7701_command(display, ST7701_BK1_PWCTRL2, (const uint8_t[]){0x21}, 1);
-  _dev_st7701_command(display, ST7701_BK1_PDR1, (const uint8_t[]){0x78}, 1);
-  _dev_st7701_command(display, ST7701_BK1_PDR2, (const uint8_t[]){0x78}, 1);
+  ok = ok && _dev_st7701_bk1_enable(display);
+  ok = ok && _dev_st7701_command(display, ST7701_BK1_VHRS,
+                                 (const uint8_t[]){0x60}, 1);
+  ok = ok && _dev_st7701_command(display, ST7701_BK1_VCOMS,
+                                 (const uint8_t[]){0x32}, 1);
+  ok = ok && _dev_st7701_command(display, ST7701_BK1_VGHSS,
+                                 (const uint8_t[]){0x07}, 1);
+  ok = ok && _dev_st7701_command(display, ST7701_BK1_TESTCMD,
+                                 (const uint8_t[]){0x80}, 1);
+  ok = ok && _dev_st7701_command(display, ST7701_BK1_VGLS,
+                                 (const uint8_t[]){0x49}, 1);
+  ok = ok && _dev_st7701_command(display, ST7701_BK1_PWCTRL1,
+                                 (const uint8_t[]){0x85}, 1);
+  ok = ok && _dev_st7701_command(display, ST7701_BK1_PWCTRL2,
+                                 (const uint8_t[]){0x21}, 1);
+  ok = ok && _dev_st7701_command(display, ST7701_BK1_PDR1,
+                                 (const uint8_t[]){0x78}, 1);
+  ok = ok && _dev_st7701_command(display, ST7701_BK1_PDR2,
+                                 (const uint8_t[]){0x78}, 1);
 
   // Undocumented registers required by this specific panel - still within
   // BK1 (no bank switch since the block above). Present verbatim from the
   // reference driver; the display doesn't work without them.
-  _dev_st7701_command(display, 0xE0, (const uint8_t[]){0x00, 0x1b, 0x02}, 3);
-  _dev_st7701_command(display, 0xE1,
-                      (const uint8_t[]){0x08, 0xa0, 0x00, 0x00, 0x07, 0xa0,
-                                        0x00, 0x00, 0x00, 0x44, 0x44},
-                      11);
-  _dev_st7701_command(display, 0xE2,
-                      (const uint8_t[]){0x11, 0x11, 0x44, 0x44, 0xed, 0xa0,
-                                        0x00, 0x00, 0xec, 0xa0, 0x00, 0x00},
-                      12);
-  _dev_st7701_command(display, 0xE3, (const uint8_t[]){0x00, 0x00, 0x11, 0x11},
-                      4);
-  _dev_st7701_command(display, 0xE4, (const uint8_t[]){0x44, 0x44}, 2);
-  _dev_st7701_command(display, 0xE5,
-                      (const uint8_t[]){0x0a, 0xe9, 0xd8, 0xa0, 0x0c, 0xeb,
-                                        0xd8, 0xa0, 0x0e, 0xed, 0xd8, 0xa0,
-                                        0x10, 0xef, 0xd8, 0xa0},
-                      16);
-  _dev_st7701_command(display, 0xE6, (const uint8_t[]){0x00, 0x00, 0x11, 0x11},
-                      4);
-  _dev_st7701_command(display, 0xE7, (const uint8_t[]){0x44, 0x44}, 2);
-  _dev_st7701_command(display, 0xE8,
-                      (const uint8_t[]){0x09, 0xe8, 0xd8, 0xa0, 0x0b, 0xea,
-                                        0xd8, 0xa0, 0x0d, 0xec, 0xd8, 0xa0,
-                                        0x0f, 0xee, 0xd8, 0xa0},
-                      16);
-  _dev_st7701_command(
-      display, 0xEB,
-      (const uint8_t[]){0x02, 0x00, 0xe4, 0xe4, 0x88, 0x00, 0x40}, 7);
-  _dev_st7701_command(display, 0xEC, (const uint8_t[]){0x3c, 0x00}, 2);
-  _dev_st7701_command(display, 0xED,
-                      (const uint8_t[]){0xab, 0x89, 0x76, 0x54, 0x02, 0xff,
-                                        0xff, 0xff, 0xff, 0xff, 0xff, 0x20,
-                                        0x45, 0x67, 0x98, 0xba},
-                      16);
-  _dev_st7701_command(display, ST7701_MADCTL, (const uint8_t[]){0x00}, 1);
+  ok = ok && _dev_st7701_command(display, 0xE0,
+                                 (const uint8_t[]){0x00, 0x1b, 0x02}, 3);
+  ok = ok &&
+       _dev_st7701_command(display, 0xE1,
+                           (const uint8_t[]){0x08, 0xa0, 0x00, 0x00, 0x07, 0xa0,
+                                             0x00, 0x00, 0x00, 0x44, 0x44},
+                           11);
+  ok = ok && _dev_st7701_command(display, 0xE2,
+                                 (const uint8_t[]){0x11, 0x11, 0x44, 0x44, 0xed,
+                                                   0xa0, 0x00, 0x00, 0xec, 0xa0,
+                                                   0x00, 0x00},
+                                 12);
+  ok = ok && _dev_st7701_command(display, 0xE3,
+                                 (const uint8_t[]){0x00, 0x00, 0x11, 0x11}, 4);
+  ok = ok &&
+       _dev_st7701_command(display, 0xE4, (const uint8_t[]){0x44, 0x44}, 2);
+  ok = ok &&
+       _dev_st7701_command(display, 0xE5,
+                           (const uint8_t[]){0x0a, 0xe9, 0xd8, 0xa0, 0x0c, 0xeb,
+                                             0xd8, 0xa0, 0x0e, 0xed, 0xd8, 0xa0,
+                                             0x10, 0xef, 0xd8, 0xa0},
+                           16);
+  ok = ok && _dev_st7701_command(display, 0xE6,
+                                 (const uint8_t[]){0x00, 0x00, 0x11, 0x11}, 4);
+  ok = ok &&
+       _dev_st7701_command(display, 0xE7, (const uint8_t[]){0x44, 0x44}, 2);
+  ok = ok &&
+       _dev_st7701_command(display, 0xE8,
+                           (const uint8_t[]){0x09, 0xe8, 0xd8, 0xa0, 0x0b, 0xea,
+                                             0xd8, 0xa0, 0x0d, 0xec, 0xd8, 0xa0,
+                                             0x0f, 0xee, 0xd8, 0xa0},
+                           16);
+  ok =
+      ok && _dev_st7701_command(
+                display, 0xEB,
+                (const uint8_t[]){0x02, 0x00, 0xe4, 0xe4, 0x88, 0x00, 0x40}, 7);
+  ok = ok &&
+       _dev_st7701_command(display, 0xEC, (const uint8_t[]){0x3c, 0x00}, 2);
+  ok = ok &&
+       _dev_st7701_command(display, 0xED,
+                           (const uint8_t[]){0xab, 0x89, 0x76, 0x54, 0x02, 0xff,
+                                             0xff, 0xff, 0xff, 0xff, 0xff, 0x20,
+                                             0x45, 0x67, 0x98, 0xba},
+                           16);
+  ok = ok &&
+       _dev_st7701_command(display, ST7701_MADCTL, (const uint8_t[]){0x00}, 1);
 
-  _dev_st7701_bk3_enable(display);
-  _dev_st7701_command(display, 0xE5, (const uint8_t[]){0xe4}, 1);
+  ok = ok && _dev_st7701_bk3_enable(display);
+  ok = ok && _dev_st7701_command(display, 0xE5, (const uint8_t[]){0xe4}, 1);
 
-  _dev_st7701_bkx_disable(display);
-  _dev_st7701_command(display, ST7701_COLMOD, (const uint8_t[]){0x66}, 1);
+  ok = ok && _dev_st7701_bkx_disable(display);
+  ok = ok &&
+       _dev_st7701_command(display, ST7701_COLMOD, (const uint8_t[]){0x66}, 1);
 
   // Rotation - only 0/180 supported, matching the reference driver.
   // Mirrors the reference's own set_rotation(), just inlined rather than
@@ -231,18 +262,18 @@ static bool _dev_st7701_common_init(pix_display_t *display,
     madctl = 0x10;
     sdir = 0x04;
   }
-  _dev_st7701_command(display, ST7701_MADCTL, &madctl, 1);
-  _dev_st7701_bk0_enable(display);
-  _dev_st7701_command(display, ST7701_BK0_SDIR, &sdir, 1);
-  _dev_st7701_bkx_disable(display);
+  ok = ok && _dev_st7701_command(display, ST7701_MADCTL, &madctl, 1);
+  ok = ok && _dev_st7701_bk0_enable(display);
+  ok = ok && _dev_st7701_command(display, ST7701_BK0_SDIR, &sdir, 1);
+  ok = ok && _dev_st7701_bkx_disable(display);
 
-  _dev_st7701_command(display, ST7701_INVON, NULL, 0);
+  ok = ok && _dev_st7701_command(display, ST7701_INVON, NULL, 0);
   sys_sleep_ms(1);
-  _dev_st7701_command(display, ST7701_SLPOUT, NULL, 0);
+  ok = ok && _dev_st7701_command(display, ST7701_SLPOUT, NULL, 0);
   sys_sleep_ms(120);
-  _dev_st7701_command(display, ST7701_DISPON, NULL, 0);
+  ok = ok && _dev_st7701_command(display, ST7701_DISPON, NULL, 0);
   sys_sleep_ms(50);
-  return true;
+  return ok;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -264,7 +295,11 @@ void dev_st7701_default_config(dev_st7701_config_t *config) {
  * must be a hw_spi_init() handle configured with `bits_per_word = 9`,
  * command/data select packed as the 9th bit of every word (see
  * hw_deviceio_xfr()).
- *  @param size Panel resolution.
+ *  @param size Panel resolution. `size.w` just needs to be nonzero - the
+ * current SPI-only bring-up sequence doesn't otherwise depend on it (see
+ * this file's own CONSTANTS comment). `size.h` must be a positive
+ * multiple of 8, up to 1024, and is used to compute the LNESET register
+ * directly.
  *  @param bl_pin Optional GPIO handle for the backlight. Pass `NULL` if
  * the backlight isn't software-controlled.
  *  @param config Optional pointer to initialization options. Pass `NULL`
@@ -274,7 +309,8 @@ void dev_st7701_default_config(dev_st7701_config_t *config) {
 pix_display_t *dev_st7701_init(hw_deviceio_t *device, pix_size_t size,
                                hw_gpio_t *bl_pin,
                                const dev_st7701_config_t *config) {
-  if (device == NULL || size.w == 0 || size.h == 0) {
+  if (device == NULL || size.w == 0 || size.h == 0 || size.h % 8 != 0 ||
+      size.h > ST7701_LNESET_MAX_HEIGHT) {
     sys_debugf("st7701", "dev_st7701_init: invalid arguments");
     return NULL;
   }
@@ -327,7 +363,7 @@ pix_display_t *dev_st7701_init(hw_deviceio_t *device, pix_size_t size,
   ctx->bl_pwm = bl_pwm;
 
   // Initalize the hardware
-  if (!_dev_st7701_common_init(display, &settings)) {
+  if (!_dev_st7701_common_init(display, size, &settings)) {
     sys_debugf("st7701", "dev_st7701_init: panel bring-up failed");
     if (bl_pwm != NULL) {
       hw_pwm_deinit(bl_pwm);
