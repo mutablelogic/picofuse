@@ -13,6 +13,11 @@
 // simply truncated (see sys_sprintf()'s own truncation semantics).
 #define NET_MQTT_CREDENTIAL_SIZE 128
 
+// A topic filter longer than this is simply truncated (see
+// sys_sprintf()'s own truncation semantics) - generous for the nested
+// path-like filters MQTT topics typically are.
+#define NET_MQTT_TOPIC_FILTER_SIZE 128
+
 // Fixed internally
 #define _NET_MQTT_KEEPALIVE_S 60
 
@@ -28,6 +33,9 @@
 #define _NET_MQTT_PACKET_PUBREC 0x50
 #define _NET_MQTT_PACKET_PUBREL 0x62
 #define _NET_MQTT_PACKET_PUBCOMP 0x70
+#define _NET_MQTT_PACKET_SUBSCRIBE 0x82 // Reserved flags fixed at 0x2, like
+                                        // PUBREL - see its own doc.
+#define _NET_MQTT_PACKET_SUBACK 0x90
 #define _NET_MQTT_PACKET_DISCONNECT 0xE0
 
 // PUBLISH's own QoS bits (bits 2-1 of its fixed header byte, alongside
@@ -97,6 +105,56 @@ typedef struct {
                        // timeout_ms of it.
 } _net_mqtt_publish_pending_t;
 
+// What (if anything) net_poll() (poll.c) needs to do for this handle's
+// outstanding subscribe request - see net_mqtt_subscribe()'s own doc on
+// why sending happens there, same reasoning as publish's own state
+// machine (_net_mqtt_publish_state_t). Only one outstanding subscribe
+// request at a time, same as publish.
+typedef enum {
+  _net_mqtt_subscribe_idle,       // Nothing to do.
+  _net_mqtt_subscribe_requesting, // Send SUBSCRIBE (with a packet id) and
+                                  // move to wait_suback.
+  _net_mqtt_subscribe_wait_suback, // Sent - waiting for a SUBACK whose
+                                   // packet id matches, carrying the
+                                   // broker's granted QoS.
+} _net_mqtt_subscribe_state_t;
+
+// One confirmed (SUBACK'd) subscription - see net_mqtt_t::topics's own
+// doc. Unlike _net_mqtt_subscribe_pending_t below (the in-flight
+// handshake, one at a time), this is the long-lived table of everything
+// currently subscribed.
+typedef struct {
+  bool active;
+  char filter[NET_MQTT_TOPIC_FILTER_SIZE];
+  net_mqtt_qos_t granted_qos;
+} _net_mqtt_topic_t;
+
+// Staged by net_mqtt_subscribe(), consumed by net_poll() - see
+// _net_mqtt_subscribe_state_t's own doc.
+typedef struct {
+  _net_mqtt_subscribe_state_t state;
+  char filter[NET_MQTT_TOPIC_FILTER_SIZE]; // Copied at stage time - see
+                                           // net_mqtt_subscribe()'s own
+                                           // doc on why (unlike publish's
+                                           // borrowed topic).
+  net_mqtt_qos_t requested_qos;
+  uint32_t message_id; // Already allocated at stage time - see
+                       // net_mqtt_publish_pending_t::message_id's own
+                       // doc for the identical reasoning.
+  uint16_t packet_id;  // Shares net_mqtt_t::next_packet_id's counter with
+                       // publish - packet ids are one namespace for the
+                       // whole connection, not per-operation-kind.
+  uint64_t sent_at_ms; // sys_timestamp_ms() when SUBSCRIBE went out - see
+                       // _net_mqtt_publish_pending_t::sent_at_ms's own
+                       // doc for the identical reasoning.
+  _net_mqtt_topic_t *topic; // Slot in net_mqtt_t::topics reserved by
+                       // _net_mqtt_topic_alloc() at stage time (NULL if
+                       // none/idle) - poll.c's future SUBACK handling
+                       // fills it in (or, on denial/failure,
+                       // _net_mqtt_topic_free()s it back) rather than
+                       // needing to find a slot itself at confirm time.
+} _net_mqtt_subscribe_pending_t;
+
 // A singleton, not a pool - see net_mqtt_t's own doc on why.
 struct net_mqtt_t {
   net_addr_t addr;
@@ -139,6 +197,13 @@ struct net_mqtt_t {
                            // next_message_id where 0 is just our own
                            // "failure" sentinel.
   _net_mqtt_publish_pending_t publish; // Guarded by lock.
+  _net_mqtt_subscribe_pending_t subscribe; // Guarded by lock.
+  _net_mqtt_topic_t topics[NET_MQTT_TOPIC_CAPACITY]; // Guarded by lock -
+                                                     // confirmed
+                                                     // subscriptions only;
+                                                     // see
+                                                     // _net_mqtt_topic_t's
+                                                     // own doc.
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -151,19 +216,43 @@ extern struct net_mqtt_t _net_mqtt_singleton;
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-/** @brief Delivers @p event to the singleton's registered callback, if
- * any - a no-op (not an error) if none is currently set. */
-void _net_mqtt_fire_event(const net_mqtt_event_t *event);
+/** @brief Delivers @p event to @p mqtt's registered callback, if any - a
+ * no-op (not an error) if none is currently set. */
+void _net_mqtt_fire_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event);
 
-/** @brief Tears down the connection after a mid-packet I/O failure (a
- * partial write/read leaves the connection's framing unrecoverable, so
- * it can't just be left looking usable) - closes and clears conn/
- * connected. Caller must already hold `lock` and must fire a
- * net_mqtt_event_disconnected event itself once it's released - this
- * doesn't fire one on its own, since it never unlocks (see this module's
- * lock discipline: never fire an event while holding the lock). A no-op
- * if not currently connected. */
-void _net_mqtt_abort_connection_locked(void);
+/** @brief Tears down @p mqtt's connection after a mid-packet I/O failure
+ * (a partial write/read leaves the connection's framing unrecoverable,
+ * so it can't just be left looking usable) - closes and clears conn/
+ * connected, and abandons any staged/in-flight publish or subscribe
+ * request (see net_mqtt_publish()/net_mqtt_subscribe()'s own doc on that
+ * being a silent abandonment). Caller must already hold `lock` and must
+ * fire a net_mqtt_event_disconnected event itself once it's released -
+ * this doesn't fire one on its own, since it never unlocks (see this
+ * module's lock discipline: never fire an event while holding the
+ * lock). A no-op if not currently connected. */
+void _net_mqtt_abort_connection_locked(net_mqtt_t *mqtt);
+
+/** @brief Allocates the next client-side message id for @p mqtt,
+ * skipping 0 on wraparound - see net_mqtt_t::next_message_id's own doc
+ * on why (0 is our own "failure" sentinel, not a protocol requirement
+ * the way packet ids are). Shared by net_mqtt_publish() and
+ * net_mqtt_subscribe(). */
+uint32_t _net_mqtt_next_message_id(net_mqtt_t *mqtt);
+
+/** @brief Allocates the next wire-level Packet Identifier for @p mqtt,
+ * skipping 0 - see net_mqtt_t::next_packet_id's own doc on why (the
+ * protocol itself reserves 0, not just a "failure" convention of our
+ * own). Shared by net_mqtt_publish() and net_mqtt_subscribe() - packet
+ * ids are one namespace for the whole connection. */
+uint16_t _net_mqtt_next_packet_id(net_mqtt_t *mqtt);
+
+/** @brief Releases @p topic - a slot _net_mqtt_topic_alloc()
+ * (subscribe.c) reserved in @p mqtt's topics - making it available again.
+ * A no-op for a NULL @p topic, so callers that may or may not have
+ * actually allocated one don't each need their own guard (see
+ * _net_mqtt_subscribe_pending_t::topic's own doc). Caller must already
+ * hold `lock`. */
+void _net_mqtt_topic_free(net_mqtt_t *mqtt, _net_mqtt_topic_t *topic);
 
 /** @brief Writes exactly @p n bytes to @p conn, retrying short writes
  * until either the whole write completes or @p timeout_ms elapses.

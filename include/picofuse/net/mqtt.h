@@ -95,6 +95,8 @@ typedef enum {
                                ///< carries no payload.
   net_mqtt_event_sent,         ///< A net_mqtt_publish() call completed -
                                ///< see net_mqtt_sent_t.
+  net_mqtt_event_subscribed,   ///< A net_mqtt_subscribe() call completed -
+                               ///< see net_mqtt_subscribed_t.
   net_mqtt_event_received,     ///< A message arrived on a subscribed
                                ///< topic - see net_mqtt_received_t.
   net_mqtt_event_error,        ///< Something failed - see net_mqtt_error_t.
@@ -111,6 +113,18 @@ typedef struct {
                         ///< with several publishes in flight match each
                         ///< one to its own completion.
 } net_mqtt_sent_t;
+
+/**
+ * @brief Payload for a net_mqtt_event_subscribed event.
+ * @ingroup NetworkMQTT
+ */
+typedef struct {
+  net_mqtt_qos_t granted_qos; ///< The QoS the broker actually granted for
+                             ///< this subscription - may be lower than
+                             ///< what was requested, never higher.
+  uint32_t message_id;       ///< The id net_mqtt_subscribe() returned for
+                             ///< the call this event completes.
+} net_mqtt_subscribed_t;
 
 /**
  * @brief Payload for a net_mqtt_event_received event.
@@ -163,6 +177,7 @@ typedef struct {
   net_mqtt_event_type_t type; ///< Event payload tag.
   union {
     net_mqtt_sent_t sent;
+    net_mqtt_subscribed_t subscribed;
     net_mqtt_received_t received;
     net_mqtt_error_t error;
   } data; ///< Payload selected by type - connected/disconnected carry none.
@@ -360,28 +375,42 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
  * @{ */
 
 /**
- * @brief Subscribe to a topic filter.
+ * @brief Stage a subscription to a topic filter, waiting for room to do so.
  * @ingroup NetworkMQTT
  * @param mqtt Handle from net_mqtt_init(), must be connected.
  * @param topic Topic filter - may include MQTT wildcards (`+` for a
- * single level, `#` as a trailing multi-level match).
+ * single level, `#` as a trailing multi-level match). Copied, not
+ * borrowed - unlike net_mqtt_publish()'s @p topic, there's no need to
+ * keep this valid after the call returns (it's copied into the
+ * subscription table immediately, since a confirmed subscription has to
+ * outlive the call either way).
  * @param qos Maximum delivery guarantee requested for this subscription -
- * see net_mqtt_qos_t. The broker may grant a lower QoS than requested;
- * whichever it grants is what's actually used for messages delivered
- * under it.
- * @retval true Subscribed - the broker acknowledged (SUBACK) within the
- * handle's timeout_ms.
- * @retval false @p mqtt was NULL or not connected, @p topic was NULL,
- * NET_MQTT_TOPIC_CAPACITY active filters are already in use, or the
- * broker didn't acknowledge within timeout_ms.
+ * see net_mqtt_qos_t. The broker may grant a lower QoS than requested,
+ * never higher - see net_mqtt_subscribed_t::granted_qos. Only
+ * net_mqtt_qos_0 is implemented so far - requesting net_mqtt_qos_1/
+ * net_mqtt_qos_2 currently just fails (see @return).
+ * @return A message id (never 0) if the request was accepted for
+ * sending - not yet sent, see below. `0` if @p mqtt was NULL, @p topic
+ * was NULL, @p qos wasn't net_mqtt_qos_0, NET_MQTT_TOPIC_CAPACITY active
+ * filters are already in use, or - after waiting, see below - @p mqtt
+ * wasn't/isn't connected.
+ *
+ * Same staged design as net_mqtt_publish(), for the identical reason -
+ * see its own doc: this stages the request and returns, net_poll() does
+ * the actual write and waits for the broker's SUBACK, and only one
+ * outstanding subscribe request is served at a time (blocking here, not
+ * failing, if another is already in flight - same rules as
+ * net_mqtt_publish()'s own pending-slot wait). Completion (or failure)
+ * is reported via a net_mqtt_event_subscribed or net_mqtt_event_error
+ * event whose payload carries this same message id.
  *
  * Messages matching this filter arrive - via net_poll() - as
  * net_mqtt_event_received events on whichever callback is currently
  * registered via net_mqtt_set_callback() - register that first, since
  * nothing is queued for a callback that isn't set yet.
  */
-bool net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
-                        net_mqtt_qos_t qos);
+uint32_t net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
+                            net_mqtt_qos_t qos);
 
 /**
  * @brief Unsubscribe from a topic filter.

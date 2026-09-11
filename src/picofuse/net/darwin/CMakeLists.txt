@@ -9,6 +9,7 @@ picofuse_library(
         ../mqtt/publish.c
         ../mqtt/io.c
         ../mqtt/poll.c
+        ../mqtt/subscribe.c
         ../poll.c
         ../posix/socket.c
         ../posix/listener.c

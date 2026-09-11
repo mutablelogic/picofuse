@@ -17,6 +17,7 @@ picofuse_library(
         ../mqtt/publish.c
         ../mqtt/io.c
         ../mqtt/poll.c
+        ../mqtt/subscribe.c
         ../poll.c
         ${_net_src}
 )

@@ -14,7 +14,7 @@
 #define _NET_MQTT_CONNECT_BUF_SIZE 384
 
 bool net_mqtt_connect(net_mqtt_t *mqtt) {
-  if (mqtt == NULL || mqtt != &_net_mqtt_singleton || !_net_mqtt_singleton.active) {
+  if (mqtt == NULL || mqtt != &_net_mqtt_singleton || !mqtt->active) {
     return false;
   }
 
@@ -24,30 +24,29 @@ bool net_mqtt_connect(net_mqtt_t *mqtt) {
   // wait for it to finish (or fail) rather than racing it. See this
   // module's lock discipline: released before any event fires, so a
   // callback that calls back into this module doesn't deadlock on it.
-  sys_mutex_lock(_net_mqtt_singleton.lock);
+  sys_mutex_lock(mqtt->lock);
 
-  if (_net_mqtt_singleton.connected) {
-    sys_mutex_unlock(_net_mqtt_singleton.lock);
+  if (mqtt->connected) {
+    sys_mutex_unlock(mqtt->lock);
     return false;
   }
 
   sys_iostream_t *conn =
-      net_open(net_proto_tcp, &_net_mqtt_singleton.addr,
-               _net_mqtt_singleton.port, _net_mqtt_singleton.timeout_ms);
+      net_open(net_proto_tcp, &mqtt->addr, mqtt->port, mqtt->timeout_ms);
   if (conn == NULL) {
-    sys_mutex_unlock(_net_mqtt_singleton.lock);
+    sys_mutex_unlock(mqtt->lock);
     return false;
   }
 
   // Build the CONNECT packet
-  size_t client_id_len = strlen(_net_mqtt_singleton.client_id);
+  size_t client_id_len = strlen(mqtt->client_id);
 
   // Password only travels alongside a non-empty username - MQTT 3.1.1
   // requires that pairing (see net_mqtt_config_t::password's own doc), so
   // a password with no username is silently dropped here rather than
   // sent in a shape the spec disallows.
-  size_t username_len = strlen(_net_mqtt_singleton.username);
-  size_t password_len = (username_len > 0) ? strlen(_net_mqtt_singleton.password) : 0;
+  size_t username_len = strlen(mqtt->username);
+  size_t password_len = (username_len > 0) ? strlen(mqtt->password) : 0;
 
   uint8_t connect_flags = _NET_MQTT_CONNECT_FLAG_CLEAN_SESSION;
   uint32_t remaining_length = 10 + 2 + (uint32_t)client_id_len;
@@ -68,7 +67,7 @@ bool net_mqtt_connect(net_mqtt_t *mqtt) {
       _net_mqtt_encode_length(remaining_length, buf + pos, sizeof(buf) - pos);
   if (len_n == 0) {
     sys_iostream_close(conn);
-    sys_mutex_unlock(_net_mqtt_singleton.lock);
+    sys_mutex_unlock(mqtt->lock);
     return false;
   }
   pos += len_n;
@@ -89,49 +88,49 @@ bool net_mqtt_connect(net_mqtt_t *mqtt) {
   // support one).
   buf[pos++] = (uint8_t)(client_id_len >> 8);
   buf[pos++] = (uint8_t)(client_id_len & 0xFF);
-  memcpy(buf + pos, _net_mqtt_singleton.client_id, client_id_len);
+  memcpy(buf + pos, mqtt->client_id, client_id_len);
   pos += client_id_len;
 
   if (username_len > 0) {
     buf[pos++] = (uint8_t)(username_len >> 8);
     buf[pos++] = (uint8_t)(username_len & 0xFF);
-    memcpy(buf + pos, _net_mqtt_singleton.username, username_len);
+    memcpy(buf + pos, mqtt->username, username_len);
     pos += username_len;
   }
   if (password_len > 0) {
     buf[pos++] = (uint8_t)(password_len >> 8);
     buf[pos++] = (uint8_t)(password_len & 0xFF);
-    memcpy(buf + pos, _net_mqtt_singleton.password, password_len);
+    memcpy(buf + pos, mqtt->password, password_len);
     pos += password_len;
   }
 
-  if (!_net_mqtt_write_exact(conn, buf, pos, _net_mqtt_singleton.timeout_ms)) {
+  if (!_net_mqtt_write_exact(conn, buf, pos, mqtt->timeout_ms)) {
     sys_iostream_close(conn);
-    sys_mutex_unlock(_net_mqtt_singleton.lock);
+    sys_mutex_unlock(mqtt->lock);
     return false;
   }
 
   // CONNACK is always exactly 4 bytes in 3.1.1
   uint8_t connack[4];
   if (!_net_mqtt_read_exact(conn, connack, sizeof(connack),
-                            _net_mqtt_singleton.timeout_ms)) {
+                            mqtt->timeout_ms)) {
     sys_iostream_close(conn);
-    sys_mutex_unlock(_net_mqtt_singleton.lock);
+    sys_mutex_unlock(mqtt->lock);
     return false;
   }
   if (connack[0] != _NET_MQTT_PACKET_CONNACK || connack[1] != 0x02 ||
       connack[3] != 0x00 /* Connect Return Code: 0 = accepted */) {
     sys_iostream_close(conn);
-    sys_mutex_unlock(_net_mqtt_singleton.lock);
+    sys_mutex_unlock(mqtt->lock);
     return false;
   }
 
-  _net_mqtt_singleton.conn = conn;
-  _net_mqtt_singleton.connected = true;
-  sys_mutex_unlock(_net_mqtt_singleton.lock);
+  mqtt->conn = conn;
+  mqtt->connected = true;
+  sys_mutex_unlock(mqtt->lock);
 
   net_mqtt_event_t event = {.type = net_mqtt_event_connected};
-  _net_mqtt_fire_event(&event);
+  _net_mqtt_fire_event(mqtt, &event);
   return true;
 }
 
@@ -140,9 +139,9 @@ void net_mqtt_disconnect(net_mqtt_t *mqtt) {
     return;
   }
 
-  sys_mutex_lock(_net_mqtt_singleton.lock);
-  if (!_net_mqtt_singleton.connected) {
-    sys_mutex_unlock(_net_mqtt_singleton.lock);
+  sys_mutex_lock(mqtt->lock);
+  if (!mqtt->connected) {
+    sys_mutex_unlock(mqtt->lock);
     return;
   }
 
@@ -151,12 +150,11 @@ void net_mqtt_disconnect(net_mqtt_t *mqtt) {
   // failed/partial write here still ends at the same place as a
   // successful one, the teardown below.
   uint8_t packet[2] = {_NET_MQTT_PACKET_DISCONNECT, 0x00};
-  _net_mqtt_write_exact(_net_mqtt_singleton.conn, packet, sizeof(packet),
-                        _net_mqtt_singleton.timeout_ms);
+  _net_mqtt_write_exact(mqtt->conn, packet, sizeof(packet), mqtt->timeout_ms);
 
-  _net_mqtt_abort_connection_locked();
-  sys_mutex_unlock(_net_mqtt_singleton.lock);
+  _net_mqtt_abort_connection_locked(mqtt);
+  sys_mutex_unlock(mqtt->lock);
 
   net_mqtt_event_t event = {.type = net_mqtt_event_disconnected};
-  _net_mqtt_fire_event(&event);
+  _net_mqtt_fire_event(mqtt, &event);
 }
