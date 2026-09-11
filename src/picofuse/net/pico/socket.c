@@ -392,7 +392,10 @@ static ptrdiff_t _net_conn_ops_seek(sys_iostream_t *s, ptrdiff_t offset,
  * no connection-level teardown to report. */
 static bool _net_conn_ops_eof(sys_iostream_t *s) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
-  return ctx->gone || ctx->fin_received;
+  cyw43_arch_lwip_begin();
+  bool eof = ctx->gone || ctx->fin_received;
+  cyw43_arch_lwip_end();
+  return eof;
 }
 
 /** Sets the callback and userdata for a _net_conn_ctx_t. Always returns true.

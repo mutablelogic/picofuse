@@ -78,6 +78,7 @@ net_mqtt_t *net_mqtt_init(const net_addr_t *addr, uint16_t port,
   _net_mqtt_singleton.unsubscribe.last_timed_out_packet_id = 0;
   for (size_t i = 0; i < NET_MQTT_TOPIC_CAPACITY; i++) {
     _net_mqtt_singleton.topics[i].active = false;
+    _net_mqtt_singleton.topics[i].confirmed = false;
   }
 
   const char *client_id =

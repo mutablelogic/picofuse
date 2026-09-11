@@ -5,11 +5,18 @@
 // used by net_mqtt_unsubscribe() to both validate that @p filter is
 // actually subscribed and to locate the slot to eventually free (see
 // _net_mqtt_unsubscribe_pending_t::topic's own doc on why that happens
-// at confirm time, not here). Caller must already hold the lock.
+// at confirm time, not here). Deliberately requires `confirmed`, not
+// just `active` - see _net_mqtt_topic_t's own doc on why a
+// reserved-but-not-yet-confirmed slot must never match here: its
+// `filter` isn't meaningful yet (still whatever was last written there,
+// possibly by this very filter's own prior, already-removed
+// subscription), so matching on it could hand net_mqtt_unsubscribe() a
+// slot that's actually reserved for a completely unrelated, still-
+// pending net_mqtt_subscribe() call. Caller must already hold the lock.
 static _net_mqtt_topic_t *_net_mqtt_topic_find(net_mqtt_t *mqtt,
                                                const char *filter) {
   for (size_t i = 0; i < NET_MQTT_TOPIC_CAPACITY; i++) {
-    if (mqtt->topics[i].active &&
+    if (mqtt->topics[i].active && mqtt->topics[i].confirmed &&
         strcmp(mqtt->topics[i].filter, filter) == 0) {
       return &mqtt->topics[i];
     }
@@ -18,19 +25,21 @@ static _net_mqtt_topic_t *_net_mqtt_topic_find(net_mqtt_t *mqtt,
 }
 
 // Reserves a free slot in the confirmed-subscription table, marking it
-// active immediately - see net_mqtt_t::topics's own doc. Reserved up
-// front at stage time (rather than only once SUBACK actually confirms
-// it), so a second net_mqtt_subscribe() call sees accurate room even
-// while this one's still in flight, and poll.c's future SUBACK handling
-// has nothing left to do but fill in the filter/granted_qos this already
-// claimed a slot for (or _net_mqtt_topic_free() it back on denial/
-// failure - see _net_mqtt_abort_connection_locked()'s own doc for the
-// disconnect case). Caller must already hold the lock.
+// active (but not yet confirmed - see _net_mqtt_topic_t's own doc)
+// immediately - see net_mqtt_t::topics's own doc. Reserved up front at
+// stage time (rather than only once SUBACK actually confirms it), so a
+// second net_mqtt_subscribe() call sees accurate room even while this
+// one's still in flight, and poll.c's future SUBACK handling has nothing
+// left to do but fill in the filter/granted_qos this already claimed a
+// slot for (or _net_mqtt_topic_free() it back on denial/failure - see
+// _net_mqtt_abort_connection_locked()'s own doc for the disconnect
+// case). Caller must already hold the lock.
 // @return The reserved slot, or NULL if the pool is full.
 static _net_mqtt_topic_t *_net_mqtt_topic_alloc(net_mqtt_t *mqtt) {
   for (size_t i = 0; i < NET_MQTT_TOPIC_CAPACITY; i++) {
     if (!mqtt->topics[i].active) {
       mqtt->topics[i].active = true;
+      mqtt->topics[i].confirmed = false;
       return &mqtt->topics[i];
     }
   }
@@ -43,6 +52,7 @@ void _net_mqtt_topic_free(net_mqtt_t *mqtt, _net_mqtt_topic_t *topic) {
     return;
   }
   topic->active = false;
+  topic->confirmed = false;
 }
 
 uint32_t net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,

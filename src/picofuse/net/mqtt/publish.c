@@ -67,13 +67,25 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
     return 0;
   }
 
+  // A PUBLISH's Topic Name (unlike a SUBSCRIBE's Topic Filter - see
+  // net_mqtt_subscribe()'s own doc) is a concrete destination, not a
+  // pattern - the spec requires at least one character and forbids the
+  // wildcard characters ('+'/'#') a filter is allowed to use, since a
+  // publish has to name exactly one topic, not match a set of them. A
+  // compliant broker may reject or even close the connection over a
+  // Topic Name that breaks either rule, so it's rejected here instead.
+  size_t topic_len = strlen(topic);
+  if (topic_len == 0 || strchr(topic, '+') != NULL ||
+      strchr(topic, '#') != NULL) {
+    return 0;
+  }
+
   // Topic Name Length is a 2-byte field on the wire (see
   // _net_mqtt_poll_publish_send()'s own doc) - a topic this client can't
   // even encode a correct length prefix for is rejected here rather than
   // silently truncating that prefix while still writing the full topic
   // bytes, which would desync the connection's framing for whatever's
   // sent after it.
-  size_t topic_len = strlen(topic);
   if (topic_len > 0xFFFF) {
     return 0;
   }

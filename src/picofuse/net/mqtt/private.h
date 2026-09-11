@@ -148,12 +148,25 @@ typedef enum {
                                    // broker's granted QoS.
 } _net_mqtt_subscribe_state_t;
 
-// One confirmed (SUBACK'd) subscription - see net_mqtt_t::topics's own
-// doc. Unlike _net_mqtt_subscribe_pending_t below (the in-flight
-// handshake, one at a time), this is the long-lived table of everything
-// currently subscribed.
+// One slot in net_mqtt_t::topics - either reserved (active but not yet
+// confirmed - _net_mqtt_topic_alloc() just claimed it for a subscribe
+// that hasn't gotten its SUBACK yet, filter/granted_qos not meaningful
+// yet) or confirmed (SUBACK actually filled in filter/granted_qos - see
+// _net_mqtt_poll_subscribe_read_suback()). active alone answers "is this
+// slot in use for anything" (what _net_mqtt_topic_alloc() needs to find
+// a free one); active && confirmed answers "is this a real, current
+// subscription" (what _net_mqtt_topic_find() needs for
+// net_mqtt_unsubscribe() to validate against) - conflating the two would
+// let net_mqtt_unsubscribe() match a filter string left over in a slot
+// that's actually reserved for an unrelated, still-pending
+// net_mqtt_subscribe() call, corrupting that subscribe's own slot once
+// both operations' replies eventually arrive. Unlike
+// _net_mqtt_subscribe_pending_t below (the in-flight handshake, one at a
+// time), this whole table is the long-lived record of everything
+// reserved or currently subscribed.
 typedef struct {
   bool active;
+  bool confirmed;
   char filter[NET_MQTT_TOPIC_FILTER_SIZE];
   net_mqtt_qos_t granted_qos;
 } _net_mqtt_topic_t;

@@ -361,8 +361,11 @@ void net_mqtt_disconnect(net_mqtt_t *mqtt);
  * @ingroup NetworkMQTT
  * @param mqtt Handle from net_mqtt_init(), must be connected - see
  * net_mqtt_connect().
- * @param topic Topic to publish to. Only borrowed - see the note below on
- * how long it (and @p payload) must stay valid.
+ * @param topic Topic to publish to - a concrete destination, not a
+ * pattern: unlike net_mqtt_subscribe()'s filter, this must not be empty
+ * or contain the wildcard characters (`+`/`#`) a filter is allowed to
+ * use (see @return). Only borrowed - see the note below on how long it
+ * (and @p payload) must stay valid.
  * @param payload Message payload. May be NULL if payload_len is 0, for an
  * empty message. Only borrowed, like @p topic.
  * @param payload_len Length of payload in bytes.
@@ -374,8 +377,8 @@ void net_mqtt_disconnect(net_mqtt_t *mqtt);
  * cleared with a retained empty message.
  * @return A message id (never 0) if the message was accepted for
  * sending - not yet sent, see below. `0` if @p mqtt was NULL, @p topic
- * was NULL, or - after waiting, see below - @p mqtt wasn't/isn't
- * connected.
+ * was NULL, empty, too long to encode, or contained a wildcard character,
+ * or - after waiting, see below - @p mqtt wasn't/isn't connected.
  *
  * This doesn't send anything itself - it stages the message and returns,
  * and net_poll() does the actual write on a later call (see its own

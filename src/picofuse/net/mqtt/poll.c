@@ -280,7 +280,19 @@ static bool _net_mqtt_poll_unsubscribe_send(net_mqtt_t *mqtt) {
 static bool _net_mqtt_poll_ping_send(net_mqtt_t *mqtt) {
   sys_mutex_lock(mqtt->lock);
 
-  if (mqtt->ping_outstanding ||
+  // Unlike every *_send()/*_check_timeout() elsewhere in this file, this
+  // gate needs its own explicit `!mqtt->connected` check: theirs is a
+  // publish/subscribe/unsubscribe state machine that can only be
+  // non-idle while genuinely connected (only ever set that way under
+  // this same lock, and _net_mqtt_abort_connection_locked() resets it
+  // back to idle atomically alongside `connected` itself, so observing
+  // a non-idle state already proves connected is still true) - but this
+  // one is driven purely by elapsed wall-clock time since the last ping,
+  // with no such tie to connection state, so `net_poll()`'s own top-
+  // level `connected` check (which ran before this function's lock
+  // acquire, so a concurrent net_mqtt_disconnect() could have completed
+  // in between) isn't enough on its own.
+  if (!mqtt->connected || mqtt->ping_outstanding ||
       sys_timestamp_ms() - mqtt->ping_sent_at_ms <
           (uint64_t)mqtt->keepalive_s * 1000) {
     sys_mutex_unlock(mqtt->lock);
@@ -545,11 +557,14 @@ static bool _net_mqtt_poll_subscribe_read_suback(net_mqtt_t *mqtt) {
 
     // Success - fill in the slot _net_mqtt_topic_alloc() reserved back
     // at stage time (see _net_mqtt_subscribe_pending_t::topic's own
-    // doc).
+    // doc) and mark it confirmed - only now does its filter become
+    // something _net_mqtt_topic_find() may match against (see
+    // _net_mqtt_topic_t's own doc on why).
     net_mqtt_qos_t granted_qos = (net_mqtt_qos_t)return_code;
     sys_sprintf(topic->filter, sizeof(topic->filter), "%s",
                mqtt->subscribe.filter);
     topic->granted_qos = granted_qos;
+    topic->confirmed = true;
 
     mqtt->subscribe.topic = NULL;
     mqtt->subscribe.state = _net_mqtt_subscribe_idle;
@@ -604,7 +619,7 @@ static bool _net_mqtt_poll_unsubscribe_read_unsuback(net_mqtt_t *mqtt) {
   if (mqtt->unsubscribe.state == _net_mqtt_unsubscribe_wait_unsuback &&
       got_packet_id == mqtt->unsubscribe.packet_id) {
     uint32_t message_id = mqtt->unsubscribe.message_id;
-    mqtt->unsubscribe.topic->active = false; // Confirmed gone.
+    _net_mqtt_topic_free(mqtt, mqtt->unsubscribe.topic); // Confirmed gone.
     mqtt->unsubscribe.topic = NULL;
     mqtt->unsubscribe.state = _net_mqtt_unsubscribe_idle;
     sys_cond_broadcast(mqtt->publish_cond);

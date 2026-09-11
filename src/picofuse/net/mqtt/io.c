@@ -49,6 +49,7 @@ void _net_mqtt_abort_connection_locked(net_mqtt_t *mqtt) {
   // an unexpected drop.
   for (size_t i = 0; i < NET_MQTT_TOPIC_CAPACITY; i++) {
     mqtt->topics[i].active = false;
+    mqtt->topics[i].confirmed = false;
   }
 
   // Wakes a net_mqtt_publish()/net_mqtt_subscribe()/net_mqtt_unsubscribe()

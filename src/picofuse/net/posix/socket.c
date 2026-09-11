@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <picofuse/net.h>
 #include <picofuse/sys.h>
@@ -507,6 +508,17 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
   if (ret != 0) {
     uint32_t wait_ms =
         (timeout_ms != 0) ? timeout_ms : NET_OPEN_DEFAULT_TIMEOUT_MS;
+    // poll()'s own timeout is a plain int, unlike wait_ms - a value
+    // above INT_MAX would silently wrap to negative on the cast below,
+    // and poll() treats *any* negative timeout as "wait forever" (not
+    // just -1), which is worse than merely honoring a shorter wait than
+    // asked for. Clamping here is simpler than looping poll() calls
+    // against an elapsed deadline to honor the full requested duration,
+    // and a real TCP connect timeout north of ~24.8 days (INT_MAX ms)
+    // isn't a case worth that complexity for.
+    if (wait_ms > (uint32_t)INT_MAX) {
+      wait_ms = (uint32_t)INT_MAX;
+    }
     struct pollfd pfd = {.fd = fd, .events = POLLOUT};
     if (poll(&pfd, 1, (int)wait_ms) <= 0) {
       close(fd); // timed out, or poll() itself failed
