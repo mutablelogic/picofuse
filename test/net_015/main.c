@@ -6,12 +6,12 @@
 // net_mqtt_publish() QoS 0 against a real broker (test.mosquitto.org) -
 // skips (not asserted) if no reply arrives at all, since that needs
 // actual internet access, same reasoning as net_013's own comment.
-// QoS 1 has its own dedicated test (net_017, the PUBACK round trip) -
-// this file only confirms QoS 2 (still unimplemented) is rejected.
-// There's no net_mqtt_subscribe() yet to read a publish back with, so
-// this can only verify the send itself succeeds (and the connection
-// survives it, rather than the broker dropping a malformed packet) -
-// full round-trip delivery is for whenever subscribe exists.
+// QoS 1 and QoS 2 each have their own dedicated test (net_017's PUBACK
+// round trip, net_018's PUBREC/PUBREL/PUBCOMP round trip). There's no
+// net_mqtt_subscribe() yet to read a publish back with, so this can only
+// verify the send itself succeeds (and the connection survives it,
+// rather than the broker dropping a malformed packet) - full round-trip
+// delivery is for whenever subscribe exists.
 //
 // net_mqtt_publish() only stages the message - net_poll() does the
 // actual send on a later call (see its own doc), so every publish here
@@ -71,12 +71,6 @@ test_main_sys(0) {
     net_mqtt_deinit(mqtt);
     return;
   }
-
-  // QoS 2 isn't implemented yet - must fail cleanly (nothing staged)
-  // rather than crash or silently downgrade to QoS 0/1.
-  test_assert(net_mqtt_publish(mqtt, "picofuse/test/net_015", NULL, 0,
-                               net_mqtt_qos_2, false) == 0);
-  test_assert(g_sent_events == 0);
 
   // A real QoS 0 publish with no payload - staged (a non-zero id back
   // immediately), then actually sent once net_poll() runs. The id in the

@@ -307,28 +307,29 @@ void net_mqtt_disconnect(net_mqtt_t *mqtt);
  * empty message. Only borrowed, like @p topic.
  * @param payload_len Length of payload in bytes.
  * @param qos Delivery guarantee for this message - see net_mqtt_qos_t.
- * net_mqtt_qos_0 and net_mqtt_qos_1 are implemented - net_mqtt_qos_2
- * currently just fails (see @return) rather than silently downgrading.
+ * All three levels are implemented.
  * @param retain If true, the broker keeps this message as the topic's
  * last-known value, delivered immediately to any client that subscribes
  * to it afterward - until replaced by another retained publish, or
  * cleared with a retained empty message.
  * @return A message id (never 0) if the message was accepted for
  * sending - not yet sent, see below. `0` if @p mqtt was NULL, @p topic
- * was NULL, @p qos was net_mqtt_qos_2, or - after waiting, see below -
- * @p mqtt wasn't/isn't connected.
+ * was NULL, or - after waiting, see below - @p mqtt wasn't/isn't
+ * connected.
  *
  * This doesn't send anything itself - it stages the message and returns,
  * and net_poll() does the actual write on a later call (see its own
- * doc). That's not just a performance detail: for net_mqtt_qos_1,
- * completion means waiting for a PUBACK that can only arrive interleaved
- * with other traffic on the same connection (an incoming subscribed
- * message, say), which a synchronous call blocking on "read exactly one
- * reply" can't safely do - so net_mqtt_qos_0 goes through the same
- * staged path too, rather than being a special synchronous case. For
- * net_mqtt_qos_1, the message id doesn't count as sent - and the
- * publish slot doesn't free up - until that PUBACK actually arrives (or
- * times out after the handle's own timeout_ms, reported as a
+ * doc). That's not just a performance detail: for net_mqtt_qos_1/
+ * net_mqtt_qos_2, completion means waiting for a reply (PUBACK, or
+ * PUBREC-then-PUBCOMP) that can only arrive interleaved with other
+ * traffic on the same connection (an incoming subscribed message, say),
+ * which a synchronous call blocking on "read exactly one reply" can't
+ * safely do - so net_mqtt_qos_0 goes through the same staged path too,
+ * rather than being a special synchronous case. For net_mqtt_qos_1/
+ * net_mqtt_qos_2, the message id doesn't count as sent - and the publish
+ * slot doesn't free up - until that full reply chain completes (or times
+ * out after the handle's own timeout_ms, measured from whichever packet
+ * this module sent most recently for it, reported as a
  * net_mqtt_event_error); no retry is attempted on a timeout.
  *
  * Only one outstanding publish at a time for now (a queue is future

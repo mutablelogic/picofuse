@@ -55,12 +55,29 @@ static uint32_t _net_mqtt_publish_stage_qos1(const char *topic,
   return message_id;
 }
 
+// Stages a QoS 2 publish - same shape as QoS 1's own staging (packet id
+// included), poll.c just carries it through the longer
+// PUBREC/PUBREL/PUBCOMP chain instead of stopping at PUBACK - see
+// _net_mqtt_publish_qos2_wait_pubcomp's own doc on why.
+static uint32_t _net_mqtt_publish_stage_qos2(const char *topic,
+                                             const void *payload,
+                                             size_t payload_len, bool retain) {
+  uint32_t message_id = _net_mqtt_next_message_id();
+  _net_mqtt_singleton.publish.state = _net_mqtt_publish_qos2;
+  _net_mqtt_singleton.publish.topic = topic;
+  _net_mqtt_singleton.publish.payload = payload;
+  _net_mqtt_singleton.publish.payload_len = payload_len;
+  _net_mqtt_singleton.publish.retain = retain;
+  _net_mqtt_singleton.publish.message_id = message_id;
+  _net_mqtt_singleton.publish.packet_id = _net_mqtt_next_packet_id();
+  return message_id;
+}
+
 uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
                           const void *payload, size_t payload_len,
                           net_mqtt_qos_t qos, bool retain) {
   if (mqtt == NULL || mqtt != &_net_mqtt_singleton || topic == NULL ||
-      (payload_len > 0 && payload == NULL) ||
-      (qos != net_mqtt_qos_0 && qos != net_mqtt_qos_1)) {
+      (payload_len > 0 && payload == NULL)) {
     return 0;
   }
 
@@ -96,10 +113,18 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
     return 0;
   }
 
-  uint32_t message_id =
-      (qos == net_mqtt_qos_0)
-          ? _net_mqtt_publish_stage_qos0(topic, payload, payload_len, retain)
-          : _net_mqtt_publish_stage_qos1(topic, payload, payload_len, retain);
+  uint32_t message_id;
+  switch (qos) {
+  case net_mqtt_qos_0:
+    message_id = _net_mqtt_publish_stage_qos0(topic, payload, payload_len, retain);
+    break;
+  case net_mqtt_qos_1:
+    message_id = _net_mqtt_publish_stage_qos1(topic, payload, payload_len, retain);
+    break;
+  case net_mqtt_qos_2:
+    message_id = _net_mqtt_publish_stage_qos2(topic, payload, payload_len, retain);
+    break;
+  }
 
   sys_mutex_unlock(_net_mqtt_singleton.lock);
   return message_id;

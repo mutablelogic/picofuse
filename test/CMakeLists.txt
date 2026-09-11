@@ -1169,3 +1169,12 @@ picofuse_test(net_017
 	LIBRARIES picofuse-net
 	TESTRUNNER_TIMEOUT 15
 )
+
+# net_mqtt_publish() QoS 2 against a real broker - the actual
+# PUBLISH/PUBREC/PUBREL/PUBCOMP round trip - see net_018/main.c's own
+# comment on why a real reply is skipped rather than asserted.
+picofuse_test(net_018
+	net_018/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)

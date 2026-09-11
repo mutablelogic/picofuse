@@ -17,17 +17,23 @@
 #define _NET_MQTT_KEEPALIVE_S 60
 
 // MQTT 3.1.1 fixed-header first byte for each packet type - PUBLISH's
-// low nibble also carries DUP/QoS/RETAIN flags (see publish.c), unlike
-// the other two, which are always sent with flags 0.
+// low nibble also carries DUP/QoS/RETAIN flags (see publish.c). PUBREL's
+// low nibble is fixed at 0x2 by the spec itself (not a free choice the
+// way PUBLISH's is), so its byte is already complete here - nothing else
+// ever needs to OR further flags into it.
 #define _NET_MQTT_PACKET_CONNECT 0x10
 #define _NET_MQTT_PACKET_CONNACK 0x20
 #define _NET_MQTT_PACKET_PUBLISH 0x30
 #define _NET_MQTT_PACKET_PUBACK 0x40
+#define _NET_MQTT_PACKET_PUBREC 0x50
+#define _NET_MQTT_PACKET_PUBREL 0x62
+#define _NET_MQTT_PACKET_PUBCOMP 0x70
 #define _NET_MQTT_PACKET_DISCONNECT 0xE0
 
 // PUBLISH's own QoS bits (bits 2-1 of its fixed header byte, alongside
 // DUP/RETAIN - see _NET_MQTT_PACKET_PUBLISH's own doc).
 #define _NET_MQTT_PUBLISH_FLAG_QOS1 0x02
+#define _NET_MQTT_PUBLISH_FLAG_QOS2 0x04
 
 #define _NET_MQTT_PROTOCOL_LEVEL 0x04 // MQTT 3.1.1
 #define _NET_MQTT_CONNECT_FLAG_CLEAN_SESSION 0x02
@@ -44,20 +50,31 @@
 // future work) - net_mqtt_publish() fails (returns 0) if called again
 // while this is anything but idle.
 typedef enum {
-  _net_mqtt_publish_idle,            // Nothing to do.
-  _net_mqtt_publish_qos0,            // Send it, then fire
-                                     // net_mqtt_event_sent immediately -
-                                     // no reply to wait for.
-  _net_mqtt_publish_qos1,            // Send it (with a packet id, unlike
-                                     // QoS 0) and move to
-                                     // qos1_wait_puback - not done until
-                                     // that arrives.
+  _net_mqtt_publish_idle,             // Nothing to do.
+  _net_mqtt_publish_qos0,             // Send it, then fire
+                                      // net_mqtt_event_sent immediately -
+                                      // no reply to wait for.
+  _net_mqtt_publish_qos1,             // Send it (with a packet id, unlike
+                                      // QoS 0) and move to
+                                      // qos1_wait_puback - not done until
+                                      // that arrives.
   _net_mqtt_publish_qos1_wait_puback, // Sent - waiting for a PUBACK
                                       // whose packet id matches. Still
                                       // occupies the one pending slot;
                                       // see net_mqtt_publish()'s own doc
                                       // on why "sent" means acknowledged,
                                       // not just written.
+  _net_mqtt_publish_qos2,             // Send it (same shape as QoS 1's
+                                      // own PUBLISH, different QoS bits)
+                                      // and move to qos2_wait_pubrec.
+  _net_mqtt_publish_qos2_wait_pubrec, // Sent - waiting for a PUBREC whose
+                                      // packet id matches. On match, sends
+                                      // PUBREL and moves to
+                                      // qos2_wait_pubcomp - not done yet.
+  _net_mqtt_publish_qos2_wait_pubcomp, // PUBREL sent - waiting for a
+                                       // PUBCOMP whose packet id matches.
+                                       // *That's* what finally completes
+                                       // a QoS 2 publish.
 } _net_mqtt_publish_state_t;
 
 // Staged by net_mqtt_publish(), consumed by net_poll() - see
