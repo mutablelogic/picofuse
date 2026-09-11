@@ -13,7 +13,7 @@ digraph modules {
   Cond       [label="Condition Variables",  URL="\ref SystemSyncCond"];
   WaitGroup  [label="Wait Groups",          URL="\ref SystemSyncWaitgroup"];
   Atomic     [label="Atomic Operations",    URL="\ref SystemAtomic"];
-  Data        [label="Data", URL="\ref SystemData"];
+  Data        [label="Data",                     URL="\ref SystemData"];
   DataRune    [label="Runes",                    URL="\ref SystemDataRune"];
   DataString  [label="Strings",                  URL="\ref SystemDataString"];
   DataScanner [label="Scanner",                  URL="\ref SystemDataScanner"];
@@ -53,8 +53,9 @@ digraph modules {
   FT6236      [label="FT6236",                   URL="\ref FT6236"];
   STMPE610    [label="STMPE610",                 URL="\ref STMPE610"];
   ILI9341     [label="ILI9341",                  URL="\ref ILI9341"];
+  ST7701      [label="ST7701",                   URL="\ref ST7701"];
   SDL         [label="SDL",                      URL="\ref SDL"];
-  Pixels      [label="Pixels",                    URL="\ref Pixel"];
+  Pixels      [label="Pixels",                   URL="\ref Pixel"];
   PixelDisplay [label="Display",                 URL="\ref PixelDisplay"];
   PixelBitmap [label="Bitmap",                   URL="\ref PixelBitmap"];
   Application [label="Application",              URL="\ref Application"];
@@ -111,6 +112,7 @@ digraph modules {
   Sensor -> BME680;
   Display -> ILI9341;
   Display -> SDL;
+  Display -> ST7701;
   Pixels -> PixelDisplay;
   Pixels -> PixelBitmap;
   Application -> HID;

@@ -875,7 +875,16 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
-# hid_init/_deinit singleton lifecycle 
+# dev_st7701_* against Presto's own display - scaffold only for now, see
+# dev_st7701/main.c.
+if(DEFINED PICO_BOARD AND PICO_BOARD STREQUAL "presto")
+	picofuse_test(dev_st7701
+		dev_st7701/main.c
+		LIBRARIES picofuse-hw picofuse-dev
+	)
+endif()
+
+# hid_init/_deinit singleton lifecycle
 picofuse_test(hid_001
 	hid_001/main.c
 	LIBRARIES picofuse-hw picofuse-hid

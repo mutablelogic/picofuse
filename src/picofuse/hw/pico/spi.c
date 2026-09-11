@@ -19,6 +19,7 @@ typedef struct hw_spi_ctx_t {
   hw_gpio_t *rx_pin;
   hw_gpio_t *cs_pin; // NULL if this device leaves CS unmanaged
   mutex_t lock;
+  uint8_t bits_per_word; // See hw_spi_config_t::bits_per_word
   bool cs_active_low;
   bool owns_pins;
 } hw_spi_ctx_t;
@@ -67,32 +68,57 @@ static inline void _hw_spi_set_cs(const hw_spi_ctx_t *ctx, bool active) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - OPS
 
+// See hw_deviceio_xfr()'s own doc on word size - `data` is `uint8_t*` and
+// tx/rx count bytes for the common bits_per_word <= 8 case; `uint16_t*`
+// and tx/rx count 16-bit words once this device was configured with
+// bits_per_word above 8, since the SDK's 8-bit spi_*_blocking() calls
+// can't frame anything wider.
 static size_t _hw_spi_ops_xfr(hw_deviceio_t *device, void *data, size_t tx,
                               size_t rx, uint32_t timeout_ms) {
   (void)timeout_ms; // the SDK's spi_*_blocking() calls have no timeout path
   hw_spi_ctx_t *ctx = _hw_deviceio_context(device);
-  if ((tx == 0 && rx == 0) || ((tx > 0 || rx > 0) && data == NULL)) {
+  if ((tx == 0 && rx == 0) || ((tx > 0 || rx > 0) && data == NULL) ||
+      (rx > 0 && ctx->rx_pin == NULL)) {
     return 0;
   }
 
-  uint8_t *bytes = data;
   size_t transferred = 0;
 
   mutex_enter_blocking(&ctx->lock);
   _hw_spi_set_cs(ctx, true);
 
-  if (tx > 0 && rx > 0) {
-    if (spi_write_blocking(ctx->instance, bytes, tx) == (int)tx &&
-        spi_read_blocking(ctx->instance, 0x00, bytes + tx, rx) == (int)rx) {
-      transferred = tx + rx;
-    }
-  } else if (tx > 0) {
-    if (spi_write_blocking(ctx->instance, bytes, tx) == (int)tx) {
-      transferred = tx;
+  if (ctx->bits_per_word > 8) {
+    uint16_t *words = data;
+    if (tx > 0 && rx > 0) {
+      if (spi_write16_blocking(ctx->instance, words, tx) == (int)tx &&
+          spi_read16_blocking(ctx->instance, 0x0000, words + tx, rx) ==
+              (int)rx) {
+        transferred = tx + rx;
+      }
+    } else if (tx > 0) {
+      if (spi_write16_blocking(ctx->instance, words, tx) == (int)tx) {
+        transferred = tx;
+      }
+    } else {
+      if (spi_read16_blocking(ctx->instance, 0x0000, words, rx) == (int)rx) {
+        transferred = rx;
+      }
     }
   } else {
-    if (spi_read_blocking(ctx->instance, 0x00, bytes, rx) == (int)rx) {
-      transferred = rx;
+    uint8_t *bytes = data;
+    if (tx > 0 && rx > 0) {
+      if (spi_write_blocking(ctx->instance, bytes, tx) == (int)tx &&
+          spi_read_blocking(ctx->instance, 0x00, bytes + tx, rx) == (int)rx) {
+        transferred = tx + rx;
+      }
+    } else if (tx > 0) {
+      if (spi_write_blocking(ctx->instance, bytes, tx) == (int)tx) {
+        transferred = tx;
+      }
+    } else {
+      if (spi_read_blocking(ctx->instance, 0x00, bytes, rx) == (int)rx) {
+        transferred = rx;
+      }
     }
   }
 
@@ -309,7 +335,7 @@ hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin, hw_gpio_t *tx_pin,
                            uint32_t baud_rate, const hw_spi_config_t *config) {
   sys_debugf("hw", "spi_init: index=%u baud=%u", index, baud_rate);
   if (index >= hw_spi_count() || sck_pin == NULL || tx_pin == NULL ||
-      rx_pin == NULL || baud_rate == 0) {
+      baud_rate == 0) {
     return NULL;
   }
 
@@ -318,7 +344,7 @@ hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin, hw_gpio_t *tx_pin,
                                  : (hw_spi_config_t){.cs_active_low = true,
                                                      .mode = hw_spi_mode_0,
                                                      .bits_per_word = 8};
-  if (settings.bits_per_word == 0) {
+  if (settings.bits_per_word < 4 || settings.bits_per_word > 16) {
     return NULL;
   }
 
@@ -331,7 +357,9 @@ hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin, hw_gpio_t *tx_pin,
   spi_inst_t *instance = spi_get_instance(index);
   hw_gpio_set_mode(sck_pin, hw_gpio_spi);
   hw_gpio_set_mode(tx_pin, hw_gpio_spi);
-  hw_gpio_set_mode(rx_pin, hw_gpio_spi);
+  if (rx_pin != NULL) {
+    hw_gpio_set_mode(rx_pin, hw_gpio_spi);
+  }
   if (cs_pin != NULL) {
     hw_gpio_set_mode(cs_pin, hw_gpio_output);
   }
@@ -354,6 +382,7 @@ hw_deviceio_t *hw_spi_init(uint8_t index, hw_gpio_t *sck_pin, hw_gpio_t *tx_pin,
   ctx->cs_pin = cs_pin;
   mutex_init(&ctx->lock);
   ctx->cs_active_low = settings.cs_active_low;
+  ctx->bits_per_word = settings.bits_per_word;
   ctx->owns_pins = false;
 
   _hw_spi_set_cs(ctx, false);
