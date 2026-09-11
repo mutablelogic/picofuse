@@ -103,18 +103,30 @@ hw_deviceio_bus_t hw_deviceio_bus(const hw_deviceio_t *device);
  * @brief Perform a raw, bidirectional transfer.
  * @ingroup DeviceIO
  * @param device Device handle.
- * @param data Buffer used for transmitted and received bytes.
- * @param tx Number of bytes to transmit from `data`.
- * @param rx Number of bytes to receive into `data + tx`.
+ * @param data Buffer used for transmitted and received words - `uint8_t*`
+ * unless noted otherwise below.
+ * @param tx Number of words to transmit from `data`.
+ * @param rx Number of words to receive into `data + tx * word_size`.
  * @param timeout_ms Timeout in milliseconds for the operation. Set to `0`
  * to use the backend's default transfer path.
- * @return Number of bytes transferred, or `0` on failure.
+ * @return Number of words transferred, or `0` on failure.
  *
  * Supports write-only (`tx > 0, rx == 0`), read-only (`tx == 0, rx > 0`),
  * and write-then-read (`tx > 0, rx > 0`) transfers. The exact semantics of
  * a write-then-read - a repeated start on I2C, a continuous chip-select
  * assertion on SPI - are defined by whichever bus `device` is actually
  * bound to.
+ *
+ * A "word" here is 1 byte for every I2C device (no framing concept
+ * applies) and for an SPI device left at its default `hw_spi_config_t::
+ * bits_per_word` (8) - `data` is `uint8_t*`, and `tx`/`rx` count bytes
+ * exactly as before. For an SPI device configured with `bits_per_word`
+ * above 8 (9-16, e.g. a display panel that packs a command/data select
+ * bit as the 9th bit of every word), a word is 2 bytes instead - `data`
+ * must then be `uint16_t*`, and `tx`/`rx` count 16-bit words, not bytes
+ * (so the underlying buffer needs `(tx + rx) * 2` bytes of storage, not
+ * `tx + rx`). Check whichever `hw_*_init()` built `device` for what its
+ * own word size is.
  */
 size_t hw_deviceio_xfr(hw_deviceio_t *device, void *data, size_t tx, size_t rx,
                        uint32_t timeout_ms);
