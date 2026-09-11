@@ -1,4 +1,21 @@
 #include "private.h"
+#include <string.h>
+
+// Finds the confirmed subscription table entry for @p filter, if any -
+// used by net_mqtt_unsubscribe() to both validate that @p filter is
+// actually subscribed and to locate the slot to eventually free (see
+// _net_mqtt_unsubscribe_pending_t::topic's own doc on why that happens
+// at confirm time, not here). Caller must already hold the lock.
+static _net_mqtt_topic_t *_net_mqtt_topic_find(net_mqtt_t *mqtt,
+                                               const char *filter) {
+  for (size_t i = 0; i < NET_MQTT_TOPIC_CAPACITY; i++) {
+    if (mqtt->topics[i].active &&
+        strcmp(mqtt->topics[i].filter, filter) == 0) {
+      return &mqtt->topics[i];
+    }
+  }
+  return NULL;
+}
 
 // Reserves a free slot in the confirmed-subscription table, marking it
 // active immediately - see net_mqtt_t::topics's own doc. Reserved up
@@ -71,6 +88,52 @@ uint32_t net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
   mqtt->subscribe.message_id = message_id;
   mqtt->subscribe.packet_id = _net_mqtt_next_packet_id(mqtt);
   mqtt->subscribe.topic = topic_slot;
+
+  sys_mutex_unlock(mqtt->lock);
+  return message_id;
+}
+
+uint32_t net_mqtt_unsubscribe(net_mqtt_t *mqtt, const char *topic) {
+  if (mqtt == NULL || mqtt != &_net_mqtt_singleton || topic == NULL) {
+    return 0;
+  }
+
+  sys_mutex_lock(mqtt->lock);
+
+  // Wait for either a free unsubscribe slot or a disconnect - independent
+  // of subscribe's own slot (see _net_mqtt_unsubscribe_state_t's own
+  // doc), but otherwise the same rules/shared publish_cond/timeout_ms ==
+  // 0 convention as net_mqtt_publish() - see its own doc for the full
+  // reasoning.
+  uint32_t timeout_ms = mqtt->timeout_ms;
+  while (mqtt->connected &&
+         mqtt->unsubscribe.state != _net_mqtt_unsubscribe_idle) {
+    if (timeout_ms == 0 ||
+        !sys_cond_timedwait(mqtt->publish_cond, mqtt->lock, timeout_ms)) {
+      sys_mutex_unlock(mqtt->lock);
+      return 0; // Timed out (or timeout_ms == 0) still waiting for a
+                // free slot.
+    }
+  }
+
+  if (!mqtt->connected) {
+    sys_mutex_unlock(mqtt->lock);
+    return 0;
+  }
+
+  _net_mqtt_topic_t *topic_slot = _net_mqtt_topic_find(mqtt, topic);
+  if (topic_slot == NULL) {
+    sys_mutex_unlock(mqtt->lock);
+    return 0; // Not currently subscribed to this exact filter.
+  }
+
+  uint32_t message_id = _net_mqtt_next_message_id(mqtt);
+  mqtt->unsubscribe.state = _net_mqtt_unsubscribe_requesting;
+  sys_sprintf(mqtt->unsubscribe.filter, sizeof(mqtt->unsubscribe.filter),
+             "%s", topic);
+  mqtt->unsubscribe.message_id = message_id;
+  mqtt->unsubscribe.packet_id = _net_mqtt_next_packet_id(mqtt);
+  mqtt->unsubscribe.topic = topic_slot;
 
   sys_mutex_unlock(mqtt->lock);
   return message_id;

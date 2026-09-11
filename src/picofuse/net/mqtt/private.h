@@ -21,6 +21,21 @@
 // Fixed internally
 #define _NET_MQTT_KEEPALIVE_S 60
 
+// An incoming PUBLISH payload this size or smaller is read into a stack
+// buffer - see _net_mqtt_poll_read_publish()'s own doc on why net_mqtt_
+// received_t::payload is fully buffered rather than streamed. Generous
+// for typical short messages (sensor readings, small JSON blobs) without
+// needing sys_malloc() for the common case.
+#define _NET_MQTT_PAYLOAD_STACK_SIZE 256
+
+// A hard ceiling on a single incoming PUBLISH payload - claimed (via its
+// Remaining Length) larger than this is rejected outright rather than
+// attempting a matching sys_malloc(), which a malicious or corrupt
+// broker could otherwise use to push an arbitrarily large allocation (up
+// to the protocol's own ~256MB ceiling) onto a resource-constrained
+// device.
+#define _NET_MQTT_PAYLOAD_MAX_SIZE 8192
+
 // MQTT 3.1.1 fixed-header first byte for each packet type - PUBLISH's
 // low nibble also carries DUP/QoS/RETAIN flags (see publish.c). PUBREL's
 // low nibble is fixed at 0x2 by the spec itself (not a free choice the
@@ -36,6 +51,9 @@
 #define _NET_MQTT_PACKET_SUBSCRIBE 0x82 // Reserved flags fixed at 0x2, like
                                         // PUBREL - see its own doc.
 #define _NET_MQTT_PACKET_SUBACK 0x90
+#define _NET_MQTT_PACKET_UNSUBSCRIBE 0xA2 // Reserved flags fixed at 0x2,
+                                          // like SUBSCRIBE/PUBREL.
+#define _NET_MQTT_PACKET_UNSUBACK 0xB0
 #define _NET_MQTT_PACKET_DISCONNECT 0xE0
 
 // PUBLISH's own QoS bits (bits 2-1 of its fixed header byte, alongside
@@ -155,6 +173,49 @@ typedef struct {
                        // needing to find a slot itself at confirm time.
 } _net_mqtt_subscribe_pending_t;
 
+// What (if anything) net_poll() (poll.c) needs to do for this handle's
+// outstanding unsubscribe request - independent of
+// _net_mqtt_subscribe_state_t's own slot (a subscribe and an unsubscribe
+// for two different filters may be in flight together, since they don't
+// contend for the same pending state or packet id), but only one
+// outstanding unsubscribe request at a time, same reasoning as publish/
+// subscribe.
+typedef enum {
+  _net_mqtt_unsubscribe_idle,       // Nothing to do.
+  _net_mqtt_unsubscribe_requesting, // Send UNSUBSCRIBE (with a packet id)
+                                    // and move to wait_unsuback.
+  _net_mqtt_unsubscribe_wait_unsuback, // Sent - waiting for an UNSUBACK
+                                       // whose packet id matches.
+} _net_mqtt_unsubscribe_state_t;
+
+// Staged by net_mqtt_unsubscribe(), consumed by net_poll() - see
+// _net_mqtt_unsubscribe_state_t's own doc.
+typedef struct {
+  _net_mqtt_unsubscribe_state_t state;
+  char filter[NET_MQTT_TOPIC_FILTER_SIZE]; // Copied at stage time - same
+                                           // reasoning as
+                                           // _net_mqtt_subscribe_pending_t::filter.
+  uint32_t message_id; // Already allocated at stage time - see
+                       // _net_mqtt_publish_pending_t::message_id's own
+                       // doc for the identical reasoning.
+  uint16_t packet_id;  // Shares net_mqtt_t::next_packet_id's counter -
+                       // see _net_mqtt_subscribe_pending_t::packet_id's
+                       // own doc.
+  uint64_t sent_at_ms; // sys_timestamp_ms() when UNSUBSCRIBE went out -
+                       // see _net_mqtt_publish_pending_t::sent_at_ms's
+                       // own doc for the identical reasoning.
+  _net_mqtt_topic_t *topic; // The confirmed net_mqtt_t::topics entry
+                            // this is removing - looked up by filter at
+                            // stage time (net_mqtt_unsubscribe() fails if
+                            // not found), so poll.c doesn't need to
+                            // re-search topics[] at confirm time. Unlike
+                            // _net_mqtt_subscribe_pending_t::topic, this
+                            // slot isn't freed (active set back to
+                            // false) until UNSUBACK actually confirms -
+                            // the subscription (and whatever messages it
+                            // may still deliver) stays live until then.
+} _net_mqtt_unsubscribe_pending_t;
+
 // A singleton, not a pool - see net_mqtt_t's own doc on why.
 struct net_mqtt_t {
   net_addr_t addr;
@@ -198,6 +259,7 @@ struct net_mqtt_t {
                            // "failure" sentinel.
   _net_mqtt_publish_pending_t publish; // Guarded by lock.
   _net_mqtt_subscribe_pending_t subscribe; // Guarded by lock.
+  _net_mqtt_unsubscribe_pending_t unsubscribe; // Guarded by lock.
   _net_mqtt_topic_t topics[NET_MQTT_TOPIC_CAPACITY]; // Guarded by lock -
                                                      // confirmed
                                                      // subscriptions only;
@@ -223,13 +285,18 @@ void _net_mqtt_fire_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event);
 /** @brief Tears down @p mqtt's connection after a mid-packet I/O failure
  * (a partial write/read leaves the connection's framing unrecoverable,
  * so it can't just be left looking usable) - closes and clears conn/
- * connected, and abandons any staged/in-flight publish or subscribe
- * request (see net_mqtt_publish()/net_mqtt_subscribe()'s own doc on that
- * being a silent abandonment). Caller must already hold `lock` and must
- * fire a net_mqtt_event_disconnected event itself once it's released -
- * this doesn't fire one on its own, since it never unlocks (see this
- * module's lock discipline: never fire an event while holding the
- * lock). A no-op if not currently connected. */
+ * connected, abandons any staged/in-flight publish, subscribe, or
+ * unsubscribe request (see net_mqtt_publish()/net_mqtt_subscribe()/
+ * net_mqtt_unsubscribe()'s own doc on that being a silent abandonment),
+ * and forgets every confirmed subscription in @p mqtt's topics - once
+ * the connection is gone, for any reason, none of them are still being
+ * delivered to regardless (see net_mqtt_disconnect()'s own doc on why
+ * that's true even for a clean disconnect, not just an unexpected drop).
+ * Caller must already hold `lock` and must fire a
+ * net_mqtt_event_disconnected event itself once it's released - this
+ * doesn't fire one on its own, since it never unlocks (see this module's
+ * lock discipline: never fire an event while holding the lock). A no-op
+ * if not currently connected. */
 void _net_mqtt_abort_connection_locked(net_mqtt_t *mqtt);
 
 /** @brief Allocates the next client-side message id for @p mqtt,

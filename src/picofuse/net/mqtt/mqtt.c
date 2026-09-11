@@ -66,6 +66,8 @@ net_mqtt_t *net_mqtt_init(const net_addr_t *addr, uint16_t port,
   _net_mqtt_singleton.publish.state = _net_mqtt_publish_idle;
   _net_mqtt_singleton.subscribe.state = _net_mqtt_subscribe_idle;
   _net_mqtt_singleton.subscribe.topic = NULL;
+  _net_mqtt_singleton.unsubscribe.state = _net_mqtt_unsubscribe_idle;
+  _net_mqtt_singleton.unsubscribe.topic = NULL;
   for (size_t i = 0; i < NET_MQTT_TOPIC_CAPACITY; i++) {
     _net_mqtt_singleton.topics[i].active = false;
   }
@@ -111,15 +113,4 @@ void net_mqtt_deinit(net_mqtt_t *mqtt) {
   mqtt->userdata = NULL;
   mqtt->active = false;
   // lock/publish_cond deliberately outlive this - see their own doc.
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// UNSUBSCRIBE
-
-/** Stub implementation - net_mqtt_subscribe() (subscribe.c/poll.c, QoS 0)
- * is real; unsubscribe still needs the wire protocol wiring up. */
-bool net_mqtt_unsubscribe(net_mqtt_t *mqtt, const char *topic) {
-  (void)mqtt;
-  (void)topic;
-  return false;
 }

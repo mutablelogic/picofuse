@@ -27,22 +27,35 @@ void _net_mqtt_abort_connection_locked(net_mqtt_t *mqtt) {
   mqtt->conn = NULL;
   mqtt->connected = false;
 
-  // Whatever net_mqtt_publish()/net_mqtt_subscribe() staged (if anything)
-  // can never be sent on a connection that no longer exists - see their
-  // own doc on this being a silent abandonment, no event of its own.
-  // Subscribe additionally reserved a topics[] slot at stage time (see
-  // _net_mqtt_topic_alloc()'s own doc) - that has to be freed back here
-  // too, or it'd stay falsely claimed forever.
+  // Whatever net_mqtt_publish()/net_mqtt_subscribe()/net_mqtt_unsubscribe()
+  // staged (if anything) can never be sent on a connection that no
+  // longer exists - see their own doc on this being a silent
+  // abandonment, no event of its own. Subscribe additionally reserved a
+  // topics[] slot at stage time (see _net_mqtt_topic_alloc()'s own doc)
+  // - that has to be freed back here too, or it'd stay falsely claimed
+  // forever. Unsubscribe's own target slot needs no such cleanup - it
+  // wasn't touched at stage time (see its own doc) and is about to be
+  // cleared below regardless.
   mqtt->publish.state = _net_mqtt_publish_idle;
   _net_mqtt_topic_free(mqtt, mqtt->subscribe.topic);
   mqtt->subscribe.topic = NULL;
   mqtt->subscribe.state = _net_mqtt_subscribe_idle;
+  mqtt->unsubscribe.topic = NULL;
+  mqtt->unsubscribe.state = _net_mqtt_unsubscribe_idle;
 
-  // Wakes a net_mqtt_publish()/net_mqtt_subscribe() call blocked waiting
-  // for either a free slot or a disconnect - this is the disconnect
-  // it's also watching for (see their own doc). One shared condvar for
-  // both - each waiter re-checks its own predicate on waking, so an
-  // unrelated broadcast is harmless, just a spurious wake.
+  // Every confirmed subscription is forgotten too - see this function's
+  // own doc on why that's correct even for a clean disconnect, not just
+  // an unexpected drop.
+  for (size_t i = 0; i < NET_MQTT_TOPIC_CAPACITY; i++) {
+    mqtt->topics[i].active = false;
+  }
+
+  // Wakes a net_mqtt_publish()/net_mqtt_subscribe()/net_mqtt_unsubscribe()
+  // call blocked waiting for either a free slot or a disconnect - this
+  // is the disconnect it's also watching for (see their own doc). One
+  // shared condvar for all three - each waiter re-checks its own
+  // predicate on waking, so an unrelated broadcast is harmless, just a
+  // spurious wake.
   sys_cond_broadcast(mqtt->publish_cond);
 }
 

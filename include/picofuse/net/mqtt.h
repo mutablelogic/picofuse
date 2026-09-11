@@ -6,7 +6,6 @@
  */
 #pragma once
 #include <picofuse/net/types.h>
-#include <picofuse/sys/io.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -97,6 +96,9 @@ typedef enum {
                                ///< see net_mqtt_sent_t.
   net_mqtt_event_subscribed,   ///< A net_mqtt_subscribe() call completed -
                                ///< see net_mqtt_subscribed_t.
+  net_mqtt_event_unsubscribed, ///< A net_mqtt_unsubscribe() call
+                               ///< completed - see
+                               ///< net_mqtt_unsubscribed_t.
   net_mqtt_event_received,     ///< A message arrived on a subscribed
                                ///< topic - see net_mqtt_received_t.
   net_mqtt_event_error,        ///< Something failed - see net_mqtt_error_t.
@@ -127,33 +129,41 @@ typedef struct {
 } net_mqtt_subscribed_t;
 
 /**
+ * @brief Payload for a net_mqtt_event_unsubscribed event.
+ * @ingroup NetworkMQTT
+ */
+typedef struct {
+  uint32_t message_id; ///< The id net_mqtt_unsubscribe() returned for
+                       ///< the call this event completes.
+} net_mqtt_unsubscribed_t;
+
+/**
  * @brief Payload for a net_mqtt_event_received event.
  * @ingroup NetworkMQTT
  */
 typedef struct {
-  const char *topic;       ///< Topic the message was published to - may be
-                           ///< more specific than the net_mqtt_subscribe()
-                           ///< filter that matched it, if that filter used
-                           ///< a wildcard.
-  sys_iostream_t *payload; ///< Message payload, as a stream, not a
-                           ///< buffer - MQTT payloads have no protocol
-                           ///< size limit, so this is read incrementally
-                           ///< rather than requiring the whole message to
-                           ///< be buffered in memory first. Not
-                           ///< caller-owned and only valid for the
-                           ///< duration of this callback - don't
-                           ///< sys_iostream_close() it. Good for reading
-                           ///< up to payload_len bytes total; whatever's
-                           ///< left unread when the callback returns is
-                           ///< discarded automatically, so there's no need
-                           ///< to drain it fully.
-  size_t payload_len;      ///< Total payload length in bytes, known
-                           ///< upfront from the MQTT packet header.
-  bool retain;             ///< True if this is a retained message
-                           ///< delivered because of the subscription
-                           ///< itself rather than a live publish - see
-                           ///< net_mqtt_publish()'s own doc on retained
-                           ///< messages.
+  const char *topic;   ///< Topic the message was published to - may be
+                       ///< more specific than the net_mqtt_subscribe()
+                       ///< filter that matched it, if that filter used a
+                       ///< wildcard. Not caller-owned, valid only for the
+                       ///< duration of this callback.
+  const void *payload; ///< Message payload - NULL if payload_len is 0.
+                       ///< Not caller-owned and only valid for the
+                       ///< duration of this callback - copy anything
+                       ///< that's still needed once it returns, same as
+                       ///< net_mqtt_publish()'s own @p payload parameter.
+                       ///< Read off the wire and buffered in full before
+                       ///< this callback runs (a small internal buffer
+                       ///< for short messages, a temporary allocation
+                       ///< freed right after this callback returns for
+                       ///< larger ones) - not streamed, so there's no
+                       ///< need to read it "incrementally" to avoid
+                       ///< holding the whole message in memory.
+  size_t payload_len;  ///< Total payload length in bytes.
+  bool retain;         ///< True if this is a retained message delivered
+                       ///< because of the subscription itself rather
+                       ///< than a live publish - see net_mqtt_publish()'s
+                       ///< own doc on retained messages.
 } net_mqtt_received_t;
 
 /**
@@ -178,6 +188,7 @@ typedef struct {
   union {
     net_mqtt_sent_t sent;
     net_mqtt_subscribed_t subscribed;
+    net_mqtt_unsubscribed_t unsubscribed;
     net_mqtt_received_t received;
     net_mqtt_error_t error;
   } data; ///< Payload selected by type - connected/disconnected carry none.
@@ -297,9 +308,14 @@ bool net_mqtt_connect(net_mqtt_t *mqtt);
  *
  * Sends an MQTT DISCONNECT (best-effort - the socket is closed regardless
  * of whether it's actually sent or acknowledged) and closes the
- * underlying socket. @p mqtt itself remains valid - call
- * net_mqtt_connect() again to reconnect, or net_mqtt_deinit() to release
- * it entirely.
+ * underlying socket. Every net_mqtt_subscribe()'d topic filter is
+ * forgotten locally, without sending any UNSUBSCRIBE - the connection
+ * always uses a clean session (see net_mqtt_config_t's own doc), so the
+ * broker discards them on its own the moment the session ends; nothing
+ * more is needed for a client that then calls net_mqtt_connect() again,
+ * whether on this handle or another, to start with a clean slate.
+ * @p mqtt itself remains valid - call net_mqtt_connect() again to
+ * reconnect, or net_mqtt_deinit() to release it entirely.
  */
 void net_mqtt_disconnect(net_mqtt_t *mqtt);
 
@@ -413,18 +429,30 @@ uint32_t net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
                             net_mqtt_qos_t qos);
 
 /**
- * @brief Unsubscribe from a topic filter.
+ * @brief Stage removal of a topic filter, waiting for room to do so.
  * @ingroup NetworkMQTT
  * @param mqtt Handle from net_mqtt_init(), must be connected.
  * @param topic Topic filter previously passed to net_mqtt_subscribe() -
- * must match exactly, not just overlap.
- * @retval true Unsubscribed - broker acknowledged (UNSUBACK) within
- * timeout_ms.
- * @retval false @p mqtt was NULL or not connected, @p topic was NULL or
- * not currently subscribed, or the broker didn't acknowledge within
- * timeout_ms.
+ * must match exactly, not just overlap. Copied, not borrowed - same
+ * reasoning as net_mqtt_subscribe()'s own @p topic.
+ * @return A message id (never 0) if the request was accepted for
+ * sending - not yet sent, see below. `0` if @p mqtt was NULL, @p topic
+ * was NULL or not currently subscribed (see net_mqtt_subscribe()), or -
+ * after waiting, see below - @p mqtt wasn't/isn't connected.
+ *
+ * Same staged design as net_mqtt_subscribe(), for the identical reason -
+ * see its own doc: this stages the request and returns, net_poll() does
+ * the actual write and waits for the broker's UNSUBACK, and only one
+ * outstanding unsubscribe request is served at a time (blocking here,
+ * not failing, if another is already in flight - independent of
+ * net_mqtt_subscribe()'s own pending slot, so a subscribe and an
+ * unsubscribe for two different filters may be in flight together).
+ * Completion (or failure) is reported via a net_mqtt_event_unsubscribed
+ * or net_mqtt_event_error event whose payload carries this same message
+ * id. The topic filter stops matching new messages only once that event
+ * fires, not at the moment this call returns.
  */
-bool net_mqtt_unsubscribe(net_mqtt_t *mqtt, const char *topic);
+uint32_t net_mqtt_unsubscribe(net_mqtt_t *mqtt, const char *topic);
 
 /** @} */
 

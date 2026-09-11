@@ -1178,3 +1178,23 @@ picofuse_test(net_018
 	LIBRARIES picofuse-net
 	TESTRUNNER_TIMEOUT 15
 )
+
+# net_mqtt_subscribe()/net_mqtt_unsubscribe() QoS 0 against a real
+# broker - the actual SUBSCRIBE/SUBACK and UNSUBSCRIBE/UNSUBACK round
+# trips - see net_019/main.c's own comment on why a real reply is
+# skipped rather than asserted.
+picofuse_test(net_019
+	net_019/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# Incoming PUBLISH delivery (net_mqtt_event_received) QoS 0 against a
+# real broker - subscribe, publish to the same topic, confirm the
+# message comes back with the right content - see net_020/main.c's own
+# comment on why a real reply is skipped rather than asserted.
+picofuse_test(net_020
+	net_020/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
