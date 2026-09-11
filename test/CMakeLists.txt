@@ -1113,3 +1113,12 @@ if(DEFINED PICO_BOARD)
 		WIFI_PASSWORD="${WIFI_PASSWORD}"
 	)
 endif()
+
+# net_open()'s timeout_ms actually bounds a connect that gets no response
+# at all (a real black hole, not net_004's near-instant ECONNREFUSED) -
+# see net_012/main.c's own comment on why the elapsed-time check is soft.
+picofuse_test(net_012
+	net_012/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
