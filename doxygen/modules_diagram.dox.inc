@@ -63,6 +63,7 @@ digraph modules {
   HIDKeycodes [label="Keycodes",                 URL="\ref HIDKeycodes"];
   Network     [label="Network",                  URL="\ref Network"];
   NTP         [label="NTP",                      URL="\ref NetworkNTP"];
+  MQTT        [label="MQTT",                     URL="\ref NetworkMQTT"];
 
   System -> Memory;
   System -> Sync;
@@ -117,5 +118,6 @@ digraph modules {
   HID -> HIDEvents;
   HID -> HIDKeycodes;
   Network -> NTP;
+  Network -> MQTT;
 }
 \enddot

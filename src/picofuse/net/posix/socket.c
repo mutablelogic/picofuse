@@ -2,11 +2,13 @@
 #include "posix.h"
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <poll.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #ifndef NET_CONN_BUFFER_SIZE
@@ -442,7 +444,7 @@ sys_iostream_t *_net_wrap_connected_fd(int fd, net_proto_t proto) {
 // LIFECYCLE
 
 sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
-                         uint16_t port) {
+                         uint16_t port, uint32_t timeout_ms) {
   if (addr == NULL) {
     return NULL;
   }
@@ -457,8 +459,57 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
 
   struct sockaddr_storage sa;
   socklen_t sa_len;
-  if (!_net_addr_to_sockaddr(addr, port, &sa, &sa_len) ||
-      connect(fd, (struct sockaddr *)&sa, sa_len) != 0) {
+  if (!_net_addr_to_sockaddr(addr, port, &sa, &sa_len)) {
+    close(fd);
+    return NULL;
+  }
+
+  // UDP's "connect" just records a default peer locally - no handshake,
+  // so nothing here can actually block, and timeout_ms doesn't apply (see
+  // net_open()'s own doc).
+  if (proto == net_proto_udp) {
+    if (connect(fd, (struct sockaddr *)&sa, sa_len) != 0) {
+      close(fd);
+      return NULL;
+    }
+    return _net_wrap_connected_fd(fd, proto);
+  }
+
+  // TCP: make the connect() itself non-blocking so it can be bounded by
+  // timeout_ms via poll() below, rather than however long the OS's own
+  // (often very long) default connect timeout takes - restored to
+  // blocking before this fd is handed off, so every other operation on
+  // it behaves exactly as it always has.
+  int flags = fcntl(fd, F_GETFL, 0);
+  if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+    close(fd);
+    return NULL;
+  }
+
+  int ret = connect(fd, (struct sockaddr *)&sa, sa_len);
+  if (ret != 0 && errno != EINPROGRESS) {
+    close(fd);
+    return NULL;
+  }
+
+  if (ret != 0) {
+    uint32_t wait_ms =
+        (timeout_ms != 0) ? timeout_ms : NET_OPEN_DEFAULT_TIMEOUT_MS;
+    struct pollfd pfd = {.fd = fd, .events = POLLOUT};
+    if (poll(&pfd, 1, (int)wait_ms) <= 0) {
+      close(fd); // timed out, or poll() itself failed
+      return NULL;
+    }
+    int so_error = 0;
+    socklen_t so_len = sizeof(so_error);
+    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &so_error, &so_len) != 0 ||
+        so_error != 0) {
+      close(fd);
+      return NULL;
+    }
+  }
+
+  if (fcntl(fd, F_SETFL, flags) < 0) {
     close(fd);
     return NULL;
   }

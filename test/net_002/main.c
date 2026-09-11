@@ -61,13 +61,13 @@ test_main_sys(0) {
   }
 
   // NULL-safety, now that we know listeners work here at all.
-  test_assert(net_open(net_proto_tcp, NULL, NET_002_PORT) == NULL);
+  test_assert(net_open(net_proto_tcp, NULL, NET_002_PORT, 0) == NULL);
 
   sys_iostream_t *client = NULL;
   uint64_t start = sys_timestamp_ms();
   while (client == NULL &&
         sys_timestamp_ms() - start < NET_002_WAIT_MS) {
-    client = net_open(net_proto_tcp, &loopback, NET_002_PORT);
+    client = net_open(net_proto_tcp, &loopback, NET_002_PORT, 0);
     if (client == NULL) {
       sys_sleep_ms(NET_002_POLL_MS);
     }

@@ -72,7 +72,7 @@ test_main_sys(0) {
   uint64_t start = sys_timestamp_ms();
   while (client == NULL &&
         sys_timestamp_ms() - start < NET_008_WAIT_MS) {
-    client = net_open(net_proto_tcp, &loopback, NET_008_PORT);
+    client = net_open(net_proto_tcp, &loopback, NET_008_PORT, 0);
     if (client == NULL) {
       sys_sleep_ms(NET_008_POLL_MS);
     }

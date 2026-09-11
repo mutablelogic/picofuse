@@ -43,7 +43,7 @@ static void on_accept(net_listener_t *listener, sys_iostream_t *conn,
 }
 
 static bool send_and_wait_reply(net_addr_t *loopback, int expect_count) {
-  sys_iostream_t *client = net_open(net_proto_udp, loopback, NET_003_PORT);
+  sys_iostream_t *client = net_open(net_proto_udp, loopback, NET_003_PORT, 0);
   if (client == NULL) {
     return false;
   }

@@ -1064,3 +1064,52 @@ picofuse_test(net_008
 	LIBRARIES picofuse-net
 	TESTRUNNER_TIMEOUT 30
 )
+
+# net_mqtt_init()/_deinit()/_default_config() handle lifecycle
+picofuse_test(net_009
+	net_009/main.c
+	LIBRARIES picofuse-net
+)
+
+# net_ntp_read() against a real NTP server, over a real Wi-Fi join done by
+# this test itself - the Pico-only counterpart to net_005, which assumes
+# a network route already exists (true on host platforms, not on Pico
+# until something actually joins one). See net_007/hw_017 for the same
+# scan/connect scaffolding this mirrors.
+if(DEFINED PICO_BOARD)
+	picofuse_test(net_010
+		net_010/main.c
+		LIBRARIES picofuse-hw picofuse-net
+		TESTRUNNER_TIMEOUT 60
+	)
+
+	# Wi-Fi credentials from environment (export WIFI_SSID and WIFI_PASSWORD)
+	set(WIFI_SSID "$ENV{WIFI_SSID}")
+	set(WIFI_PASSWORD "$ENV{WIFI_PASSWORD}")
+
+	# Add Wi-Fi credentials as compile definitions
+	target_compile_definitions(net_010 PRIVATE
+		WIFI_SSID="${WIFI_SSID}"
+		WIFI_PASSWORD="${WIFI_PASSWORD}"
+	)
+endif()
+
+# net_ntp_register_hid() against a real NTP server, over a real Wi-Fi
+# join - the Pico-only counterpart to net_006, same reasoning as net_010.
+if(DEFINED PICO_BOARD)
+	picofuse_test(net_011
+		net_011/main.c
+		LIBRARIES picofuse-hw picofuse-net picofuse-hid
+		TESTRUNNER_TIMEOUT 60
+	)
+
+	# Wi-Fi credentials from environment (export WIFI_SSID and WIFI_PASSWORD)
+	set(WIFI_SSID "$ENV{WIFI_SSID}")
+	set(WIFI_PASSWORD "$ENV{WIFI_PASSWORD}")
+
+	# Add Wi-Fi credentials as compile definitions
+	target_compile_definitions(net_011 PRIVATE
+		WIFI_SSID="${WIFI_SSID}"
+		WIFI_PASSWORD="${WIFI_PASSWORD}"
+	)
+endif()

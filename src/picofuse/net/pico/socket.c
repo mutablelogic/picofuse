@@ -11,9 +11,9 @@
 #define NET_CONN_CAPACITY 4
 #endif
 
-// How long net_open()'s TCP path spin-polls waiting for tcp_connect()'s
-// callback before giving up
-#define NET_CONN_CONNECT_TIMEOUT_MS (30 * 1000)
+// How often net_open()'s TCP path re-checks ctx->connect_done while
+// spin-polling for tcp_connect()'s callback, up to its own timeout_ms
+// (or NET_OPEN_DEFAULT_TIMEOUT_MS - see net.h) - see net_open() below.
 #define NET_CONN_POLL_MS 2
 
 // Max payload size for a single UDP datagram this backend will send or
@@ -483,7 +483,7 @@ sys_iostream_t *_net_conn_wrap_tcp(struct tcp_pcb *pcb) {
 /** Opens a new network connection and returns the associated sys_iostream_t.
  * Returns NULL on failure. */
 sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
-                         uint16_t port) {
+                         uint16_t port, uint32_t timeout_ms) {
   if (addr == NULL || !cyw43_is_initialized(&cyw43_state)) {
     return NULL;
   }
@@ -539,9 +539,10 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
   ctx->kind = _net_conn_tcp;
   ctx->pcb.tcp = pcb;
 
+  uint32_t wait_ms =
+      (timeout_ms != 0) ? timeout_ms : NET_OPEN_DEFAULT_TIMEOUT_MS;
   uint64_t start = sys_timestamp_ms();
-  while (!ctx->connect_done &&
-         sys_timestamp_ms() - start < NET_CONN_CONNECT_TIMEOUT_MS) {
+  while (!ctx->connect_done && sys_timestamp_ms() - start < wait_ms) {
 #if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();
 #endif

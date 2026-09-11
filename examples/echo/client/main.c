@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
       net_addr_v4((uint8_t)a, (uint8_t)b, (uint8_t)c, (uint8_t)d);
 
   sys_printf("connecting to %s:%u...\n", server, ECHO_PORT);
-  sys_iostream_t *conn = net_open(net_proto_tcp, &addr, ECHO_PORT);
+  sys_iostream_t *conn = net_open(net_proto_tcp, &addr, ECHO_PORT, 0);
   if (conn == NULL) {
     sys_printf("failed to connect to %s:%u\n", server, ECHO_PORT);
     sys_exit();
