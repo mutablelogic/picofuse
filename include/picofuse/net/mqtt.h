@@ -395,6 +395,11 @@ void net_mqtt_disconnect(net_mqtt_t *mqtt);
  * this module sent most recently for it, reported as a
  * net_mqtt_event_error); no retry is attempted on a timeout.
  *
+ * @todo Retry a timed-out net_mqtt_qos_1/net_mqtt_qos_2 acknowledgment
+ * instead of just failing it - the spec's own answer (resend the
+ * PUBLISH with DUP=1, or for net_mqtt_qos_2 past PUBREC, just resend
+ * PUBREL) isn't implemented yet.
+ *
  * Only one outstanding publish at a time for now (a queue is future
  * work) - if one is already staged when this is called, it blocks until
  * net_poll() drains it (freeing the slot for this call to use) or the
@@ -458,6 +463,13 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
  * net_mqtt_event_received events on whichever callback is currently
  * registered via net_mqtt_set_callback() - register that first, since
  * nothing is queued for a callback that isn't set yet.
+ *
+ * @todo Support net_mqtt_qos_1/net_mqtt_qos_2 here and for delivery -
+ * receiving a message at either level needs this client to acknowledge
+ * it back to the broker (a PUBACK, or a PUBREC/PUBREL/PUBCOMP exchange),
+ * which isn't implemented yet; until it is, requesting either level
+ * fails (see @return) and an incoming PUBLISH at either level is treated
+ * as a protocol error this client can't handle.
  */
 uint32_t net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
                             net_mqtt_qos_t qos);
