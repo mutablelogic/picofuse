@@ -1,31 +1,9 @@
-#include "../private.h"
-#include <picofuse/net.h>
-#include <picofuse/sys.h>
-
-// Generous enough for "<sys_env_name()>-<sys_env_serial()>" on every
-// target this project builds for, without needing to be exact - a
-// caller-supplied client_id longer than this is simply truncated (see
-// sys_sprintf()'s own truncation semantics).
-#define NET_MQTT_CLIENT_ID_SIZE 64
-
-///////////////////////////////////////////////////////////////////////////////
-// TYPES
-
-// A singleton, not a pool - see net_mqtt_t's own doc on why.
-struct net_mqtt_t {
-  net_addr_t addr;
-  uint16_t port;
-  uint32_t timeout_ms;
-  char client_id[NET_MQTT_CLIENT_ID_SIZE];
-  net_mqtt_event_callback_t callback;
-  void *userdata;
-  bool active;
-};
+#include "private.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
-static struct net_mqtt_t _net_mqtt_singleton = {0};
+struct net_mqtt_t _net_mqtt_singleton = {0};
 static char _net_mqtt_default_client_id[NET_MQTT_CLIENT_ID_SIZE];
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -45,6 +23,8 @@ void net_mqtt_default_config(net_mqtt_config_t *config) {
     return;
   }
   config->client_id = _net_mqtt_generate_client_id();
+  config->username = NULL;
+  config->password = NULL;
 }
 
 net_mqtt_t *net_mqtt_init(const net_addr_t *addr, uint16_t port,
@@ -59,6 +39,30 @@ net_mqtt_t *net_mqtt_init(const net_addr_t *addr, uint16_t port,
     return NULL;
   }
 
+  // lock/publish_cond are created once, lazily, on the first ever
+  // net_mqtt_init() - and then never destroyed, unlike everything else
+  // here which resets every cycle. See their own doc (private.h) on why:
+  // a net_mqtt_publish() call can be genuinely parked inside
+  // sys_cond_timedwait() (lock released for the wait, per its own
+  // contract) when a concurrent net_mqtt_deinit() runs - destroying the
+  // lock/cond there would race that call's reacquire of the lock right
+  // after waking against this deinit() freeing it out from under that
+  // reacquire. Since net_mqtt_t is a singleton, not a pool, permanently
+  // reserving one mutex and one cond for the process's whole lifetime
+  // is a small, fixed, predictable cost - not a leak.
+  if (_net_mqtt_singleton.lock == NULL) {
+    _net_mqtt_singleton.lock = sys_mutex_init();
+    if (_net_mqtt_singleton.lock == NULL) {
+      return NULL;
+    }
+  }
+  if (_net_mqtt_singleton.publish_cond == NULL) {
+    _net_mqtt_singleton.publish_cond = sys_cond_init();
+    if (_net_mqtt_singleton.publish_cond == NULL) {
+      return NULL; // lock stays allocated - reused on the next init()
+    }
+  }
+
   net_mqtt_config_t default_config;
   if (config == NULL) {
     net_mqtt_default_config(&default_config);
@@ -70,12 +74,24 @@ net_mqtt_t *net_mqtt_init(const net_addr_t *addr, uint16_t port,
   _net_mqtt_singleton.timeout_ms = timeout_ms;
   _net_mqtt_singleton.callback = NULL;
   _net_mqtt_singleton.userdata = NULL;
+  _net_mqtt_singleton.connected = false;
+  _net_mqtt_singleton.conn = NULL;
+  _net_mqtt_singleton.next_message_id = 0;
+  _net_mqtt_singleton.next_packet_id = 0;
+  _net_mqtt_singleton.publish.state = _net_mqtt_publish_idle;
 
   const char *client_id = (config->client_id != NULL && config->client_id[0] != '\0')
                               ? config->client_id
                               : _net_mqtt_generate_client_id();
   sys_sprintf(_net_mqtt_singleton.client_id,
              sizeof(_net_mqtt_singleton.client_id), "%s", client_id);
+
+  sys_sprintf(_net_mqtt_singleton.username,
+             sizeof(_net_mqtt_singleton.username), "%s",
+             (config->username != NULL) ? config->username : "");
+  sys_sprintf(_net_mqtt_singleton.password,
+             sizeof(_net_mqtt_singleton.password), "%s",
+             (config->password != NULL) ? config->password : "");
 
   _net_mqtt_singleton.active = true;
   return &_net_mqtt_singleton;
@@ -87,8 +103,13 @@ void net_mqtt_set_callback(net_mqtt_t *mqtt, net_mqtt_event_callback_t callback,
       !_net_mqtt_singleton.active) {
     return;
   }
+  // Same lock _net_mqtt_fire_event() reads these two fields under - keeps
+  // a concurrent set_callback() from tearing a dispatch that's mid-read
+  // (matches pix_display_set_callback()'s identical reasoning).
+  sys_mutex_lock(_net_mqtt_singleton.lock);
   _net_mqtt_singleton.callback = callback;
   _net_mqtt_singleton.userdata = userdata;
+  sys_mutex_unlock(_net_mqtt_singleton.lock);
 }
 
 void net_mqtt_deinit(net_mqtt_t *mqtt) {
@@ -96,45 +117,19 @@ void net_mqtt_deinit(net_mqtt_t *mqtt) {
       !_net_mqtt_singleton.active) {
     return;
   }
-  // TODO: disconnect first once net_mqtt_connect()/net_mqtt_disconnect()
-  // actually open a connection - see net_mqtt_deinit()'s own doc.
+  net_mqtt_disconnect(mqtt); // no-op if not connected - see its own doc
   _net_mqtt_singleton.callback = NULL;
   _net_mqtt_singleton.userdata = NULL;
   _net_mqtt_singleton.active = false;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// CONNECTION
-
-/** Stub implementation: MQTT connect/publish/subscribe not yet
- * implemented - only the handle lifecycle above is real so far. */
-bool net_mqtt_connect(net_mqtt_t *mqtt) {
-  (void)mqtt;
-  return false;
-}
-
-/** Stub implementation - see net_mqtt_connect()'s own note above. */
-void net_mqtt_disconnect(net_mqtt_t *mqtt) { (void)mqtt; }
-
-///////////////////////////////////////////////////////////////////////////////
-// PUBLISH
-
-/** Stub implementation - see net_mqtt_connect()'s own note above. */
-bool net_mqtt_publish(net_mqtt_t *mqtt, const char *topic, const void *payload,
-                      size_t payload_len, net_mqtt_qos_t qos, bool retain) {
-  (void)mqtt;
-  (void)topic;
-  (void)payload;
-  (void)payload_len;
-  (void)qos;
-  (void)retain;
-  return false;
+  // lock/publish_cond deliberately outlive this - see their own doc.
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // SUBSCRIBE
 
-/** Stub implementation - see net_mqtt_connect()'s own note above. */
+/** Stub implementation - net_mqtt_connect()/_disconnect() (connect.c) and
+ * net_mqtt_publish() (publish.c/poll.c, QoS 0/1) are real; subscribe
+ * still needs the wire protocol wiring up. */
 bool net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
                         net_mqtt_qos_t qos) {
   (void)mqtt;
@@ -143,16 +138,9 @@ bool net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
   return false;
 }
 
-/** Stub implementation - see net_mqtt_connect()'s own note above. */
+/** Stub implementation - see net_mqtt_subscribe()'s own note above. */
 bool net_mqtt_unsubscribe(net_mqtt_t *mqtt, const char *topic) {
   (void)mqtt;
   (void)topic;
   return false;
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// POLLING
-
-/** Stub implementation - nothing can ever be connected yet, since
- * net_mqtt_connect() always fails - see its own note above. */
-bool _net_mqtt_poll(void) { return false; }

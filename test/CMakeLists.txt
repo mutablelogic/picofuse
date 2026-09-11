@@ -1122,3 +1122,50 @@ picofuse_test(net_012
 	LIBRARIES picofuse-net
 	TESTRUNNER_TIMEOUT 15
 )
+
+# net_mqtt_connect()/_disconnect() against a real public test broker -
+# see net_013/main.c's own comment on why a real reply is skipped rather
+# than asserted.
+picofuse_test(net_013
+	net_013/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# net_mqtt_connect() against test.mosquitto.org's authenticated listener
+# (port 1884) - real published test credentials, both accepted and a
+# deliberately wrong password rejected - see net_014/main.c's own
+# comment.
+picofuse_test(net_014
+	net_014/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# net_mqtt_publish() (QoS 0) against a real broker - see net_015/main.c's
+# own comment on scope (no subscribe yet to verify round-trip delivery
+# with) and why a real reply is skipped rather than asserted.
+picofuse_test(net_015
+	net_015/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# net_mqtt_publish() genuinely blocks (not busy-waits) on a full publish
+# slot, and wakes up on either a real net_poll() drain or a disconnect -
+# see net_016/main.c's own comment on the real cross-thread/core
+# verification and why a real reply is skipped rather than asserted.
+picofuse_test(net_016
+	net_016/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# net_mqtt_publish() QoS 1 against a real broker - the actual
+# PUBLISH/PUBACK round trip - see net_017/main.c's own comment on why a
+# real reply is skipped rather than asserted.
+picofuse_test(net_017
+	net_017/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)

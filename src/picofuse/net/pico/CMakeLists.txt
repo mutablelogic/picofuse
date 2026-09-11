@@ -13,6 +13,10 @@ picofuse_library(
         ../ntp/ntp.c
         ../ntp/hid.c
         ../mqtt/mqtt.c
+        ../mqtt/connect.c
+        ../mqtt/publish.c
+        ../mqtt/io.c
+        ../mqtt/poll.c
         ../poll.c
         ${_net_src}
 )

@@ -75,7 +75,11 @@ typedef enum {
  */
 typedef struct {
   const char *client_id; ///< MQTT client identifier sent in CONNECT. `NULL`
-                        ///< or empty auto-generates one.
+                         ///< or empty auto-generates one.
+  const char *username;  ///< Optional username sent in CONNECT. `NULL` or
+                         ///< empty sends none.
+  const char *password;  ///< Optional password sent in CONNECT. Only ever
+                         ///< sent alongside a non-empty username.
 } net_mqtt_config_t;
 
 /**
@@ -89,11 +93,11 @@ typedef enum {
                                ///< net_mqtt_disconnect() or an unexpected
                                ///< drop noticed during net_poll() -
                                ///< carries no payload.
-  net_mqtt_event_sent,        ///< A net_mqtt_publish() call completed -
+  net_mqtt_event_sent,         ///< A net_mqtt_publish() call completed -
                                ///< see net_mqtt_sent_t.
-  net_mqtt_event_received,    ///< A message arrived on a subscribed
+  net_mqtt_event_received,     ///< A message arrived on a subscribed
                                ///< topic - see net_mqtt_received_t.
-  net_mqtt_event_error,       ///< Something failed - see net_mqtt_error_t.
+  net_mqtt_event_error,        ///< Something failed - see net_mqtt_error_t.
 } net_mqtt_event_type_t;
 
 /**
@@ -101,7 +105,11 @@ typedef enum {
  * @ingroup NetworkMQTT
  */
 typedef struct {
-  const char *topic; ///< Topic that was published to.
+  const char *topic;    ///< Topic that was published to.
+  uint32_t message_id;  ///< The id net_mqtt_publish() returned for the
+                        ///< call this event completes - lets a caller
+                        ///< with several publishes in flight match each
+                        ///< one to its own completion.
 } net_mqtt_sent_t;
 
 /**
@@ -109,29 +117,29 @@ typedef struct {
  * @ingroup NetworkMQTT
  */
 typedef struct {
-  const char *topic;      ///< Topic the message was published to - may be
-                          ///< more specific than the net_mqtt_subscribe()
-                          ///< filter that matched it, if that filter used
-                          ///< a wildcard.
+  const char *topic;       ///< Topic the message was published to - may be
+                           ///< more specific than the net_mqtt_subscribe()
+                           ///< filter that matched it, if that filter used
+                           ///< a wildcard.
   sys_iostream_t *payload; ///< Message payload, as a stream, not a
-                          ///< buffer - MQTT payloads have no protocol
-                          ///< size limit, so this is read incrementally
-                          ///< rather than requiring the whole message to
-                          ///< be buffered in memory first. Not
-                          ///< caller-owned and only valid for the
-                          ///< duration of this callback - don't
-                          ///< sys_iostream_close() it. Good for reading
-                          ///< up to payload_len bytes total; whatever's
-                          ///< left unread when the callback returns is
-                          ///< discarded automatically, so there's no need
-                          ///< to drain it fully.
-  size_t payload_len;     ///< Total payload length in bytes, known
-                          ///< upfront from the MQTT packet header.
-  bool retain;            ///< True if this is a retained message
-                          ///< delivered because of the subscription
-                          ///< itself rather than a live publish - see
-                          ///< net_mqtt_publish()'s own doc on retained
-                          ///< messages.
+                           ///< buffer - MQTT payloads have no protocol
+                           ///< size limit, so this is read incrementally
+                           ///< rather than requiring the whole message to
+                           ///< be buffered in memory first. Not
+                           ///< caller-owned and only valid for the
+                           ///< duration of this callback - don't
+                           ///< sys_iostream_close() it. Good for reading
+                           ///< up to payload_len bytes total; whatever's
+                           ///< left unread when the callback returns is
+                           ///< discarded automatically, so there's no need
+                           ///< to drain it fully.
+  size_t payload_len;      ///< Total payload length in bytes, known
+                           ///< upfront from the MQTT packet header.
+  bool retain;             ///< True if this is a retained message
+                           ///< delivered because of the subscription
+                           ///< itself rather than a live publish - see
+                           ///< net_mqtt_publish()'s own doc on retained
+                           ///< messages.
 } net_mqtt_received_t;
 
 /**
@@ -140,6 +148,11 @@ typedef struct {
  */
 typedef struct {
   const char *message; ///< Human-readable description of what failed.
+  uint32_t message_id; ///< The id net_mqtt_publish() returned for the
+                       ///< call this error belongs to, if any - `0` if
+                       ///< this error isn't tied to a specific publish
+                       ///< (`0` is never a real net_mqtt_publish() id -
+                       ///< see its own doc).
 } net_mqtt_error_t;
 
 /**
@@ -187,7 +200,8 @@ typedef void (*net_mqtt_event_callback_t)(net_mqtt_t *mqtt,
  * Sets client_id to a stable, auto-generated id derived from the
  * environment's own name and serial number - the same one net_mqtt_init()
  * falls back to when passed `NULL` directly, so calling this first isn't
- * required. Useful for a caller that wants the defaults as a starting
+ * required. username/password default to `NULL` (no authentication).
+ * Useful for a caller that wants the defaults as a starting
  * point to then override just one or two fields.
  */
 void net_mqtt_default_config(net_mqtt_config_t *config);
@@ -208,8 +222,7 @@ void net_mqtt_default_config(net_mqtt_config_t *config);
  * there's no pool.
  */
 net_mqtt_t *net_mqtt_init(const net_addr_t *addr, uint16_t port,
-                          uint32_t timeout_ms,
-                          const net_mqtt_config_t *config);
+                          uint32_t timeout_ms, const net_mqtt_config_t *config);
 
 /**
  * @brief Register the callback for events on an MQTT client instance.
@@ -225,8 +238,7 @@ net_mqtt_t *net_mqtt_init(const net_addr_t *addr, uint16_t port,
  * rather than registering one callback per kind of event. Same shape as
  * pix_display_set_callback().
  */
-void net_mqtt_set_callback(net_mqtt_t *mqtt,
-                           net_mqtt_event_callback_t callback,
+void net_mqtt_set_callback(net_mqtt_t *mqtt, net_mqtt_event_callback_t callback,
                            void *userdata);
 
 /**
@@ -285,29 +297,58 @@ void net_mqtt_disconnect(net_mqtt_t *mqtt);
  * @{ */
 
 /**
- * @brief Publish a message to a topic.
+ * @brief Stage a message to publish to a topic, waiting for room to do so.
  * @ingroup NetworkMQTT
  * @param mqtt Handle from net_mqtt_init(), must be connected - see
  * net_mqtt_connect().
- * @param topic Topic to publish to.
+ * @param topic Topic to publish to. Only borrowed - see the note below on
+ * how long it (and @p payload) must stay valid.
  * @param payload Message payload. May be NULL if payload_len is 0, for an
- * empty message.
+ * empty message. Only borrowed, like @p topic.
  * @param payload_len Length of payload in bytes.
  * @param qos Delivery guarantee for this message - see net_mqtt_qos_t.
+ * net_mqtt_qos_0 and net_mqtt_qos_1 are implemented - net_mqtt_qos_2
+ * currently just fails (see @return) rather than silently downgrading.
  * @param retain If true, the broker keeps this message as the topic's
  * last-known value, delivered immediately to any client that subscribes
  * to it afterward - until replaced by another retained publish, or
  * cleared with a retained empty message.
- * @retval true Sent (net_mqtt_qos_0) or acknowledged within the handle's
- * timeout_ms (net_mqtt_qos_1/net_mqtt_qos_2) - a net_mqtt_event_sent
- * event also fires at that same point, for a caller tracking completion
- * through net_mqtt_set_callback() instead of this return value.
- * @retval false @p mqtt was NULL or not connected, @p topic was NULL, or
- * the send/acknowledgment didn't complete within timeout_ms - a
- * net_mqtt_event_error event fires in that last case.
+ * @return A message id (never 0) if the message was accepted for
+ * sending - not yet sent, see below. `0` if @p mqtt was NULL, @p topic
+ * was NULL, @p qos was net_mqtt_qos_2, or - after waiting, see below -
+ * @p mqtt wasn't/isn't connected.
+ *
+ * This doesn't send anything itself - it stages the message and returns,
+ * and net_poll() does the actual write on a later call (see its own
+ * doc). That's not just a performance detail: for net_mqtt_qos_1,
+ * completion means waiting for a PUBACK that can only arrive interleaved
+ * with other traffic on the same connection (an incoming subscribed
+ * message, say), which a synchronous call blocking on "read exactly one
+ * reply" can't safely do - so net_mqtt_qos_0 goes through the same
+ * staged path too, rather than being a special synchronous case. For
+ * net_mqtt_qos_1, the message id doesn't count as sent - and the
+ * publish slot doesn't free up - until that PUBACK actually arrives (or
+ * times out after the handle's own timeout_ms, reported as a
+ * net_mqtt_event_error); no retry is attempted on a timeout.
+ *
+ * Only one outstanding publish at a time for now (a queue is future
+ * work) - if one is already staged when this is called, it blocks until
+ * net_poll() drains it (freeing the slot for this call to use) or the
+ * connection drops, up to the handle's own timeout_ms (`0` returns
+ * immediately rather than waiting, same as every other timeout_ms on
+ * this handle). This does not busy-wait - a concurrent net_poll()/
+ * net_mqtt_disconnect() on another thread/core still makes progress
+ * while a call is blocked here.
+ *
+ * @p topic and @p payload are borrowed, not copied - they must stay
+ * valid until net_poll() actually sends this message, signaled by a
+ * net_mqtt_event_sent (success) or net_mqtt_event_error (failure) event
+ * whose payload carries this same message id. Disconnecting before that
+ * happens abandons the staged message silently - neither event fires.
  */
-bool net_mqtt_publish(net_mqtt_t *mqtt, const char *topic, const void *payload,
-                      size_t payload_len, net_mqtt_qos_t qos, bool retain);
+uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
+                          const void *payload, size_t payload_len,
+                          net_mqtt_qos_t qos, bool retain);
 
 /** @} */
 

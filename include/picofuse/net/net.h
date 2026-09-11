@@ -152,8 +152,7 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
  * open).
  */
 net_listener_t *net_listener_init(net_proto_t proto, const net_addr_t *addr,
-                                  uint16_t port,
-                                  net_accept_callback_t callback,
+                                  uint16_t port, net_accept_callback_t callback,
                                   void *userdata);
 
 /**
@@ -180,9 +179,12 @@ void net_listener_deinit(net_listener_t *listener);
  * Call this regularly from the application's own main loop, alongside
  * pix_poll()/HID polling - one call point for the whole network module,
  * rather than a separate poll per subsystem. Currently drives the active
- * MQTT connection, if any (see net_mqtt_init()) - net_mqtt_t and friends
- * have no public poll of their own; net_open()/net_listener_init() need
- * none, being callback-driven already (see this file's own doc).
+ * MQTT connection, if any (see net_mqtt_init()) - including actually
+ * sending whatever net_mqtt_publish() has staged (see its own doc on
+ * why sending happens here rather than synchronously in that call).
+ * net_mqtt_t and friends have no public poll of their own; net_open()/
+ * net_listener_init() need none, being callback-driven already (see this
+ * file's own doc).
  */
 bool net_poll(void);
 

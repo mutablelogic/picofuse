@@ -5,6 +5,10 @@ picofuse_library(
         ../ntp/ntp.c
         ../ntp/hid.c
         ../mqtt/mqtt.c
+        ../mqtt/connect.c
+        ../mqtt/publish.c
+        ../mqtt/io.c
+        ../mqtt/poll.c
         ../poll.c
         ../posix/socket.c
         ../posix/listener.c
