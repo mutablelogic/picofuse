@@ -7,16 +7,16 @@ struct net_mqtt_t _net_mqtt_singleton = {0};
 static char _net_mqtt_default_client_id[NET_MQTT_CLIENT_ID_SIZE];
 
 ///////////////////////////////////////////////////////////////////////////////
-// LIFECYCLE
+// PRIVATE METHODS
 
-// Stable per-device id derived from the environment's own name and serial
-// number - shared by net_mqtt_default_config() and net_mqtt_init()'s own
-// fallback, so both use the same derivation.
 static const char *_net_mqtt_generate_client_id(void) {
   sys_sprintf(_net_mqtt_default_client_id, sizeof(_net_mqtt_default_client_id),
               "%s-%s", sys_env_name(), sys_env_serial());
   return _net_mqtt_default_client_id;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
 
 void net_mqtt_default_config(net_mqtt_config_t *config) {
   if (config == NULL) {
@@ -104,9 +104,6 @@ void net_mqtt_set_callback(net_mqtt_t *mqtt, net_mqtt_event_callback_t callback,
   if (mqtt == NULL || mqtt != &_net_mqtt_singleton || !mqtt->active) {
     return;
   }
-  // Same lock _net_mqtt_fire_event() reads these two fields under - keeps
-  // a concurrent set_callback() from tearing a dispatch that's mid-read
-  // (matches pix_display_set_callback()'s identical reasoning).
   sys_mutex_lock(mqtt->lock);
   mqtt->callback = callback;
   mqtt->userdata = userdata;
@@ -117,11 +114,10 @@ void net_mqtt_deinit(net_mqtt_t *mqtt) {
   if (mqtt == NULL || mqtt != &_net_mqtt_singleton || !mqtt->active) {
     return;
   }
-  net_mqtt_disconnect(mqtt); // no-op if not connected - see its own doc
+  net_mqtt_disconnect(mqtt); // no-op if not connected
   mqtt->callback = NULL;
   mqtt->userdata = NULL;
   mqtt->active = false;
-  // lock/publish_cond deliberately outlive this - see their own doc.
 }
 
 ///////////////////////////////////////////////////////////////////////////////
