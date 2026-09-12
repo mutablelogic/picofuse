@@ -19,6 +19,24 @@ these yet, just the list of what's next:
   client/server, DHCP server.
 - **MQTT client** - Sub QoS 2 - receiving messages with exactly-once
   quality of service (QoS 1 receiving is done).
+- **Wire `net_poll()` into the app module without forcing every app to
+  link `picofuse-net`** - `_app_poll()` (`src/picofuse/app/app.c`) calls
+  `hw_poll()`/`hid_poll()`/`pix_poll()` unconditionally every run loop
+  tick, and `net_poll()` (MQTT/NTP progress) needs the same cadence, but
+  `picofuse-app`'s own CMakeLists.txt deliberately always links
+  `picofuse-sys`/`picofuse-hw`/`picofuse-hid`/`picofuse-pix` with no
+  weak-symbol fallback - doing the same for `picofuse-net` would pull
+  networking into every app binary whether it uses it or not, unlike hw/
+  hid/pix which are considered core enough to always carry. Needs a real
+  design decision, not just copying the existing pattern: options include
+  a registration API (`app.c` exposes something like `app_register_
+  poll()` that a program linking `picofuse-net` calls once to plug
+  `net_poll()` in, so `app.c` itself never references `net.h`), a CMake-
+  level opt-in (e.g. `PICOFUSE_APP_NET`) that conditionally links
+  `picofuse-net` into `picofuse-app` and calls `net_poll()` only when
+  set, or weak-symbol `net_poll()` (toolchain/platform support permitting
+  - Pico's own build already relies on some weak-symbol behavior
+  elsewhere, worth checking before ruling this out).
 - **Displays** - e-ink, TFT, Linux framebuffer, SDL (host builds). Design
   intent so far: a `pix_t` registry, same shape as `hid_t` (`hid_init()`/
   `hid_register_*()`/`hid_deregister()`/`hid_poll()`) - `pix_register_
