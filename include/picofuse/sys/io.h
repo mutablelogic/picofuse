@@ -136,6 +136,30 @@ extern int sys_iostream_peek(sys_iostream_t *s);
 extern size_t sys_iostream_read(sys_iostream_t *s, char *buf, size_t n);
 
 /**
+ * @brief Report whether a stream has permanently ended.
+ * @ingroup SystemDataStream
+ * @param s The stream to check, or NULL (returns false).
+ * @return true if the stream will never produce more data (for example,
+ * a network stream whose peer has closed the connection). false if it
+ * might still produce more later, or if its backend doesn't distinguish
+ * that from "nothing available right now" (the default for any backend
+ * that doesn't implement this - a source with no background/async
+ * arrival, such as a string or buffer, has no such distinction to make
+ * in the first place, since sys_iostream_read() returning 0 already
+ * means the same thing there: permanently done).
+ *
+ * Not the same question sys_iostream_peek() returning SYS_IOSTREAM_EOF
+ * answers - that happens both when a stream is genuinely done *and* when
+ * a live, asynchronously-fed one (a network connection) simply has
+ * nothing available yet but is still open, with no way to tell those two
+ * apart from that return value alone. sys_iostream_eof() is the
+ * explicit version of that question, for a caller that needs to detect a
+ * source actually going away rather than just quietly seeing "no data"
+ * forever.
+ */
+extern bool sys_iostream_eof(sys_iostream_t *s);
+
+/**
  * @brief Write bytes to a stream.
  * @ingroup SystemDataStream
  * @param s The stream to write to.

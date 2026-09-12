@@ -47,6 +47,7 @@
 #pragma once
 #include <picofuse/net/types.h>
 #include <picofuse/sys/io.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -107,11 +108,23 @@ size_t net_addr_to_string(const net_addr_t *addr, char *buf, size_t buf_size);
  * @{ */
 
 /**
+ * @def NET_OPEN_DEFAULT_TIMEOUT_MS
+ * @ingroup Network
+ * @brief Default connection timeout used by net_open() when its own
+ * @p timeout_ms is 0.
+ */
+#define NET_OPEN_DEFAULT_TIMEOUT_MS (30 * 1000)
+
+/**
  * @brief Open a connection to a remote host.
  * @ingroup Network
  * @param proto Transport protocol.
  * @param addr Remote address to connect to.
  * @param port Remote port to connect to.
+ * @param timeout_ms How long to wait for the connection to establish, or
+ * 0 to default to NET_OPEN_DEFAULT_TIMEOUT_MS. Not consulted for
+ * @ref net_proto_udp - "connecting" a UDP socket just records a default
+ * peer locally, with no handshake to wait for.
  * @return An open stream, or NULL on failure (connection refused, timed
  * out, or no route). Blocks until connected or the attempt fails.
  *
@@ -122,7 +135,7 @@ size_t net_addr_to_string(const net_addr_t *addr, char *buf, size_t buf_size);
  * not-yet-known peers.
  */
 sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
-                         uint16_t port);
+                         uint16_t port, uint32_t timeout_ms);
 
 /**
  * @brief Start listening for incoming connections or datagrams.
@@ -139,8 +152,7 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
  * open).
  */
 net_listener_t *net_listener_init(net_proto_t proto, const net_addr_t *addr,
-                                  uint16_t port,
-                                  net_accept_callback_t callback,
+                                  uint16_t port, net_accept_callback_t callback,
                                   void *userdata);
 
 /**
@@ -150,6 +162,31 @@ net_listener_t *net_listener_init(net_proto_t proto, const net_addr_t *addr,
  * already handed to @p callback are unaffected - see its own doc.
  */
 void net_listener_deinit(net_listener_t *listener);
+
+/** @} */
+
+///////////////////////////////////////////////////////////////////////////////
+// POLLING
+
+/** @name Polling
+ * @{ */
+
+/**
+ * @brief Service every network subsystem that needs periodic attention.
+ * @ingroup Network
+ * @return true if anything was actually serviced this call.
+ *
+ * Call this regularly from the application's own main loop, alongside
+ * pix_poll()/HID polling - one call point for the whole network module,
+ * rather than a separate poll per subsystem. Currently drives the active
+ * MQTT connection, if any (see net_mqtt_init()) - including actually
+ * sending whatever net_mqtt_publish() has staged (see its own doc on
+ * why sending happens here rather than synchronously in that call).
+ * net_mqtt_t and friends have no public poll of their own; net_open()/
+ * net_listener_init() need none, being callback-driven already (see this
+ * file's own doc).
+ */
+bool net_poll(void);
 
 /** @} */
 

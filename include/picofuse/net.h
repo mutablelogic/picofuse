@@ -16,7 +16,7 @@
  *
  * @code
  * net_addr_t addr = net_addr_v4(93, 184, 215, 14); // example.com
- * sys_iostream_t *conn = net_open(net_proto_tcp, &addr, 80);
+ * sys_iostream_t *conn = net_open(net_proto_tcp, &addr, 80, 0);
  * if (conn != NULL) {
  *   const char *req = "GET / HTTP/1.0\r\n\r\n";
  *   sys_iostream_write(conn, req, strlen(req));
@@ -49,6 +49,7 @@
  * @endcode
  */
 #pragma once
+#include "net/mqtt.h"
 #include "net/net.h"
 #include "net/ntp.h"
 #include "net/types.h"

@@ -122,7 +122,7 @@ test_main_hw(0) {
                                               0x00, 0x00, 0x00, 0x00, 0x11,
                                               0x11};
     net_addr_t remote = net_addr_v6(cloudflare_v6);
-    sys_iostream_t *conn = net_open(net_proto_tcp, &remote, 80);
+    sys_iostream_t *conn = net_open(net_proto_tcp, &remote, 80, 0);
     if (conn == NULL) {
       sys_printf("[net_007] no IPv6 route to 2606:4700:4700::1111:80 - "
                 "skipping\n");

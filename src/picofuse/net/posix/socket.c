@@ -2,11 +2,14 @@
 #include "posix.h"
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <poll.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #ifndef NET_CONN_BUFFER_SIZE
@@ -325,10 +328,20 @@ static size_t _net_conn_ops_read(sys_iostream_t *s, char *buf, size_t n) {
   return read_n;
 }
 
+// MSG_DONTWAIT rather than a plain blocking send(): the fd itself is
+// left in its ordinary blocking mode (shared with the RX thread's own
+// poll()+recv() on the same fd - see _net_conn_rx_thread()'s own doc),
+// but a caller like _net_mqtt_write_exact() relies on this call never
+// stalling past what the peer's socket buffer can currently accept, so
+// its own timeout/retry loop actually gets a chance to run instead of
+// blocking indefinitely inside a single send() while the peer stops
+// reading. EAGAIN/EWOULDBLOCK (buffer full right now) and a real error
+// are deliberately not distinguished here, same as before this change -
+// either way the caller just sees "wrote nothing this attempt".
 static size_t _net_conn_ops_write(sys_iostream_t *s, const char *buf,
                                   size_t n) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
-  ssize_t written = send(ctx->fd, buf, n, 0);
+  ssize_t written = send(ctx->fd, buf, n, MSG_DONTWAIT);
   return written > 0 ? (size_t)written : 0;
 }
 
@@ -349,6 +362,17 @@ static ptrdiff_t _net_conn_ops_seek(sys_iostream_t *s, ptrdiff_t offset,
   }
   sys_mutex_unlock(ctx->lock);
   return ok ? 0 : -1;
+}
+
+// The RX thread clears ctx->running the moment it stops - whether from a
+// peer-closed TCP connection (recv() == 0), a socket error, or this
+// stream's own sys_iostream_close() asking it to (see that function's
+// own doc) - so by the time it's 0, this stream will never produce more
+// data. sys_atomic_t, so safe to read from any thread without ctx->lock
+// - see ctx->running's own doc.
+static bool _net_conn_ops_eof(sys_iostream_t *s) {
+  _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
+  return sys_atomic_get(&ctx->running) == 0;
 }
 
 static bool _net_conn_ops_set_callback(sys_iostream_t *s,
@@ -378,6 +402,7 @@ static const sys_iostream_ops_t _net_conn_ops = {
     .seek = _net_conn_ops_seek,
     .set_callback = _net_conn_ops_set_callback,
     .close = _net_conn_ops_close,
+    .eof = _net_conn_ops_eof,
 };
 
 sys_iostream_t *_net_wrap_connected_fd(int fd, net_proto_t proto) {
@@ -442,7 +467,7 @@ sys_iostream_t *_net_wrap_connected_fd(int fd, net_proto_t proto) {
 // LIFECYCLE
 
 sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
-                         uint16_t port) {
+                         uint16_t port, uint32_t timeout_ms) {
   if (addr == NULL) {
     return NULL;
   }
@@ -457,8 +482,68 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
 
   struct sockaddr_storage sa;
   socklen_t sa_len;
-  if (!_net_addr_to_sockaddr(addr, port, &sa, &sa_len) ||
-      connect(fd, (struct sockaddr *)&sa, sa_len) != 0) {
+  if (!_net_addr_to_sockaddr(addr, port, &sa, &sa_len)) {
+    close(fd);
+    return NULL;
+  }
+
+  // UDP's "connect" just records a default peer locally - no handshake,
+  // so nothing here can actually block, and timeout_ms doesn't apply (see
+  // net_open()'s own doc).
+  if (proto == net_proto_udp) {
+    if (connect(fd, (struct sockaddr *)&sa, sa_len) != 0) {
+      close(fd);
+      return NULL;
+    }
+    return _net_wrap_connected_fd(fd, proto);
+  }
+
+  // TCP: make the connect() itself non-blocking so it can be bounded by
+  // timeout_ms via poll() below, rather than however long the OS's own
+  // (often very long) default connect timeout takes - restored to
+  // blocking before this fd is handed off, so every other operation on
+  // it behaves exactly as it always has.
+  int flags = fcntl(fd, F_GETFL, 0);
+  if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+    close(fd);
+    return NULL;
+  }
+
+  int ret = connect(fd, (struct sockaddr *)&sa, sa_len);
+  if (ret != 0 && errno != EINPROGRESS) {
+    close(fd);
+    return NULL;
+  }
+
+  if (ret != 0) {
+    uint32_t wait_ms =
+        (timeout_ms != 0) ? timeout_ms : NET_OPEN_DEFAULT_TIMEOUT_MS;
+    // poll()'s own timeout is a plain int, unlike wait_ms - a value
+    // above INT_MAX would silently wrap to negative on the cast below,
+    // and poll() treats *any* negative timeout as "wait forever" (not
+    // just -1), which is worse than merely honoring a shorter wait than
+    // asked for. Clamping here is simpler than looping poll() calls
+    // against an elapsed deadline to honor the full requested duration,
+    // and a real TCP connect timeout north of ~24.8 days (INT_MAX ms)
+    // isn't a case worth that complexity for.
+    if (wait_ms > (uint32_t)INT_MAX) {
+      wait_ms = (uint32_t)INT_MAX;
+    }
+    struct pollfd pfd = {.fd = fd, .events = POLLOUT};
+    if (poll(&pfd, 1, (int)wait_ms) <= 0) {
+      close(fd); // timed out, or poll() itself failed
+      return NULL;
+    }
+    int so_error = 0;
+    socklen_t so_len = sizeof(so_error);
+    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &so_error, &so_len) != 0 ||
+        so_error != 0) {
+      close(fd);
+      return NULL;
+    }
+  }
+
+  if (fcntl(fd, F_SETFL, flags) < 0) {
     close(fd);
     return NULL;
   }

@@ -68,14 +68,10 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date) {
     return false;
   }
 
-  // Opened fresh for this one request/reply round trip and closed again
-  // below, rather than held open across calls - net_ntp_read() is
-  // typically called at most once an hour (see
-  // net_ntp_register_hid()'s own default interval), so there's nothing
-  // to gain from keeping a connection (and, on Pico, one of only
-  // NET_CONN_CAPACITY slots) reserved between calls.
+  // Open UDP connection to the NTP server.
   sys_iostream_t *conn =
-      net_open(net_proto_udp, &_net_ntp_singleton.addr, _net_ntp_singleton.port);
+      net_open(net_proto_udp, &_net_ntp_singleton.addr,
+              _net_ntp_singleton.port, _net_ntp_singleton.timeout_ms);
   if (conn == NULL) {
     sys_debugf("net", "ntp: net_open failed");
     return false;
@@ -90,7 +86,7 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date) {
   size_t wrote = sys_iostream_write(conn, (char *)packet, sizeof(packet));
   if (wrote != sizeof(packet)) {
     sys_debugf("net", "ntp: write failed, wrote %zu/%zu bytes", wrote,
-              sizeof(packet));
+               sizeof(packet));
     sys_iostream_close(conn);
     return false;
   }
@@ -98,7 +94,7 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date) {
   size_t got = 0;
   uint64_t start = sys_timestamp_ms();
   while (got < sizeof(packet) &&
-        sys_timestamp_ms() - start < _net_ntp_singleton.timeout_ms) {
+         sys_timestamp_ms() - start < _net_ntp_singleton.timeout_ms) {
     got += sys_iostream_read(conn, (char *)packet + got, sizeof(packet) - got);
     if (got < sizeof(packet)) {
       sys_sleep_ms(NET_NTP_POLL_MS);
@@ -107,7 +103,7 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date) {
   sys_iostream_close(conn);
   if (got != sizeof(packet)) {
     sys_debugf("net", "ntp: read timed out after %ums, got %zu/%zu bytes",
-              (unsigned)_net_ntp_singleton.timeout_ms, got, sizeof(packet));
+               (unsigned)_net_ntp_singleton.timeout_ms, got, sizeof(packet));
     return false;
   }
 
@@ -118,11 +114,11 @@ bool net_ntp_read(net_ntp_t *ntp, sys_date_t *date) {
   // the rest of the exchange (origin/receive timestamps, root delay/
   // dispersion, stratum, ...) goes unused here.
   uint32_t ntp_seconds = ((uint32_t)packet[40] << 24) |
-                        ((uint32_t)packet[41] << 16) |
-                        ((uint32_t)packet[42] << 8) | (uint32_t)packet[43];
+                         ((uint32_t)packet[41] << 16) |
+                         ((uint32_t)packet[42] << 8) | (uint32_t)packet[43];
   uint32_t ntp_fraction = ((uint32_t)packet[44] << 24) |
-                         ((uint32_t)packet[45] << 16) |
-                         ((uint32_t)packet[46] << 8) | (uint32_t)packet[47];
+                          ((uint32_t)packet[45] << 16) |
+                          ((uint32_t)packet[46] << 8) | (uint32_t)packet[47];
 
   if (ntp_seconds < NET_NTP_EPOCH_OFFSET) {
     sys_debugf("net", "ntp: implausible reply, ntp_seconds=%u", ntp_seconds);

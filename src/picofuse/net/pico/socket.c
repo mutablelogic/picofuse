@@ -11,9 +11,9 @@
 #define NET_CONN_CAPACITY 4
 #endif
 
-// How long net_open()'s TCP path spin-polls waiting for tcp_connect()'s
-// callback before giving up
-#define NET_CONN_CONNECT_TIMEOUT_MS (30 * 1000)
+// How often net_open()'s TCP path re-checks ctx->connect_done while
+// spin-polling for tcp_connect()'s callback, up to its own timeout_ms
+// (or NET_OPEN_DEFAULT_TIMEOUT_MS - see net.h) - see net_open() below.
 #define NET_CONN_POLL_MS 2
 
 // Max payload size for a single UDP datagram this backend will send or
@@ -57,6 +57,13 @@ typedef struct {
   sys_iostream_t *stream;
   bool gone;         // true once lwIP has already freed pcb (tcp_err() fired) -
                      // never touch pcb again.
+  bool fin_received; // TCP only: true once the remote sent a clean FIN
+                     // (_net_conn_tcp_recv_cb()'s own p == NULL branch) -
+                     // distinct from `gone` (an actual lwIP error/reset),
+                     // since a FIN alone leaves pcb still valid (whatever
+                     // is already buffered in rx.tcp_rx stays readable).
+                     // Together, `gone || fin_received` is what
+                     // _net_conn_ops_eof() reports.
   bool connect_done; // TCP net_open() only: set by the connected/err
                      // callback to end the spin-wait below.
   err_t connect_err; // TCP net_open() only: result once connect_done.
@@ -128,6 +135,7 @@ static _net_conn_ctx_t *_net_conn_alloc(void) {
     if (sys_atomic_inc(&ctx->claimed) == 1) {
       ctx->stream = NULL;
       ctx->gone = false;
+      ctx->fin_received = false;
       ctx->connect_done = false;
       ctx->connect_err = ERR_OK;
       ctx->last_byte = -1;
@@ -156,16 +164,20 @@ static err_t _net_conn_tcp_recv_cb(void *arg, struct tcp_pcb *tpcb,
   }
   if (p == NULL) {
     // Remote FIN - nothing more will ever arrive; whatever is already
-    // buffered in ctx->rx.tcp_rx remains readable. Notify once so the
-    // app can notice via its own sys_iostream_read() returning 0 once that
-    // buffered data (if any) is drained - the standard "readable, but
-    // read() returns 0" idiom for EOF. Safe to call sys_iostream_close()
-    // synchronously from within this callback in response - unlike the
-    // POSIX backend there's no background thread/waitgroup to deadlock
-    // against here (see private.h's own threading-model doc), and
-    // calling tcp_close() from inside tcp_recv()'s own callback on a
-    // NULL pbuf is the documented/canonical raw-API pattern (see e.g.
-    // lwip/contrib/apps/tcpecho_raw/tcpecho_raw.c's own tcpecho_raw_recv()).
+    // buffered in ctx->rx.tcp_rx remains readable. fin_received is what
+    // _net_conn_ops_eof() reports once that buffered data (if any) is
+    // drained - see its own doc on why sys_iostream_read() returning 0
+    // alone can't distinguish this from "nothing sent yet". Also notify
+    // once so the app can notice via its own sys_iostream_read() - the
+    // standard "readable, but read() returns 0" idiom for EOF. Safe to
+    // call sys_iostream_close() synchronously from within this callback
+    // in response - unlike the POSIX backend there's no background
+    // thread/waitgroup to deadlock against here (see private.h's own
+    // threading-model doc), and calling tcp_close() from inside
+    // tcp_recv()'s own callback on a NULL pbuf is the documented/
+    // canonical raw-API pattern (see e.g. lwip/contrib/apps/tcpecho_raw/
+    // tcpecho_raw.c's own tcpecho_raw_recv()).
+    ctx->fin_received = true;
     sys_iostream_callback_t callback = ctx->stream->backend.net.callback;
     void *userdata = ctx->stream->backend.net.userdata;
     if (callback != NULL) {
@@ -374,6 +386,18 @@ static ptrdiff_t _net_conn_ops_seek(sys_iostream_t *s, ptrdiff_t offset,
   return 0;
 }
 
+/** Reports whether a _net_conn_ctx_t will never produce more data - a
+ * clean remote FIN (ctx->fin_received) or an lwIP error/reset
+ * (ctx->gone), either way. Meaningless (always false) for UDP, which has
+ * no connection-level teardown to report. */
+static bool _net_conn_ops_eof(sys_iostream_t *s) {
+  _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
+  cyw43_arch_lwip_begin();
+  bool eof = ctx->gone || ctx->fin_received;
+  cyw43_arch_lwip_end();
+  return eof;
+}
+
 /** Sets the callback and userdata for a _net_conn_ctx_t. Always returns true.
  */
 static bool _net_conn_ops_set_callback(sys_iostream_t *s,
@@ -423,6 +447,7 @@ static const sys_iostream_ops_t _net_conn_ops = {
     .seek = _net_conn_ops_seek,
     .set_callback = _net_conn_ops_set_callback,
     .close = _net_conn_ops_close,
+    .eof = _net_conn_ops_eof,
 };
 
 /** Finalizes a _net_conn_ctx_t and returns the associated sys_iostream_t.
@@ -483,7 +508,7 @@ sys_iostream_t *_net_conn_wrap_tcp(struct tcp_pcb *pcb) {
 /** Opens a new network connection and returns the associated sys_iostream_t.
  * Returns NULL on failure. */
 sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
-                         uint16_t port) {
+                         uint16_t port, uint32_t timeout_ms) {
   if (addr == NULL || !cyw43_is_initialized(&cyw43_state)) {
     return NULL;
   }
@@ -539,9 +564,10 @@ sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
   ctx->kind = _net_conn_tcp;
   ctx->pcb.tcp = pcb;
 
+  uint32_t wait_ms =
+      (timeout_ms != 0) ? timeout_ms : NET_OPEN_DEFAULT_TIMEOUT_MS;
   uint64_t start = sys_timestamp_ms();
-  while (!ctx->connect_done &&
-         sys_timestamp_ms() - start < NET_CONN_CONNECT_TIMEOUT_MS) {
+  while (!ctx->connect_done && sys_timestamp_ms() - start < wait_ms) {
 #if PICO_CYW43_ARCH_POLL
     cyw43_arch_poll();
 #endif

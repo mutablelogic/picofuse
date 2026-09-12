@@ -6,7 +6,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// A stream's behavior is dispatched through this vtable - each backend
+// A stream's behaviour is dispatched through this vtable - each backend
 // implements plain sequential read/write, and seek(s, offset, abs) to
 // move its position. For a backend with a stable addressable source (a
 // string), seeking is just moving a cursor - nothing to buffer. A
@@ -22,6 +22,11 @@ typedef struct sys_iostream_ops_t {
   bool (*set_callback)(sys_iostream_t *s, sys_iostream_callback_t callback,
                        void *userdata);
   void (*close)(sys_iostream_t *s); // optional, NULL if nothing to release
+  // optional, NULL if this backend has no "still open, but nothing
+  // available yet" vs. "permanently done" distinction to make (see
+  // sys_iostream_eof()'s own doc) - which is every backend without a
+  // live/async source (string, buffer, ...).
+  bool (*eof)(sys_iostream_t *s);
 } sys_iostream_ops_t;
 
 struct sys_iostream_t {

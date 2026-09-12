@@ -1064,3 +1064,219 @@ picofuse_test(net_008
 	LIBRARIES picofuse-net
 	TESTRUNNER_TIMEOUT 30
 )
+
+# net_mqtt_init()/_deinit()/_default_config() handle lifecycle
+picofuse_test(net_009
+	net_009/main.c
+	LIBRARIES picofuse-net
+)
+
+# net_ntp_read() against a real NTP server, over a real Wi-Fi join done by
+# this test itself - the Pico-only counterpart to net_005, which assumes
+# a network route already exists (true on host platforms, not on Pico
+# until something actually joins one). See net_007/hw_017 for the same
+# scan/connect scaffolding this mirrors.
+if(DEFINED PICO_BOARD)
+	picofuse_test(net_010
+		net_010/main.c
+		LIBRARIES picofuse-hw picofuse-net
+		TESTRUNNER_TIMEOUT 60
+	)
+
+	# Wi-Fi credentials from environment (export WIFI_SSID and WIFI_PASSWORD)
+	set(WIFI_SSID "$ENV{WIFI_SSID}")
+	set(WIFI_PASSWORD "$ENV{WIFI_PASSWORD}")
+
+	# Add Wi-Fi credentials as compile definitions
+	target_compile_definitions(net_010 PRIVATE
+		WIFI_SSID="${WIFI_SSID}"
+		WIFI_PASSWORD="${WIFI_PASSWORD}"
+	)
+endif()
+
+# net_ntp_register_hid() against a real NTP server, over a real Wi-Fi
+# join - the Pico-only counterpart to net_006, same reasoning as net_010.
+if(DEFINED PICO_BOARD)
+	picofuse_test(net_011
+		net_011/main.c
+		LIBRARIES picofuse-hw picofuse-net picofuse-hid
+		TESTRUNNER_TIMEOUT 60
+	)
+
+	# Wi-Fi credentials from environment (export WIFI_SSID and WIFI_PASSWORD)
+	set(WIFI_SSID "$ENV{WIFI_SSID}")
+	set(WIFI_PASSWORD "$ENV{WIFI_PASSWORD}")
+
+	# Add Wi-Fi credentials as compile definitions
+	target_compile_definitions(net_011 PRIVATE
+		WIFI_SSID="${WIFI_SSID}"
+		WIFI_PASSWORD="${WIFI_PASSWORD}"
+	)
+endif()
+
+# net_open()'s timeout_ms actually bounds a connect that gets no response
+# at all (a real black hole, not net_004's near-instant ECONNREFUSED) -
+# see net_012/main.c's own comment on why the elapsed-time check is soft.
+picofuse_test(net_012
+	net_012/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# net_mqtt_connect()/_disconnect() against a real public test broker -
+# see net_013/main.c's own comment on why a real reply is skipped rather
+# than asserted.
+picofuse_test(net_013
+	net_013/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_013 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)
+
+# net_mqtt_connect() against test.mosquitto.org's authenticated listener
+# (port 1884) - real published test credentials, both accepted and a
+# deliberately wrong password rejected - see net_014/main.c's own
+# comment.
+picofuse_test(net_014
+	net_014/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_014 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)
+
+# net_mqtt_publish() (QoS 0) against a real broker - see net_015/main.c's
+# own comment on scope (no subscribe yet to verify round-trip delivery
+# with) and why a real reply is skipped rather than asserted.
+picofuse_test(net_015
+	net_015/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_015 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)
+
+# net_mqtt_publish() genuinely blocks (not busy-waits) on a full publish
+# slot, and wakes up on either a real net_poll() drain or a disconnect -
+# see net_016/main.c's own comment on the real cross-thread/core
+# verification and why a real reply is skipped rather than asserted.
+picofuse_test(net_016
+	net_016/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_016 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)
+
+# net_mqtt_publish() QoS 1 against a real broker - the actual
+# PUBLISH/PUBACK round trip - see net_017/main.c's own comment on why a
+# real reply is skipped rather than asserted.
+picofuse_test(net_017
+	net_017/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_017 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)
+
+# net_mqtt_publish() QoS 2 against a real broker - the actual
+# PUBLISH/PUBREC/PUBREL/PUBCOMP round trip - see net_018/main.c's own
+# comment on why a real reply is skipped rather than asserted.
+picofuse_test(net_018
+	net_018/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_018 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)
+
+# net_mqtt_subscribe()/net_mqtt_unsubscribe() QoS 0 against a real
+# broker - the actual SUBSCRIBE/SUBACK and UNSUBSCRIBE/UNSUBACK round
+# trips - see net_019/main.c's own comment on why a real reply is
+# skipped rather than asserted.
+picofuse_test(net_019
+	net_019/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_019 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)
+
+# Incoming PUBLISH delivery (net_mqtt_event_received) QoS 0 against a
+# real broker - subscribe, publish to the same topic, confirm the
+# message comes back with the right content - see net_020/main.c's own
+# comment on why a real reply is skipped rather than asserted.
+picofuse_test(net_020
+	net_020/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_020 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)
+
+# sys_iostream_eof() over a local loopback connection - detects a
+# peer-closed TCP connection distinct from "nothing to read yet" - see
+# net_021/main.c's own comment.
+picofuse_test(net_021
+	net_021/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# Regression: a PUBACK arriving after net_mqtt_publish()'s own timeout_ms
+# already gave up on it locally used to crash the process - see
+# net_022/main.c's own comment.
+picofuse_test(net_022
+	net_022/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# net_mqtt_publish() rejects a topic too long to encode its 2-byte length
+# prefix, rather than silently corrupting the wire - see net_023/main.c's
+# own comment.
+picofuse_test(net_023
+	net_023/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# Keepalive: automatic PINGREQ/PINGRESP round trip doesn't crash or
+# disconnect the connection - see net_024/main.c's own comment.
+picofuse_test(net_024
+	net_024/main.c
+	LIBRARIES picofuse-net
+	TESTRUNNER_TIMEOUT 15
+)
+
+# Incoming PUBLISH delivery (net_mqtt_event_received) QoS 1 against a
+# real broker - subscribe at QoS 1, publish to the same topic at QoS 1,
+# confirm the message comes back with the right content and our own
+# PUBACK is accepted - see net_025/main.c's own comment on why a real
+# reply is skipped rather than asserted.
+picofuse_test(net_025
+	net_025/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_025 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)

@@ -23,7 +23,7 @@ test_main_sys(0) {
   net_addr_t loopback = net_addr_v4(127, 0, 0, 1);
 
   // NULL-safety.
-  test_assert(net_open(net_proto_tcp, NULL, NET_004_BASE_PORT) == NULL);
+  test_assert(net_open(net_proto_tcp, NULL, NET_004_BASE_PORT, 0) == NULL);
   test_assert(net_listener_init(net_proto_tcp, NULL, NET_004_BASE_PORT,
                                 on_accept, NULL) == NULL);
   test_assert(net_listener_init(net_proto_tcp, &loopback, NET_004_BASE_PORT,
@@ -68,7 +68,10 @@ test_main_sys(0) {
   net_listener_deinit(reused);
 
   // Connecting to a port nothing is listening on must fail (fast, over
-  // loopback) rather than hang or silently "succeed".
+  // loopback, via a real connection-refused rather than the timeout
+  // below) rather than hang or silently "succeed". A short explicit
+  // timeout here also confirms net_open() actually honors timeout_ms
+  // rather than always falling back to NET_OPEN_DEFAULT_TIMEOUT_MS.
   test_assert(net_open(net_proto_tcp, &loopback,
-                       (uint16_t)(NET_004_BASE_PORT + 999)) == NULL);
+                       (uint16_t)(NET_004_BASE_PORT + 999), 1000) == NULL);
 }

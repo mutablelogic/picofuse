@@ -6,10 +6,11 @@
 
 /** Stub implementation: no networking backend on this platform/configuration. */
 sys_iostream_t *net_open(net_proto_t proto, const net_addr_t *addr,
-                         uint16_t port) {
+                         uint16_t port, uint32_t timeout_ms) {
   (void)proto;
   (void)addr;
   (void)port;
+  (void)timeout_ms;
   sys_debugf("net", "net_open: not implemented on this target");
   return NULL;
 }
