@@ -1,3 +1,9 @@
+if(PICOFUSE_WIFI)
+    set(_net_src ../posix/socket.c ../posix/listener.c)
+else()
+    set(_net_src ../stub/socket.c)
+endif()
+
 picofuse_library(
     NAME picofuse-net
     SOURCES
@@ -11,8 +17,7 @@ picofuse_library(
         ../mqtt/poll.c
         ../mqtt/subscribe.c
         ../poll.c
-        ../posix/socket.c
-        ../posix/listener.c
+        ${_net_src}
 )
 
 target_include_directories(picofuse-net PRIVATE ${CMAKE_SOURCE_DIR}/include)

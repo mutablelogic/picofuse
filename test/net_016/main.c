@@ -1,6 +1,9 @@
+#include <picofuse/hw.h>
 #include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <test/test.h>
+
+#include "../wifi_helper.h"
 
 // net_mqtt_publish() genuinely blocks (not busy-waits) when a previous
 // publish is still staged, and wakes up once either net_poll() drains it
@@ -42,7 +45,9 @@ static void spawn_worker(void) {
 #endif
 }
 
-test_main_sys(0) {
+test_main_hw(0) {
+  hw_wifi_t *wifi = test_wifi_join("net_016");
+
   net_addr_t addr = net_addr_v4(54, 36, 178, 49); // test.mosquitto.org
   g_mqtt = net_mqtt_init(&addr, NET_MQTT_PORT, NET_016_TIMEOUT_MS, NULL);
   test_assert(g_mqtt != NULL);
@@ -50,6 +55,7 @@ test_main_sys(0) {
   if (!net_mqtt_connect(g_mqtt)) {
     sys_printf("[net_016] no CONNACK - no network route, skipping\n");
     net_mqtt_deinit(g_mqtt);
+    test_wifi_leave("net_016", wifi);
     return;
   }
 
@@ -94,4 +100,5 @@ test_main_sys(0) {
   sys_printf("[net_016] worker correctly woke to 0 on disconnect\n");
 
   net_mqtt_deinit(g_mqtt);
+  test_wifi_leave("net_016", wifi);
 }

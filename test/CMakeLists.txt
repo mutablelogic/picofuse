@@ -1128,8 +1128,12 @@ picofuse_test(net_012
 # than asserted.
 picofuse_test(net_013
 	net_013/main.c
-	LIBRARIES picofuse-net
-	TESTRUNNER_TIMEOUT 15
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_013 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
 )
 
 # net_mqtt_connect() against test.mosquitto.org's authenticated listener
@@ -1138,8 +1142,12 @@ picofuse_test(net_013
 # comment.
 picofuse_test(net_014
 	net_014/main.c
-	LIBRARIES picofuse-net
-	TESTRUNNER_TIMEOUT 15
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_014 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
 )
 
 # net_mqtt_publish() (QoS 0) against a real broker - see net_015/main.c's
@@ -1147,8 +1155,12 @@ picofuse_test(net_014
 # with) and why a real reply is skipped rather than asserted.
 picofuse_test(net_015
 	net_015/main.c
-	LIBRARIES picofuse-net
-	TESTRUNNER_TIMEOUT 15
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_015 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
 )
 
 # net_mqtt_publish() genuinely blocks (not busy-waits) on a full publish
@@ -1157,8 +1169,12 @@ picofuse_test(net_015
 # verification and why a real reply is skipped rather than asserted.
 picofuse_test(net_016
 	net_016/main.c
-	LIBRARIES picofuse-net
-	TESTRUNNER_TIMEOUT 15
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_016 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
 )
 
 # net_mqtt_publish() QoS 1 against a real broker - the actual
@@ -1166,8 +1182,12 @@ picofuse_test(net_016
 # real reply is skipped rather than asserted.
 picofuse_test(net_017
 	net_017/main.c
-	LIBRARIES picofuse-net
-	TESTRUNNER_TIMEOUT 15
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_017 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
 )
 
 # net_mqtt_publish() QoS 2 against a real broker - the actual
@@ -1175,8 +1195,12 @@ picofuse_test(net_017
 # comment on why a real reply is skipped rather than asserted.
 picofuse_test(net_018
 	net_018/main.c
-	LIBRARIES picofuse-net
-	TESTRUNNER_TIMEOUT 15
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_018 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
 )
 
 # net_mqtt_subscribe()/net_mqtt_unsubscribe() QoS 0 against a real
@@ -1185,8 +1209,12 @@ picofuse_test(net_018
 # skipped rather than asserted.
 picofuse_test(net_019
 	net_019/main.c
-	LIBRARIES picofuse-net
-	TESTRUNNER_TIMEOUT 15
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_019 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
 )
 
 # Incoming PUBLISH delivery (net_mqtt_event_received) QoS 0 against a
@@ -1195,8 +1223,12 @@ picofuse_test(net_019
 # comment on why a real reply is skipped rather than asserted.
 picofuse_test(net_020
 	net_020/main.c
-	LIBRARIES picofuse-net
-	TESTRUNNER_TIMEOUT 15
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_020 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
 )
 
 # sys_iostream_eof() over a local loopback connection - detects a

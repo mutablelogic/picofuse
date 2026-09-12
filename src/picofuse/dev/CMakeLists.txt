@@ -1,8 +1,14 @@
 
-# SDL support
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
-    pkg_check_modules(SDL2 QUIET IMPORTED_TARGET sdl2)
+# SDL support - host-only. pkg-config always searches the host's own
+# library paths regardless of cross-compilation, so on a Pico build this
+# would otherwise "find" and try to link against the host's native SDL2
+# (wrong ABI/arch entirely) - and SDL2 makes no sense on Pico anyway, with
+# no windowing system to speak of.
+if(NOT DEFINED PICO_BOARD)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(SDL2 QUIET IMPORTED_TARGET sdl2)
+    endif()
 endif()
 if(SDL2_FOUND)
     message(STATUS "Found SDL2: enabling SDL display backend")

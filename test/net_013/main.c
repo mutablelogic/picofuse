@@ -1,6 +1,9 @@
+#include <picofuse/hw.h>
 #include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <test/test.h>
+
+#include "../wifi_helper.h"
 
 // net_mqtt_connect()/_disconnect() against a real public test broker
 // (test.mosquitto.org, 54.36.178.49:1883) - the actual CONNECT/CONNACK
@@ -9,6 +12,10 @@
 // on NTP. net_mqtt_init()/_deinit()/_default_config() lifecycle itself
 // is already covered by net_009 - this is specifically about the
 // connection handshake connect.c implements.
+//
+// test_wifi_join() (see wifi_helper.h) joins WIFI_SSID first when it's
+// set at compile time - a real route on Pico, a no-op on host (which
+// already has one) - same reasoning net_010 applies to NTP.
 
 #define NET_013_TIMEOUT_MS 5000
 
@@ -26,7 +33,9 @@ static void on_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event,
   }
 }
 
-test_main_sys(0) {
+test_main_hw(0) {
+  hw_wifi_t *wifi = test_wifi_join("net_013");
+
   // NULL-safety.
   test_assert(net_mqtt_connect(NULL) == false);
   net_mqtt_disconnect(NULL); // must not crash
@@ -40,6 +49,7 @@ test_main_sys(0) {
   if (!net_mqtt_connect(mqtt)) {
     sys_printf("[net_013] no CONNACK - no network route, skipping\n");
     net_mqtt_deinit(mqtt);
+    test_wifi_leave("net_013", wifi);
     return;
   }
   sys_printf("[net_013] connected\n");
@@ -69,4 +79,5 @@ test_main_sys(0) {
   }
 
   net_mqtt_deinit(mqtt); // disconnects first if still connected
+  test_wifi_leave("net_013", wifi);
 }

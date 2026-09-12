@@ -1,7 +1,10 @@
+#include <picofuse/hw.h>
 #include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <string.h>
 #include <test/test.h>
+
+#include "../wifi_helper.h"
 
 // net_mqtt_publish() QoS 0 against a real broker (test.mosquitto.org) -
 // skips (not asserted) if no reply arrives at all, since that needs
@@ -51,7 +54,9 @@ static bool wait_for_sent(uint32_t id) {
   return false;
 }
 
-test_main_sys(0) {
+test_main_hw(0) {
+  hw_wifi_t *wifi = test_wifi_join("net_015");
+
   // NULL-safety.
   test_assert(net_mqtt_publish(NULL, "x", NULL, 0, net_mqtt_qos_0, false) ==
              0);
@@ -69,6 +74,7 @@ test_main_sys(0) {
   if (!net_mqtt_connect(mqtt)) {
     sys_printf("[net_015] no CONNACK - no network route, skipping\n");
     net_mqtt_deinit(mqtt);
+    test_wifi_leave("net_015", wifi);
     return;
   }
 
@@ -112,4 +118,5 @@ test_main_sys(0) {
   net_mqtt_disconnect(mqtt);
   net_mqtt_deinit(mqtt);
   sys_printf("[net_015] published OK, connection stayed healthy\n");
+  test_wifi_leave("net_015", wifi);
 }

@@ -1,7 +1,10 @@
+#include <picofuse/hw.h>
 #include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <string.h>
 #include <test/test.h>
+
+#include "../wifi_helper.h"
 
 // Incoming PUBLISH delivery (net_mqtt_event_received), QoS 0, against a
 // real broker (test.mosquitto.org) - subscribes to a topic, publishes to
@@ -76,7 +79,9 @@ static bool wait_for_received(void) {
   return false;
 }
 
-test_main_sys(0) {
+test_main_hw(0) {
+  hw_wifi_t *wifi = test_wifi_join("net_020");
+
   net_addr_t addr = net_addr_v4(54, 36, 178, 49); // test.mosquitto.org
   net_mqtt_t *mqtt =
       net_mqtt_init(&addr, NET_MQTT_PORT, NET_020_TIMEOUT_MS, NULL);
@@ -86,6 +91,7 @@ test_main_sys(0) {
   if (!net_mqtt_connect(mqtt)) {
     sys_printf("[net_020] no CONNACK - no network route, skipping\n");
     net_mqtt_deinit(mqtt);
+    test_wifi_leave("net_020", wifi);
     return;
   }
 
@@ -104,6 +110,7 @@ test_main_sys(0) {
               "self-deliver, skipping content checks\n");
     net_mqtt_disconnect(mqtt);
     net_mqtt_deinit(mqtt);
+    test_wifi_leave("net_020", wifi);
     return;
   }
 
@@ -119,4 +126,5 @@ test_main_sys(0) {
   net_mqtt_disconnect(mqtt);
   net_mqtt_deinit(mqtt);
   sys_printf("[net_020] QoS 0 receive round trip OK\n");
+  test_wifi_leave("net_020", wifi);
 }

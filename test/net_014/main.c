@@ -1,6 +1,9 @@
+#include <picofuse/hw.h>
 #include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <test/test.h>
+
+#include "../wifi_helper.h"
 
 // net_mqtt_connect() against test.mosquitto.org's authenticated listener
 // (port 1884) - exercises the username/password fields connect.c adds to
@@ -14,7 +17,9 @@
 #define NET_014_PORT 1884
 #define NET_014_TIMEOUT_MS 5000
 
-test_main_sys(0) {
+test_main_hw(0) {
+  hw_wifi_t *wifi = test_wifi_join("net_014");
+
   net_addr_t addr = net_addr_v4(54, 36, 178, 49); // test.mosquitto.org
 
   net_mqtt_config_t good = {.username = "rw", .password = "readwrite"};
@@ -25,6 +30,7 @@ test_main_sys(0) {
   if (!net_mqtt_connect(mqtt)) {
     sys_printf("[net_014] no CONNACK - no network route, skipping\n");
     net_mqtt_deinit(mqtt);
+    test_wifi_leave("net_014", wifi);
     return;
   }
   sys_printf("[net_014] authenticated connect OK\n");
@@ -41,4 +47,5 @@ test_main_sys(0) {
   test_assert(net_mqtt_connect(mqtt2) == false);
   sys_printf("[net_014] wrong-password connect correctly rejected\n");
   net_mqtt_deinit(mqtt2);
+  test_wifi_leave("net_014", wifi);
 }

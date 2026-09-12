@@ -1,7 +1,10 @@
+#include <picofuse/hw.h>
 #include <picofuse/net.h>
 #include <picofuse/sys.h>
 #include <string.h>
 #include <test/test.h>
+
+#include "../wifi_helper.h"
 
 // net_mqtt_publish() QoS 2 against a real broker (test.mosquitto.org) -
 // the actual PUBLISH/PUBREC/PUBREL/PUBCOMP round trip, one leg further
@@ -44,7 +47,9 @@ static bool wait_for_sent(uint32_t id) {
   return false;
 }
 
-test_main_sys(0) {
+test_main_hw(0) {
+  hw_wifi_t *wifi = test_wifi_join("net_018");
+
   net_addr_t addr = net_addr_v4(54, 36, 178, 49); // test.mosquitto.org
   net_mqtt_t *mqtt =
       net_mqtt_init(&addr, NET_MQTT_PORT, NET_018_TIMEOUT_MS, NULL);
@@ -54,6 +59,7 @@ test_main_sys(0) {
   if (!net_mqtt_connect(mqtt)) {
     sys_printf("[net_018] no CONNACK - no network route, skipping\n");
     net_mqtt_deinit(mqtt);
+    test_wifi_leave("net_018", wifi);
     return;
   }
 
@@ -90,4 +96,5 @@ test_main_sys(0) {
   net_mqtt_disconnect(mqtt);
   net_mqtt_deinit(mqtt);
   sys_printf("[net_018] QoS 2 round trip OK, connection stayed healthy\n");
+  test_wifi_leave("net_018", wifi);
 }

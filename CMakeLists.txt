@@ -15,8 +15,8 @@ endif()
 project(picofuse C CXX ASM)
 
 option(PICOFUSE_WIFI "Enable real Wi-Fi networking backends" OFF)
-option(PICOFUSE_USB "Enable picofuse's own USB support" OFF)
-option(PICOFUSE_BLUETOOTH "Enable picofuse's own Bluetooth support" OFF)
+option(PICOFUSE_USB "Enable USB support" OFF)
+option(PICOFUSE_BLUETOOTH "Enable Bluetooth support" OFF)
 
 if(APPLE AND PICOFUSE_WIFI)
     # CoreWLAN (hw/darwin/wifi.m) is Objective-C only.
