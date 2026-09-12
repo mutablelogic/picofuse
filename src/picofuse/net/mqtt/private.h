@@ -150,25 +150,33 @@ typedef enum {
 
 // One slot in net_mqtt_t::topics - either reserved (active but not yet
 // confirmed - _net_mqtt_topic_alloc() just claimed it for a subscribe
-// that hasn't gotten its SUBACK yet, filter/granted_qos not meaningful
-// yet) or confirmed (SUBACK actually filled in filter/granted_qos - see
+// that hasn't gotten its SUBACK yet, filter/granted_qos/topic_id not
+// meaningful yet) or confirmed (SUBACK actually filled them in - see
 // _net_mqtt_poll_subscribe_read_suback()). active alone answers "is this
 // slot in use for anything" (what _net_mqtt_topic_alloc() needs to find
 // a free one); active && confirmed answers "is this a real, current
 // subscription" (what _net_mqtt_topic_find() needs for
 // net_mqtt_unsubscribe() to validate against) - conflating the two would
-// let net_mqtt_unsubscribe() match a filter string left over in a slot
-// that's actually reserved for an unrelated, still-pending
-// net_mqtt_subscribe() call, corrupting that subscribe's own slot once
-// both operations' replies eventually arrive. Unlike
-// _net_mqtt_subscribe_pending_t below (the in-flight handshake, one at a
-// time), this whole table is the long-lived record of everything
-// reserved or currently subscribed.
+// let net_mqtt_unsubscribe() match a topic_id left over in a slot that's
+// actually reserved for an unrelated, still-pending net_mqtt_subscribe()
+// call, corrupting that subscribe's own slot once both operations'
+// replies eventually arrive. Unlike _net_mqtt_subscribe_pending_t below
+// (the in-flight handshake, one at a time), this whole table is the
+// long-lived record of everything reserved or currently subscribed.
 typedef struct {
   bool active;
   bool confirmed;
   char filter[NET_MQTT_TOPIC_FILTER_SIZE];
   net_mqtt_qos_t granted_qos;
+  uint32_t topic_id; // The message id net_mqtt_subscribe() returned for
+                     // the SUBSCRIBE that confirmed this slot - the same
+                     // number serves double duty (a transient message_id
+                     // correlating the net_mqtt_event_subscribed/_error
+                     // completion event beforehand, a persistent
+                     // topic_id identifying this subscription to
+                     // net_mqtt_unsubscribe() afterward), so there's
+                     // nothing new for a caller to keep track of. Not
+                     // meaningful until `confirmed`.
 } _net_mqtt_topic_t;
 
 // Staged by net_mqtt_subscribe(), consumed by net_poll() - see
@@ -223,12 +231,25 @@ typedef enum {
 // _net_mqtt_unsubscribe_state_t's own doc.
 typedef struct {
   _net_mqtt_unsubscribe_state_t state;
-  char filter[NET_MQTT_TOPIC_FILTER_SIZE]; // Copied at stage time - same
-                                           // reasoning as
-                                           // _net_mqtt_subscribe_pending_t::filter.
-  uint32_t message_id; // Already allocated at stage time - see
-                       // _net_mqtt_publish_pending_t::message_id's own
-                       // doc for the identical reasoning.
+  char filter[NET_MQTT_TOPIC_FILTER_SIZE]; // Copied at stage time from
+                                           // the found topics[] entry's
+                                           // own filter (net_mqtt_
+                                           // unsubscribe() takes a
+                                           // topic_id, not a filter
+                                           // string - see its own doc) -
+                                           // the wire UNSUBSCRIBE packet
+                                           // still needs the actual
+                                           // filter text regardless.
+  uint32_t topic_id;   // The topic_id passed to net_mqtt_unsubscribe() -
+                       // copied here at stage time rather than re-read
+                       // from `topic->topic_id` later, so it's still
+                       // available even after `topic` itself is cleared
+                       // (see its own doc below). What both the success
+                       // (net_mqtt_unsubscribed_t::topic_id) and failure
+                       // (net_mqtt_error_t::message_id) events report -
+                       // there's no separate message_id for unsubscribe
+                       // at all, since net_mqtt_unsubscribe() itself
+                       // returns nothing more than a bool.
   uint16_t packet_id;  // Shares net_mqtt_t::next_packet_id's counter -
                        // see _net_mqtt_subscribe_pending_t::packet_id's
                        // own doc.
@@ -236,7 +257,7 @@ typedef struct {
                        // see _net_mqtt_publish_pending_t::sent_at_ms's
                        // own doc for the identical reasoning.
   _net_mqtt_topic_t *topic; // The confirmed net_mqtt_t::topics entry
-                            // this is removing - looked up by filter at
+                            // this is removing - looked up by topic_id at
                             // stage time (net_mqtt_unsubscribe() fails if
                             // not found), so poll.c doesn't need to
                             // re-search topics[] at confirm time. Unlike
@@ -256,7 +277,7 @@ typedef struct {
                        // updated, since by the time a late reply could
                        // arrive this field may already have been reused
                        // by a newer, unrelated net_mqtt_unsubscribe()
-                       // call for a different filter.
+                       // call for a different topic_id.
 } _net_mqtt_unsubscribe_pending_t;
 
 // A singleton, not a pool - see net_mqtt_t's own doc on why.
@@ -371,10 +392,12 @@ void _net_mqtt_fire_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event);
 void _net_mqtt_abort_connection_locked(net_mqtt_t *mqtt);
 
 /** @brief Allocates the next client-side message id for @p mqtt,
- * skipping 0 on wraparound - see net_mqtt_t::next_message_id's own doc
- * on why (0 is our own "failure" sentinel, not a protocol requirement
- * the way packet ids are). Shared by net_mqtt_publish() and
- * net_mqtt_subscribe(). */
+ * skipping 0 (our own "failure" sentinel - see net_mqtt_t::
+ * next_message_id's own doc) and skipping any value currently in use as
+ * a confirmed topics[] entry's own topic_id - see _net_mqtt_topic_t::
+ * topic_id's own doc on why that one has to stay unique for as long as
+ * the subscription it names stays active, not just briefly. Shared by
+ * net_mqtt_publish() and net_mqtt_subscribe(). */
 uint32_t _net_mqtt_next_message_id(net_mqtt_t *mqtt);
 
 /** @brief Allocates the next wire-level Packet Identifier for @p mqtt,
@@ -391,6 +414,15 @@ uint16_t _net_mqtt_next_packet_id(net_mqtt_t *mqtt);
  * _net_mqtt_subscribe_pending_t::topic's own doc). Caller must already
  * hold `lock`. */
 void _net_mqtt_topic_free(net_mqtt_t *mqtt, _net_mqtt_topic_t *topic);
+
+/** @brief Finds the topic_id of the first confirmed subscription (see
+ * _net_mqtt_topic_t::topic_id) whose filter matches @p topic_name - MQTT
+ * wildcard rules included ('+'/'#'). Used by _net_mqtt_poll_read_publish()
+ * (poll.c) to report which subscription an incoming PUBLISH belongs to.
+ * If more than one confirmed filter matches, only the first one found is
+ * reported - see subscribe.c's own doc. Caller must already hold `lock`.
+ * @return The matching topic_id, or `0` if none matched. */
+uint32_t _net_mqtt_topic_id_for_name(net_mqtt_t *mqtt, const char *topic_name);
 
 /** @brief Writes exactly @p n bytes to @p conn, retrying short writes
  * until either the whole write completes or @p timeout_ms elapses.

@@ -17,8 +17,8 @@ these yet, just the list of what's next:
   specifically because of this dependency.
 - **Networking protocols** - HTTP client/server, DNS
   client/server, DHCP server.
-- **MQTT client** - Sub QoS 1 & 2 - receiving messages with higher
-  quality of service.
+- **MQTT client** - Sub QoS 2 - receiving messages with exactly-once
+  quality of service (QoS 1 receiving is done).
 - **Displays** - e-ink, TFT, Linux framebuffer, SDL (host builds). Design
   intent so far: a `pix_t` registry, same shape as `hid_t` (`hid_init()`/
   `hid_register_*()`/`hid_deregister()`/`hid_poll()`) - `pix_register_

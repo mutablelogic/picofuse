@@ -1265,3 +1265,18 @@ picofuse_test(net_024
 	LIBRARIES picofuse-net
 	TESTRUNNER_TIMEOUT 15
 )
+
+# Incoming PUBLISH delivery (net_mqtt_event_received) QoS 1 against a
+# real broker - subscribe at QoS 1, publish to the same topic at QoS 1,
+# confirm the message comes back with the right content and our own
+# PUBACK is accepted - see net_025/main.c's own comment on why a real
+# reply is skipped rather than asserted.
+picofuse_test(net_025
+	net_025/main.c
+	LIBRARIES picofuse-hw picofuse-net
+	TESTRUNNER_TIMEOUT 60
+)
+target_compile_definitions(net_025 PRIVATE
+	WIFI_SSID="$ENV{WIFI_SSID}"
+	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
+)

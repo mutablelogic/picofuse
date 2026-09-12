@@ -3,6 +3,39 @@
  * @brief Simple MQTT client.
  * @defgroup NetworkMQTT MQTT
  * @ingroup Network
+ *
+ * A client for MQTT brokers.
+ *
+ * A net_mqtt_t identifies one broker connection - net_mqtt_connect()
+ * blocks until the CONNACK arrives (or times out), but everything after
+ * that (publish, subscribe, unsubscribe, and incoming messages) is
+ * asynchronous: each call just stages a request and returns a message
+ * id immediately, the actual write happens the next time net_poll()
+ * runs, and completion arrives later as a net_mqtt_event_t on whichever
+ * callback was registered via net_mqtt_set_callback() - match it back to
+ * the call that started it using that same message id.
+ *
+ * @code
+ * static void on_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event,
+ *                      void *userdata) {
+ *   if (event->type == net_mqtt_event_received) {
+ *     printf("%s: %.*s\n", event->data.received.topic,
+ *            (int)event->data.received.payload_len,
+ *            (const char *)event->data.received.payload);
+ *   }
+ * }
+ *
+ * net_addr_t broker = net_addr_v4(54, 36, 178, 49); // test.mosquitto.org
+ * net_mqtt_t *mqtt = net_mqtt_init(&broker, NET_MQTT_PORT, 5000, NULL);
+ * net_mqtt_set_callback(mqtt, on_event, NULL);
+ * if (net_mqtt_connect(mqtt)) {
+ *   net_mqtt_subscribe(mqtt, "picofuse/demo", net_mqtt_qos_0);
+ *   net_mqtt_publish(mqtt, "picofuse/demo", "hello", 5, net_mqtt_qos_0, false);
+ * }
+ * // Call net_poll() regularly from your own run loop - that's what
+ * // actually sends/receives on the connection and fires on_event()
+ * // above for each completion.
+ * @endcode
  */
 #pragma once
 #include <picofuse/net/types.h>
@@ -146,8 +179,14 @@ typedef struct {
   net_mqtt_qos_t granted_qos; ///< The QoS the broker actually granted for
                              ///< this subscription - may be lower than
                              ///< what was requested, never higher.
-  uint32_t message_id;       ///< The id net_mqtt_subscribe() returned for
-                             ///< the call this event completes.
+  uint32_t topic_id;         ///< The id net_mqtt_subscribe() returned for
+                             ///< the call this event completes - from this
+                             ///< point on, the same number that was a
+                             ///< transient message_id is this
+                             ///< subscription's persistent topic_id (see
+                             ///< net_mqtt_subscribe()'s own doc), the one
+                             ///< net_mqtt_unsubscribe() and
+                             ///< net_mqtt_topic_to_string() take.
 } net_mqtt_subscribed_t;
 
 /**
@@ -155,8 +194,12 @@ typedef struct {
  * @ingroup NetworkMQTT
  */
 typedef struct {
-  uint32_t message_id; ///< The id net_mqtt_unsubscribe() returned for
-                       ///< the call this event completes.
+  uint32_t topic_id; ///< The topic_id that was passed to
+                     ///< net_mqtt_unsubscribe() - not that call's own
+                     ///< (now-spent) return value, which the caller
+                     ///< doesn't need back since it never named anything
+                     ///< that outlives the call. This is what's actually
+                     ///< gone now.
 } net_mqtt_unsubscribed_t;
 
 /**
@@ -186,14 +229,69 @@ typedef struct {
                        ///< because of the subscription itself rather
                        ///< than a live publish - see net_mqtt_publish()'s
                        ///< own doc on retained messages.
+  uint32_t topic_id;   ///< The confirmed subscription @p topic matched -
+                       ///< see net_mqtt_subscribe()'s own doc on this id.
+                       ///< `0` if none did, which shouldn't normally
+                       ///< happen (a broker only delivers what something
+                       ///< here subscribed to) but isn't asserted, since
+                       ///< a subscription unsubscribed moments earlier
+                       ///< could still have a message in flight. If more
+                       ///< than one confirmed filter matches (legal with
+                       ///< overlapping wildcards), only the first one
+                       ///< found is reported here.
 } net_mqtt_received_t;
+
+/**
+ * @brief Coarse category for a net_mqtt_event_error event.
+ * @ingroup NetworkMQTT
+ *
+ * Lets a caller react programmatically (retry on a timeout, give up on a
+ * malformed reply, say) - see net_mqtt_error_action_t for *where* it
+ * happened, the other half of that picture.
+ */
+typedef enum {
+  net_mqtt_error_write_failed, ///< A write to the connection itself
+                               ///< failed.
+  net_mqtt_error_malformed,    ///< The broker sent something this client
+                               ///< couldn't parse as a valid packet.
+  net_mqtt_error_unexpected,   ///< A well-formed reply arrived that
+                               ///< doesn't match anything currently
+                               ///< pending (wrong packet id, wrong type,
+                               ///< or out of sequence).
+  net_mqtt_error_timeout,      ///< No reply arrived within timeout_ms.
+  net_mqtt_error_refused,      ///< The broker explicitly rejected the
+                               ///< request (e.g. a SUBACK failure code).
+} net_mqtt_error_kind_t;
+
+/**
+ * @brief Which operation a net_mqtt_event_error event happened during.
+ * @ingroup NetworkMQTT
+ */
+typedef enum {
+  net_mqtt_action_none,        ///< Not tied to a specific operation - a
+                               ///< packet this client doesn't recognize
+                               ///< at all arrived on the wire.
+  net_mqtt_action_publish,     ///< net_mqtt_publish()'s own write, or its
+                               ///< PUBACK/PUBREC/PUBREL/PUBCOMP reply
+                               ///< chain.
+  net_mqtt_action_subscribe,   ///< net_mqtt_subscribe()'s own write, or
+                               ///< its SUBACK reply.
+  net_mqtt_action_unsubscribe, ///< net_mqtt_unsubscribe()'s own write, or
+                               ///< its UNSUBACK reply.
+  net_mqtt_action_receive,     ///< Delivery of an incoming PUBLISH (see
+                               ///< net_mqtt_event_received) - not tied to
+                               ///< any of this client's own calls.
+  net_mqtt_action_ping,        ///< This client's own automatic keepalive
+                               ///< PINGREQ/PINGRESP.
+} net_mqtt_error_action_t;
 
 /**
  * @brief Payload for a net_mqtt_event_error event.
  * @ingroup NetworkMQTT
  */
 typedef struct {
-  const char *message; ///< Human-readable description of what failed.
+  net_mqtt_error_kind_t kind;     ///< Coarse category - see net_mqtt_error_kind_t.
+  net_mqtt_error_action_t action; ///< Which operation - see net_mqtt_error_action_t.
   uint32_t message_id; ///< The id net_mqtt_publish()/net_mqtt_subscribe()/
                        ///< net_mqtt_unsubscribe() returned for the call
                        ///< this error belongs to, if any - `0` if this
@@ -441,53 +539,63 @@ uint32_t net_mqtt_publish(net_mqtt_t *mqtt, const char *topic,
  * either way).
  * @param qos Maximum delivery guarantee requested for this subscription -
  * see net_mqtt_qos_t. The broker may grant a lower QoS than requested,
- * never higher - see net_mqtt_subscribed_t::granted_qos. Only
- * net_mqtt_qos_0 is implemented so far - requesting net_mqtt_qos_1/
- * net_mqtt_qos_2 currently just fails (see @return).
- * @return A message id (never 0) if the request was accepted for
- * sending - not yet sent, see below. `0` if @p mqtt was NULL, @p topic
- * was NULL, too long (see its own doc), @p qos wasn't net_mqtt_qos_0,
- * NET_MQTT_TOPIC_CAPACITY active filters are already in use, or - after
- * waiting, see below - @p mqtt wasn't/isn't connected.
+ * never higher - see net_mqtt_subscribed_t::granted_qos. net_mqtt_qos_2
+ * isn't implemented yet - requesting it currently just fails (see
+ * @return).
+ * @return This subscription's future topic_id (never 0) if the request
+ * was accepted for sending - not yet confirmed, see below, and not yet
+ * sent either. `0` if @p mqtt was NULL, @p topic was NULL, too long (see
+ * its own doc), @p qos was net_mqtt_qos_2, NET_MQTT_TOPIC_CAPACITY active
+ * filters are already in use, or - after waiting, see below - @p mqtt
+ * wasn't/isn't connected.
  *
  * Same staged design as net_mqtt_publish(), for the identical reason -
  * see its own doc: this stages the request and returns, net_poll() does
  * the actual write and waits for the broker's SUBACK, and only one
  * outstanding subscribe request is served at a time (blocking here, not
  * failing, if another is already in flight - same rules as
- * net_mqtt_publish()'s own pending-slot wait). Completion (or failure)
- * is reported via a net_mqtt_event_subscribed or net_mqtt_event_error
- * event whose payload carries this same message id.
+ * net_mqtt_publish()'s own pending-slot wait). Until confirmed, the
+ * returned number is only a message_id - net_mqtt_error_t::message_id
+ * on a net_mqtt_event_error correlates a failure back to this call. Once
+ * a net_mqtt_event_subscribed fires instead, that same number is this
+ * subscription's real topic_id (net_mqtt_subscribed_t::topic_id) - the
+ * one net_mqtt_unsubscribe() and net_mqtt_topic_to_string() take.
+ * Nothing new to keep track of - nothing changes about the value itself,
+ * only what it's meaningful for.
  *
  * Messages matching this filter arrive - via net_poll() - as
  * net_mqtt_event_received events on whichever callback is currently
  * registered via net_mqtt_set_callback() - register that first, since
  * nothing is queued for a callback that isn't set yet.
  *
- * @todo Support net_mqtt_qos_1/net_mqtt_qos_2 here and for delivery -
- * receiving a message at either level needs this client to acknowledge
- * it back to the broker (a PUBACK, or a PUBREC/PUBREL/PUBCOMP exchange),
- * which isn't implemented yet; until it is, requesting either level
- * fails (see @return) and an incoming PUBLISH at either level is treated
- * as a protocol error this client can't handle.
+ * @todo Support net_mqtt_qos_2 here and for delivery - receiving a
+ * message at that level needs a PUBREC/PUBREL/PUBCOMP exchange plus
+ * dedup tracking, which isn't implemented yet; until it is, requesting
+ * it fails (see @return) and an incoming PUBLISH at that level is
+ * treated as a protocol error this client can't handle. QoS 1 delivery
+ * (a PUBACK sent back for each message) is implemented.
  */
 uint32_t net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
                             net_mqtt_qos_t qos);
 
 /**
- * @brief Stage removal of a topic filter, waiting for room to do so.
+ * @brief Stage removal of a confirmed subscription, waiting for room to
+ * do so.
  * @ingroup NetworkMQTT
  * @param mqtt Handle from net_mqtt_init(), must be connected.
- * @param topic Topic filter previously passed to net_mqtt_subscribe() -
- * must match exactly, not just overlap. Copied, not borrowed - same
- * reasoning as net_mqtt_subscribe()'s own @p topic (including its
- * NET_MQTT_TOPIC_FILTER_SIZE limit, though nothing longer could ever
- * have been successfully subscribed to in the first place).
- * @return A message id (never 0) if the request was accepted for
- * sending - not yet sent, see below. `0` if @p mqtt was NULL, @p topic
- * was NULL, too long, or not currently subscribed (see
- * net_mqtt_subscribe()), or - after waiting, see below - @p mqtt
- * wasn't/isn't connected.
+ * @param topic_id The id a prior net_mqtt_subscribe() call returned,
+ * once (and only once) that subscription has actually been confirmed by
+ * a net_mqtt_event_subscribed event - see net_mqtt_subscribe()'s own
+ * doc on why the same number serves as both. Passing the message id
+ * from a still-pending (not yet confirmed) or failed subscribe fails
+ * here the same as any other id that isn't a current subscription.
+ * @return `true` if the request was accepted for sending - not yet
+ * sent, see below. `false` if @p mqtt was NULL, @p topic_id was `0` or
+ * didn't match a current subscription, or - after waiting, see below -
+ * @p mqtt wasn't/isn't connected. Unlike net_mqtt_publish()/
+ * net_mqtt_subscribe(), there's no id to return here - @p topic_id
+ * itself is already everything a caller needs to correlate the
+ * completion event back to this call, see below.
  *
  * Same staged design as net_mqtt_subscribe(), for the identical reason -
  * see its own doc: this stages the request and returns, net_poll() does
@@ -495,13 +603,48 @@ uint32_t net_mqtt_subscribe(net_mqtt_t *mqtt, const char *topic,
  * outstanding unsubscribe request is served at a time (blocking here,
  * not failing, if another is already in flight - independent of
  * net_mqtt_subscribe()'s own pending slot, so a subscribe and an
- * unsubscribe for two different filters may be in flight together).
- * Completion (or failure) is reported via a net_mqtt_event_unsubscribed
- * or net_mqtt_event_error event whose payload carries this same message
- * id. The topic filter stops matching new messages only once that event
- * fires, not at the moment this call returns.
+ * unsubscribe for two different topics may be in flight together). On
+ * success, a net_mqtt_event_unsubscribed event reports @p topic_id back
+ * (net_mqtt_unsubscribed_t::topic_id); on failure, a net_mqtt_event_error
+ * event reports it as net_mqtt_error_t::message_id instead - either way,
+ * it's the same @p topic_id passed in here. The topic filter stops
+ * matching new messages only once that event fires, not at the moment
+ * this call returns.
  */
-uint32_t net_mqtt_unsubscribe(net_mqtt_t *mqtt, const char *topic);
+bool net_mqtt_unsubscribe(net_mqtt_t *mqtt, uint32_t topic_id);
+
+/** @} */
+
+/** @name Functions
+ * @{ */
+
+/**
+ * @brief Look up the topic filter behind a confirmed subscription.
+ * @ingroup NetworkMQTT
+ * @param mqtt Handle from net_mqtt_init().
+ * @param topic_id An id a net_mqtt_subscribe() call returned, once (and
+ * only once) confirmed - see its own doc on why the same number serves
+ * both purposes.
+ * @return The filter text, or `NULL` if @p mqtt was NULL, or @p topic_id
+ * doesn't match a current confirmed subscription. Borrowed from the
+ * subscription table itself, not a copy - valid only for as long as
+ * that subscription stays confirmed, same caution as
+ * net_mqtt_received_t's own borrowed pointers.
+ */
+const char *net_mqtt_topic_to_string(net_mqtt_t *mqtt, uint32_t topic_id);
+
+/**
+ * @brief Format a net_mqtt_event_error payload as a human-readable string.
+ * @ingroup NetworkMQTT
+ * @param error Error payload to format.
+ * @param buf Destination buffer.
+ * @param buf_size Size of @p buf in bytes.
+ * @return Number of characters that would have been written to @p buf,
+ * not counting the null terminator, same truncation semantics as
+ * sys_sprintf() - `0` if @p error or @p buf was NULL.
+ */
+size_t net_mqtt_error_to_string(const net_mqtt_error_t *error, char *buf,
+                                size_t buf_size);
 
 /** @} */
 

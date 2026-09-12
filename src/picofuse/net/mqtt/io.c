@@ -61,11 +61,29 @@ void _net_mqtt_abort_connection_locked(net_mqtt_t *mqtt) {
   sys_cond_broadcast(mqtt->publish_cond);
 }
 
-uint32_t _net_mqtt_next_message_id(net_mqtt_t *mqtt) {
-  uint32_t id = ++mqtt->next_message_id;
-  if (id == 0) {
-    id = ++mqtt->next_message_id;
+// True if @p id is a confirmed topics[] entry's own topic_id - see
+// _net_mqtt_topic_t::topic_id's own doc on why that same number, once
+// issued as a message_id here, has to stay unique for as long as the
+// subscription it now names stays active, not just for the brief moment
+// a message_id is normally meaningful.
+static bool _net_mqtt_topic_id_in_use(const net_mqtt_t *mqtt, uint32_t id) {
+  for (size_t i = 0; i < NET_MQTT_TOPIC_CAPACITY; i++) {
+    if (mqtt->topics[i].active && mqtt->topics[i].confirmed &&
+        mqtt->topics[i].topic_id == id) {
+      return true;
+    }
   }
+  return false;
+}
+
+uint32_t _net_mqtt_next_message_id(net_mqtt_t *mqtt) {
+  uint32_t id;
+  do {
+    id = ++mqtt->next_message_id;
+    if (id == 0) {
+      id = ++mqtt->next_message_id;
+    }
+  } while (_net_mqtt_topic_id_in_use(mqtt, id));
   return id;
 }
 

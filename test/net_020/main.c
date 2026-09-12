@@ -27,6 +27,7 @@ static char g_received_topic[128];
 static char g_received_payload[128];
 static size_t g_received_payload_len = 0;
 static bool g_received_retain = true;
+static uint32_t g_received_topic_id = 0;
 
 static void on_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event,
                      void *userdata) {
@@ -34,7 +35,7 @@ static void on_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event,
   (void)userdata;
   if (event->type == net_mqtt_event_subscribed) {
     g_subscribed_events++;
-    g_last_subscribed_message_id = event->data.subscribed.message_id;
+    g_last_subscribed_message_id = event->data.subscribed.topic_id;
   } else if (event->type == net_mqtt_event_received) {
     g_received_events++;
     sys_sprintf(g_received_topic, sizeof(g_received_topic), "%s",
@@ -46,10 +47,12 @@ static void on_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event,
             g_received_payload_len);
     }
     g_received_retain = event->data.received.retain;
+    g_received_topic_id = event->data.received.topic_id;
   } else if (event->type == net_mqtt_event_error) {
     g_error_events++;
-    sys_printf("[net_020] error event: %s (message_id=%u)\n",
-              event->data.error.message, (unsigned)event->data.error.message_id);
+    char error_buf[64];
+    net_mqtt_error_to_string(&event->data.error, error_buf, sizeof(error_buf));
+    sys_printf("[net_020] error event: %s\n", error_buf);
   } else if (event->type == net_mqtt_event_disconnected) {
     sys_printf("[net_020] disconnected event\n");
   }
@@ -120,8 +123,11 @@ test_main_hw(0) {
   test_assert(g_received_payload_len == strlen(msg));
   test_assert(memcmp(g_received_payload, msg, strlen(msg)) == 0);
   test_assert(!g_received_retain);
-  sys_printf("[net_020] received own PUBLISH back: topic=%s payload_len=%u\n",
-            g_received_topic, (unsigned)g_received_payload_len);
+  test_assert(g_received_topic_id == sub_id);
+  sys_printf("[net_020] received own PUBLISH back: topic=%s payload_len=%u "
+            "topic_id=%u\n",
+            g_received_topic, (unsigned)g_received_payload_len,
+            (unsigned)g_received_topic_id);
 
   net_mqtt_disconnect(mqtt);
   net_mqtt_deinit(mqtt);

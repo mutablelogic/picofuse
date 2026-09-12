@@ -17,8 +17,8 @@
 static int g_subscribed_events = 0;
 static int g_unsubscribed_events = 0;
 static int g_error_events = 0;
-static uint32_t g_last_subscribed_message_id = 0;
-static uint32_t g_last_unsubscribed_message_id = 0;
+static uint32_t g_last_subscribed_topic_id = 0;
+static uint32_t g_last_unsubscribed_topic_id = 0;
 static net_mqtt_qos_t g_last_granted_qos = net_mqtt_qos_2;
 
 static void on_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event,
@@ -27,15 +27,16 @@ static void on_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event,
   (void)userdata;
   if (event->type == net_mqtt_event_subscribed) {
     g_subscribed_events++;
-    g_last_subscribed_message_id = event->data.subscribed.message_id;
+    g_last_subscribed_topic_id = event->data.subscribed.topic_id;
     g_last_granted_qos = event->data.subscribed.granted_qos;
   } else if (event->type == net_mqtt_event_unsubscribed) {
     g_unsubscribed_events++;
-    g_last_unsubscribed_message_id = event->data.unsubscribed.message_id;
+    g_last_unsubscribed_topic_id = event->data.unsubscribed.topic_id;
   } else if (event->type == net_mqtt_event_error) {
     g_error_events++;
-    sys_printf("[net_019] error event: %s (message_id=%u)\n",
-              event->data.error.message, (unsigned)event->data.error.message_id);
+    char error_buf[64];
+    net_mqtt_error_to_string(&event->data.error, error_buf, sizeof(error_buf));
+    sys_printf("[net_019] error event: %s\n", error_buf);
   } else if (event->type == net_mqtt_event_disconnected) {
     sys_printf("[net_019] disconnected event\n");
   }
@@ -45,7 +46,7 @@ static bool wait_for_subscribed(uint32_t id) {
   uint64_t start = sys_timestamp_ms();
   while (sys_timestamp_ms() - start < NET_019_WAIT_MS) {
     net_poll();
-    if (g_last_subscribed_message_id == id) {
+    if (g_last_subscribed_topic_id == id) {
       return true;
     }
     sys_sleep_ms(NET_019_POLL_MS);
@@ -53,11 +54,11 @@ static bool wait_for_subscribed(uint32_t id) {
   return false;
 }
 
-static bool wait_for_unsubscribed(uint32_t id) {
+static bool wait_for_unsubscribed(uint32_t topic_id) {
   uint64_t start = sys_timestamp_ms();
   while (sys_timestamp_ms() - start < NET_019_WAIT_MS) {
     net_poll();
-    if (g_last_unsubscribed_message_id == id) {
+    if (g_last_unsubscribed_topic_id == topic_id) {
       return true;
     }
     sys_sleep_ms(NET_019_POLL_MS);
@@ -81,9 +82,10 @@ test_main_hw(0) {
     return;
   }
 
-  // Not yet subscribed - unsubscribing from a filter this handle never
-  // subscribed to fails immediately, no wire traffic at all.
-  test_assert(net_mqtt_unsubscribe(mqtt, "picofuse/test/net_019") == 0);
+  // Not yet subscribed - unsubscribing with a topic_id that was never
+  // confirmed as a subscription fails immediately, no wire traffic at
+  // all.
+  test_assert(!net_mqtt_unsubscribe(mqtt, 123456789u));
 
   uint32_t sub_id = net_mqtt_subscribe(mqtt, "picofuse/test/net_019", net_mqtt_qos_0);
   test_assert(sub_id != 0);
@@ -98,17 +100,15 @@ test_main_hw(0) {
   // request, on its own separate pending slot - not blocked by the
   // subscribe above, since that one already completed and freed its own
   // slot regardless.
-  uint32_t unsub_id = net_mqtt_unsubscribe(mqtt, "picofuse/test/net_019");
-  test_assert(unsub_id != 0);
-  test_assert(unsub_id > sub_id);
-  test_assert(wait_for_unsubscribed(unsub_id));
+  test_assert(net_mqtt_unsubscribe(mqtt, sub_id));
+  test_assert(wait_for_unsubscribed(sub_id));
   test_assert(g_unsubscribed_events == 1);
   test_assert(g_error_events == 0);
-  sys_printf("[net_019] UNSUBACK received, id=%u\n", (unsigned)unsub_id);
+  sys_printf("[net_019] UNSUBACK received for topic_id=%u\n", (unsigned)sub_id);
 
-  // Already unsubscribed - a second unsubscribe for the same filter
-  // fails immediately, same as the very first check above.
-  test_assert(net_mqtt_unsubscribe(mqtt, "picofuse/test/net_019") == 0);
+  // Already unsubscribed - the same (now stale) topic_id fails again,
+  // same as the very first check above.
+  test_assert(!net_mqtt_unsubscribe(mqtt, sub_id));
 
   net_mqtt_disconnect(mqtt);
   net_mqtt_deinit(mqtt);

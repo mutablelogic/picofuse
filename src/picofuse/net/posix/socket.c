@@ -328,10 +328,20 @@ static size_t _net_conn_ops_read(sys_iostream_t *s, char *buf, size_t n) {
   return read_n;
 }
 
+// MSG_DONTWAIT rather than a plain blocking send(): the fd itself is
+// left in its ordinary blocking mode (shared with the RX thread's own
+// poll()+recv() on the same fd - see _net_conn_rx_thread()'s own doc),
+// but a caller like _net_mqtt_write_exact() relies on this call never
+// stalling past what the peer's socket buffer can currently accept, so
+// its own timeout/retry loop actually gets a chance to run instead of
+// blocking indefinitely inside a single send() while the peer stops
+// reading. EAGAIN/EWOULDBLOCK (buffer full right now) and a real error
+// are deliberately not distinguished here, same as before this change -
+// either way the caller just sees "wrote nothing this attempt".
 static size_t _net_conn_ops_write(sys_iostream_t *s, const char *buf,
                                   size_t n) {
   _net_conn_ctx_t *ctx = (_net_conn_ctx_t *)s->backend.net.instance;
-  ssize_t written = send(ctx->fd, buf, n, 0);
+  ssize_t written = send(ctx->fd, buf, n, MSG_DONTWAIT);
   return written > 0 ? (size_t)written : 0;
 }
 

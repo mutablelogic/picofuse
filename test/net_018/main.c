@@ -28,8 +28,9 @@ static void on_event(net_mqtt_t *mqtt, const net_mqtt_event_t *event,
     g_last_sent_message_id = event->data.sent.message_id;
   } else if (event->type == net_mqtt_event_error) {
     g_error_events++;
-    sys_printf("[net_018] error event: %s (message_id=%u)\n",
-              event->data.error.message, (unsigned)event->data.error.message_id);
+    char error_buf[64];
+    net_mqtt_error_to_string(&event->data.error, error_buf, sizeof(error_buf));
+    sys_printf("[net_018] error event: %s\n", error_buf);
   } else if (event->type == net_mqtt_event_disconnected) {
     sys_printf("[net_018] disconnected event\n");
   }

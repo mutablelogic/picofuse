@@ -123,3 +123,52 @@ void net_mqtt_deinit(net_mqtt_t *mqtt) {
   mqtt->active = false;
   // lock/publish_cond deliberately outlive this - see their own doc.
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// FORMATTING
+
+static const char *_net_mqtt_error_kind_string(net_mqtt_error_kind_t kind) {
+  switch (kind) {
+  case net_mqtt_error_write_failed:
+    return "write failed";
+  case net_mqtt_error_malformed:
+    return "malformed reply";
+  case net_mqtt_error_unexpected:
+    return "unexpected reply";
+  case net_mqtt_error_timeout:
+    return "timed out";
+  case net_mqtt_error_refused:
+    return "refused";
+  }
+  return "unknown";
+}
+
+static const char *
+_net_mqtt_error_action_string(net_mqtt_error_action_t action) {
+  switch (action) {
+  case net_mqtt_action_none:
+    return "connection";
+  case net_mqtt_action_publish:
+    return "publish";
+  case net_mqtt_action_subscribe:
+    return "subscribe";
+  case net_mqtt_action_unsubscribe:
+    return "unsubscribe";
+  case net_mqtt_action_receive:
+    return "receive";
+  case net_mqtt_action_ping:
+    return "ping";
+  }
+  return "unknown";
+}
+
+size_t net_mqtt_error_to_string(const net_mqtt_error_t *error, char *buf,
+                                size_t buf_size) {
+  if (error == NULL || buf == NULL) {
+    return 0;
+  }
+  return sys_sprintf(buf, buf_size, "%s %s (message_id=%u)",
+                     _net_mqtt_error_action_string(error->action),
+                     _net_mqtt_error_kind_string(error->kind),
+                     (unsigned)error->message_id);
+}

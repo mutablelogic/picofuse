@@ -38,10 +38,11 @@
 // it happened to. Caller must NOT be holding the lock (both events fire
 // from here, and this module never fires one while locked).
 static void _net_mqtt_poll_fail(net_mqtt_t *mqtt, uint32_t message_id,
-                                const char *message) {
+                                net_mqtt_error_kind_t kind,
+                                net_mqtt_error_action_t action) {
   net_mqtt_event_t error_event = {
       .type = net_mqtt_event_error,
-      .data.error = {.message = message, .message_id = message_id}};
+      .data.error = {.kind = kind, .action = action, .message_id = message_id}};
   _net_mqtt_fire_event(mqtt, &error_event);
   net_mqtt_event_t disconnected_event = {.type = net_mqtt_event_disconnected};
   _net_mqtt_fire_event(mqtt, &disconnected_event);
@@ -128,7 +129,7 @@ static bool _net_mqtt_poll_publish_send(net_mqtt_t *mqtt) {
     // down rather than left looking usable for the next call.
     _net_mqtt_abort_connection_locked(mqtt); // also resets publish.state
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, message_id, "PUBLISH write failed");
+    _net_mqtt_poll_fail(mqtt, message_id, net_mqtt_error_write_failed, net_mqtt_action_publish);
     return true;
   }
 
@@ -206,7 +207,7 @@ static bool _net_mqtt_poll_subscribe_send(net_mqtt_t *mqtt) {
   if (!ok) {
     _net_mqtt_abort_connection_locked(mqtt); // also resets subscribe.state
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, message_id, "SUBSCRIBE write failed");
+    _net_mqtt_poll_fail(mqtt, message_id, net_mqtt_error_write_failed, net_mqtt_action_subscribe);
     return true;
   }
 
@@ -230,7 +231,7 @@ static bool _net_mqtt_poll_unsubscribe_send(net_mqtt_t *mqtt) {
 
   sys_iostream_t *conn = mqtt->conn;
   uint32_t timeout_ms = mqtt->timeout_ms;
-  uint32_t message_id = mqtt->unsubscribe.message_id;
+  uint32_t topic_id = mqtt->unsubscribe.topic_id;
   uint16_t packet_id = mqtt->unsubscribe.packet_id;
   size_t filter_len = strlen(mqtt->unsubscribe.filter);
 
@@ -258,7 +259,7 @@ static bool _net_mqtt_poll_unsubscribe_send(net_mqtt_t *mqtt) {
   if (!ok) {
     _net_mqtt_abort_connection_locked(mqtt); // also resets unsubscribe.state
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, message_id, "UNSUBSCRIBE write failed");
+    _net_mqtt_poll_fail(mqtt, topic_id, net_mqtt_error_write_failed, net_mqtt_action_unsubscribe);
     return true;
   }
 
@@ -305,7 +306,7 @@ static bool _net_mqtt_poll_ping_send(net_mqtt_t *mqtt) {
   if (!_net_mqtt_write_exact(conn, pingreq, sizeof(pingreq), timeout_ms)) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "PINGREQ write failed");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_write_failed, net_mqtt_action_ping);
     return true;
   }
 
@@ -365,7 +366,7 @@ static bool _net_mqtt_poll_publish_read_puback(net_mqtt_t *mqtt) {
                                &got_packet_id)) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "malformed PUBACK");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_publish);
     return true;
   }
 
@@ -392,7 +393,7 @@ static bool _net_mqtt_poll_publish_read_puback(net_mqtt_t *mqtt) {
 
   _net_mqtt_abort_connection_locked(mqtt);
   sys_mutex_unlock(mqtt->lock);
-  _net_mqtt_poll_fail(mqtt, 0, "unexpected PUBACK");
+  _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_unexpected, net_mqtt_action_publish);
   return true;
 }
 
@@ -415,7 +416,7 @@ static bool _net_mqtt_poll_publish_read_pubrec(net_mqtt_t *mqtt) {
                                &got_packet_id)) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "malformed PUBREC");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_publish);
     return true;
   }
 
@@ -431,7 +432,7 @@ static bool _net_mqtt_poll_publish_read_pubrec(net_mqtt_t *mqtt) {
       uint32_t message_id = mqtt->publish.message_id;
       _net_mqtt_abort_connection_locked(mqtt);
       sys_mutex_unlock(mqtt->lock);
-      _net_mqtt_poll_fail(mqtt, message_id, "PUBREL write failed");
+      _net_mqtt_poll_fail(mqtt, message_id, net_mqtt_error_write_failed, net_mqtt_action_publish);
       return true;
     }
 
@@ -448,7 +449,7 @@ static bool _net_mqtt_poll_publish_read_pubrec(net_mqtt_t *mqtt) {
 
   _net_mqtt_abort_connection_locked(mqtt);
   sys_mutex_unlock(mqtt->lock);
-  _net_mqtt_poll_fail(mqtt, 0, "unexpected PUBREC");
+  _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_unexpected, net_mqtt_action_publish);
   return true;
 }
 
@@ -466,7 +467,7 @@ static bool _net_mqtt_poll_publish_read_pubcomp(net_mqtt_t *mqtt) {
                                &got_packet_id)) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "malformed PUBCOMP");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_publish);
     return true;
   }
 
@@ -492,7 +493,7 @@ static bool _net_mqtt_poll_publish_read_pubcomp(net_mqtt_t *mqtt) {
 
   _net_mqtt_abort_connection_locked(mqtt);
   sys_mutex_unlock(mqtt->lock);
-  _net_mqtt_poll_fail(mqtt, 0, "unexpected PUBCOMP");
+  _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_unexpected, net_mqtt_action_publish);
   return true;
 }
 
@@ -527,7 +528,7 @@ static bool _net_mqtt_poll_subscribe_read_suback(net_mqtt_t *mqtt) {
   if (!ok || buf[0] != _NET_MQTT_PACKET_SUBACK || buf[1] != 0x03) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "malformed SUBACK");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_subscribe);
     return true;
   }
   uint16_t got_packet_id = (uint16_t)((buf[2] << 8) | buf[3]);
@@ -549,7 +550,8 @@ static bool _net_mqtt_poll_subscribe_read_suback(net_mqtt_t *mqtt) {
 
       net_mqtt_event_t error_event = {
           .type = net_mqtt_event_error,
-          .data.error = {.message = "broker refused SUBSCRIBE",
+          .data.error = {.kind = net_mqtt_error_refused,
+                         .action = net_mqtt_action_subscribe,
                          .message_id = message_id}};
       _net_mqtt_fire_event(mqtt, &error_event);
       return true;
@@ -564,6 +566,9 @@ static bool _net_mqtt_poll_subscribe_read_suback(net_mqtt_t *mqtt) {
     sys_sprintf(topic->filter, sizeof(topic->filter), "%s",
                mqtt->subscribe.filter);
     topic->granted_qos = granted_qos;
+    topic->topic_id = message_id; // Same number as the message_id just
+                                  // below - see _net_mqtt_topic_t::
+                                  // topic_id's own doc.
     topic->confirmed = true;
 
     mqtt->subscribe.topic = NULL;
@@ -573,7 +578,7 @@ static bool _net_mqtt_poll_subscribe_read_suback(net_mqtt_t *mqtt) {
 
     net_mqtt_event_t subscribed_event = {
         .type = net_mqtt_event_subscribed,
-        .data.subscribed = {.granted_qos = granted_qos, .message_id = message_id}};
+        .data.subscribed = {.granted_qos = granted_qos, .topic_id = message_id}};
     _net_mqtt_fire_event(mqtt, &subscribed_event);
     return true;
   }
@@ -585,7 +590,7 @@ static bool _net_mqtt_poll_subscribe_read_suback(net_mqtt_t *mqtt) {
 
   _net_mqtt_abort_connection_locked(mqtt);
   sys_mutex_unlock(mqtt->lock);
-  _net_mqtt_poll_fail(mqtt, 0, "unexpected SUBACK");
+  _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_unexpected, net_mqtt_action_subscribe);
   return true;
 }
 
@@ -612,13 +617,13 @@ static bool _net_mqtt_poll_unsubscribe_read_unsuback(net_mqtt_t *mqtt) {
                                &got_packet_id)) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "malformed UNSUBACK");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_unsubscribe);
     return true;
   }
 
   if (mqtt->unsubscribe.state == _net_mqtt_unsubscribe_wait_unsuback &&
       got_packet_id == mqtt->unsubscribe.packet_id) {
-    uint32_t message_id = mqtt->unsubscribe.message_id;
+    uint32_t topic_id = mqtt->unsubscribe.topic_id;
     _net_mqtt_topic_free(mqtt, mqtt->unsubscribe.topic); // Confirmed gone.
     mqtt->unsubscribe.topic = NULL;
     mqtt->unsubscribe.state = _net_mqtt_unsubscribe_idle;
@@ -627,7 +632,7 @@ static bool _net_mqtt_poll_unsubscribe_read_unsuback(net_mqtt_t *mqtt) {
 
     net_mqtt_event_t unsubscribed_event = {
         .type = net_mqtt_event_unsubscribed,
-        .data.unsubscribed = {.message_id = message_id}};
+        .data.unsubscribed = {.topic_id = topic_id}};
     _net_mqtt_fire_event(mqtt, &unsubscribed_event);
     return true;
   }
@@ -639,7 +644,7 @@ static bool _net_mqtt_poll_unsubscribe_read_unsuback(net_mqtt_t *mqtt) {
 
   _net_mqtt_abort_connection_locked(mqtt);
   sys_mutex_unlock(mqtt->lock);
-  _net_mqtt_poll_fail(mqtt, 0, "unexpected UNSUBACK");
+  _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_unexpected, net_mqtt_action_unsubscribe);
   return true;
 }
 
@@ -687,11 +692,17 @@ static bool _net_mqtt_poll_read_length(sys_iostream_t *conn,
 // common case), or a temporary sys_malloc() - freed right after the
 // event fires - for anything larger, up to _NET_MQTT_PAYLOAD_MAX_SIZE.
 //
-// Only QoS 0 delivery is handled so far - this client only ever grants
-// QoS 0 on net_mqtt_subscribe() (see its own doc), and a broker
-// downgrades delivery to match the subscriber's own granted QoS, so a
-// non-zero QoS here shouldn't happen; if it somehow does anyway, that's
-// treated the same as any other packet this client can't process yet.
+// QoS 0 and QoS 1 delivery are handled - QoS 2 isn't yet (see
+// net_mqtt_subscribe()'s own doc on why: it needs a PUBREC/PUBREL/
+// PUBCOMP exchange plus dedup tracking this client doesn't have), so a
+// QoS 2 PUBLISH is treated the same as any other packet this client
+// can't process yet. QoS 1 carries a 2-byte Packet Identifier between
+// the topic and the payload (QoS 0 has none) and must be acknowledged
+// with a PUBACK carrying that same id before this is considered done -
+// unlike QoS 0's fire-and-forget, a broker that never sees the PUBACK
+// will redeliver the same message later (possibly more than once; QoS 1
+// is "at least once", not "exactly once"), so this always re-delivers
+// and re-acks rather than trying to detect/suppress a duplicate.
 static bool _net_mqtt_poll_read_publish(net_mqtt_t *mqtt) {
   sys_iostream_t *conn = mqtt->conn;
   uint32_t timeout_ms = mqtt->timeout_ms;
@@ -702,7 +713,7 @@ static bool _net_mqtt_poll_read_publish(net_mqtt_t *mqtt) {
       !_net_mqtt_poll_read_length(conn, timeout_ms, &remaining_length)) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "malformed PUBLISH");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_receive);
     return true;
   }
 
@@ -710,14 +721,15 @@ static bool _net_mqtt_poll_read_publish(net_mqtt_t *mqtt) {
   uint8_t qos_bits = (first_byte >> 1) & 0x03;
 
   uint8_t topic_len_bytes[2];
-  if (qos_bits != 0 || remaining_length < 2 ||
+  if (qos_bits == 2 || remaining_length < 2 ||
       !_net_mqtt_read_exact(conn, topic_len_bytes, sizeof(topic_len_bytes),
                             timeout_ms)) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
     _net_mqtt_poll_fail(mqtt, 0,
-                        qos_bits != 0 ? "unsupported PUBLISH QoS"
-                                      : "malformed PUBLISH");
+                        qos_bits == 2 ? net_mqtt_error_unexpected
+                                      : net_mqtt_error_malformed,
+                        net_mqtt_action_receive);
     return true;
   }
 
@@ -729,10 +741,26 @@ static bool _net_mqtt_poll_read_publish(net_mqtt_t *mqtt) {
       !_net_mqtt_read_exact(conn, topic_buf, topic_len, timeout_ms)) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "malformed or oversized PUBLISH topic");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_receive);
     return true;
   }
   topic_buf[topic_len] = '\0';
+
+  uint16_t packet_id = 0;
+  if (qos_bits == 1) {
+    uint8_t packet_id_bytes[2];
+    if (after_topic_len + 2 > remaining_length ||
+        !_net_mqtt_read_exact(conn, packet_id_bytes, sizeof(packet_id_bytes),
+                              timeout_ms)) {
+      _net_mqtt_abort_connection_locked(mqtt);
+      sys_mutex_unlock(mqtt->lock);
+      _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_receive);
+      return true;
+    }
+    packet_id = (uint16_t)(((uint16_t)packet_id_bytes[0] << 8) |
+                           packet_id_bytes[1]);
+    after_topic_len += 2;
+  }
 
   size_t payload_len = remaining_length - after_topic_len;
 
@@ -758,9 +786,29 @@ static bool _net_mqtt_poll_read_publish(net_mqtt_t *mqtt) {
     sys_free(payload_heap_buf);
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "malformed or oversized PUBLISH payload");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_receive);
     return true;
   }
+
+  if (qos_bits == 1) {
+    // Fixed shape, same as PUBREL in
+    // _net_mqtt_poll_publish_read_pubrec(): type byte, Remaining Length
+    // always 2, then the packet id being acknowledged.
+    uint8_t puback[4] = {_NET_MQTT_PACKET_PUBACK, 0x02,
+                         (uint8_t)(packet_id >> 8), (uint8_t)(packet_id & 0xFF)};
+    if (!_net_mqtt_write_exact(conn, puback, sizeof(puback), timeout_ms)) {
+      sys_free(payload_heap_buf);
+      _net_mqtt_abort_connection_locked(mqtt);
+      sys_mutex_unlock(mqtt->lock);
+      _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_write_failed, net_mqtt_action_receive);
+      return true;
+    }
+  }
+
+  // Which confirmed subscription this belongs to - see
+  // _net_mqtt_topic_id_for_name()'s own doc. Looked up here, still
+  // holding the lock topics[] needs, not after unlocking below.
+  uint32_t topic_id = _net_mqtt_topic_id_for_name(mqtt, topic_buf);
 
   sys_mutex_unlock(mqtt->lock);
 
@@ -769,7 +817,8 @@ static bool _net_mqtt_poll_read_publish(net_mqtt_t *mqtt) {
       .data.received = {.topic = topic_buf,
                         .payload = payload_buf,
                         .payload_len = payload_len,
-                        .retain = retain}};
+                        .retain = retain,
+                        .topic_id = topic_id}};
   _net_mqtt_fire_event(mqtt, &received_event);
   sys_free(payload_heap_buf);
   return true;
@@ -798,7 +847,7 @@ static bool _net_mqtt_poll_read_pingresp(net_mqtt_t *mqtt) {
       buf[0] != _NET_MQTT_PACKET_PINGRESP || buf[1] != 0x00) {
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "malformed PINGRESP");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_malformed, net_mqtt_action_ping);
     return true;
   }
 
@@ -817,6 +866,15 @@ static bool _net_mqtt_poll_read_pingresp(net_mqtt_t *mqtt) {
 // the stream.
 static bool _net_mqtt_poll_read_dispatch(net_mqtt_t *mqtt) {
   sys_mutex_lock(mqtt->lock);
+
+  // _net_mqtt_poll()'s own `connected` check above is unlocked - a
+  // concurrent net_mqtt_disconnect() can clear both `connected` and
+  // `conn` between that check and this function acquiring the lock, so
+  // this needs its own fresh check rather than trusting the caller's.
+  if (!mqtt->connected || mqtt->conn == NULL) {
+    sys_mutex_unlock(mqtt->lock);
+    return false;
+  }
 
   sys_iostream_t *conn = mqtt->conn;
   int peeked = sys_iostream_peek(conn);
@@ -871,7 +929,7 @@ static bool _net_mqtt_poll_read_dispatch(net_mqtt_t *mqtt) {
     // pending.
     _net_mqtt_abort_connection_locked(mqtt);
     sys_mutex_unlock(mqtt->lock);
-    _net_mqtt_poll_fail(mqtt, 0, "unexpected or not-yet-supported packet type");
+    _net_mqtt_poll_fail(mqtt, 0, net_mqtt_error_unexpected, net_mqtt_action_none);
     return true;
   }
 }
@@ -911,7 +969,8 @@ static bool _net_mqtt_poll_publish_check_timeout(net_mqtt_t *mqtt) {
 
   net_mqtt_event_t error_event = {
       .type = net_mqtt_event_error,
-      .data.error = {.message = "acknowledgment timed out",
+      .data.error = {.kind = net_mqtt_error_timeout,
+                     .action = net_mqtt_action_publish,
                      .message_id = message_id}};
   _net_mqtt_fire_event(mqtt, &error_event);
   return true;
@@ -942,7 +1001,9 @@ static bool _net_mqtt_poll_subscribe_check_timeout(net_mqtt_t *mqtt) {
 
   net_mqtt_event_t error_event = {
       .type = net_mqtt_event_error,
-      .data.error = {.message = "SUBACK timed out", .message_id = message_id}};
+      .data.error = {.kind = net_mqtt_error_timeout,
+                     .action = net_mqtt_action_subscribe,
+                     .message_id = message_id}};
   _net_mqtt_fire_event(mqtt, &error_event);
   return true;
 }
@@ -962,7 +1023,7 @@ static bool _net_mqtt_poll_unsubscribe_check_timeout(net_mqtt_t *mqtt) {
     return false;
   }
 
-  uint32_t message_id = mqtt->unsubscribe.message_id;
+  uint32_t topic_id = mqtt->unsubscribe.topic_id;
   mqtt->unsubscribe.last_timed_out_packet_id = mqtt->unsubscribe.packet_id;
   mqtt->unsubscribe.topic = NULL;
   mqtt->unsubscribe.state = _net_mqtt_unsubscribe_idle;
@@ -971,7 +1032,9 @@ static bool _net_mqtt_poll_unsubscribe_check_timeout(net_mqtt_t *mqtt) {
 
   net_mqtt_event_t error_event = {
       .type = net_mqtt_event_error,
-      .data.error = {.message = "UNSUBACK timed out", .message_id = message_id}};
+      .data.error = {.kind = net_mqtt_error_timeout,
+                     .action = net_mqtt_action_unsubscribe,
+                     .message_id = topic_id}};
   _net_mqtt_fire_event(mqtt, &error_event);
   return true;
 }
