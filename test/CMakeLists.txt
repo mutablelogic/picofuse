@@ -1280,3 +1280,72 @@ target_compile_definitions(net_025 PRIVATE
 	WIFI_SSID="$ENV{WIFI_SSID}"
 	WIFI_PASSWORD="$ENV{WIFI_PASSWORD}"
 )
+
+# fs_vol_init_{path,file,memory}() basics, including each backend's
+# documented "unsupported on this platform" contract.
+picofuse_test(fs_001
+	fs_001/main.c
+	LIBRARIES picofuse-fs
+)
+
+# Directory listing (readdir) across the path/file/memory backends.
+picofuse_test(fs_002
+	fs_002/main.c
+	LIBRARIES picofuse-fs
+)
+
+# Path confinement: leading '/', bare "."/"..", and escaping above the
+# volume root are rejected identically by every backend.
+picofuse_test(fs_003
+	fs_003/main.c
+	LIBRARIES picofuse-fs
+)
+
+# fs_vol_size() total/free reporting.
+picofuse_test(fs_004
+	fs_004/main.c
+	LIBRARIES picofuse-fs
+)
+
+# Recursive readdir/stat consistency across a small directory tree.
+picofuse_test(fs_005
+	fs_005/main.c
+	LIBRARIES picofuse-fs
+)
+
+# Hidden entries (leading '.') are skipped by readdir but stay directly
+# reachable by explicit path.
+picofuse_test(fs_006
+	fs_006/main.c
+	LIBRARIES picofuse-fs
+)
+
+# Move/rename overwrite semantics (same-type replace, type-mismatch and
+# non-empty-directory rejection, root protection, self-move no-op).
+picofuse_test(fs_007
+	fs_007/main.c
+	LIBRARIES picofuse-fs
+)
+
+# File create/open/read/write/seek lifecycle, plus the generic file
+# dispatcher's NULL-safety.
+picofuse_test(fs_008
+	fs_008/main.c
+	LIBRARIES picofuse-fs
+)
+
+# Generic volume dispatcher NULL-safety - no backend/volume involved.
+picofuse_test(fs_009
+	fs_009/main.c
+	LIBRARIES picofuse-fs
+)
+
+# fs_vol_init_flash() erases/programs real reserved flash sectors, so this
+# runs only on a Pico target - like hw_026's own hw_block_flash_init()
+# exercise.
+if(DEFINED PICO_BOARD)
+	picofuse_test(fs_010
+		fs_010/main.c
+		LIBRARIES picofuse-fs picofuse-hw
+	)
+endif()

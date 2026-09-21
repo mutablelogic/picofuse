@@ -19,3 +19,6 @@ add_subdirectory(app)
 
 # net provides TCP/UDP sockets
 add_subdirectory(net/${SYSTEM_NAME_LOWER})
+
+# fs provides a virtual filesystem API
+add_subdirectory(fs/${SYSTEM_NAME_LOWER})
