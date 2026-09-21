@@ -7,15 +7,22 @@ Copyright the picofuse contributors
 
 This product is licensed under the Apache License, Version 2.0 (see
 [LICENSE](LICENSE)). It builds against, and for Pico targets statically
-links, third-party components pulled in via the `third_party/pico-sdk`
-submodule. Their licenses are reproduced in full alongside their source,
-and summarized here:
+links, third-party components pulled in via the `third_party/pico-sdk` and
+`third_party/littlefs` submodules. Their licenses are reproduced in full
+alongside their source, and summarized here:
 
 ## Raspberry Pi Pico SDK
 
 - Path: `third_party/pico-sdk`
 - Copyright: Copyright 2020 (c) 2020 Raspberry Pi (Trading) Ltd.
 - License: BSD-3-Clause (see `third_party/pico-sdk/LICENSE.TXT`)
+
+## littlefs
+
+- Path: `third_party/littlefs`
+- Copyright: Copyright (c) 2022, The littlefs authors; Copyright (c) 2017,
+  Arm Limited. All rights reserved.
+- License: BSD-3-Clause (see `third_party/littlefs/LICENSE.md`)
 
 ## lwIP
 

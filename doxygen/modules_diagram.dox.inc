@@ -64,6 +64,9 @@ digraph modules {
   Network     [label="Network",                  URL="\ref Network"];
   NTP         [label="NTP",                      URL="\ref NetworkNTP"];
   MQTT        [label="MQTT",                     URL="\ref NetworkMQTT"];
+  FileSystem   [label="Filesystem",              URL="\ref FileSystem"];
+  FileSystemVolume [label="Volume",                  URL="\ref FileSystemVolume"];
+  FileSystemFile [label="File",                    URL="\ref FileSystemFile"];
 
   System -> Memory;
   System -> Sync;
@@ -119,5 +122,7 @@ digraph modules {
   HID -> HIDKeycodes;
   Network -> NTP;
   Network -> MQTT;
+  FileSystem -> FileSystemVolume;
+  FileSystem -> FileSystemFile;
 }
 \enddot

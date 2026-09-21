@@ -40,11 +40,11 @@ block-beta
 * `hw` : [Hardware for peripherals such as GPIO, I2C, SPI, etc.](https://mutablelogic.github.io/picofuse/group__Hardware.html)
 * `dev` : [Device implementation for specific components.](<https://mutablelogic.github.io/picofuse/group__Device.html>)
 * `pix`: [Graphics library for drawing on displays.](https://mutablelogic.github.io/picofuse/group__Pixel.html)
-* `fs` : Filesystem abstraction for persistent storage.
+* `fs` : [Filesystem abstraction for persistent storage.](https://mutablelogic.github.io/picofuse/group__Filesystem.html)
 * `net`: [Network stack for TCP/IP communication.](https://mutablelogic.github.io/picofuse/group__Network.html)
-* `wav`: Audio library for playing and recording sound.
 * `hid`: [Human Interface Device library for handling input events from keyboards, buttons and mice, plus sensor readings.](https://mutablelogic.github.io/picofuse/group__HID.html)
 * `app`: [Application framework for event-driven programming.](https://mutablelogic.github.io/picofuse/group__Application.html)
+* `wav`: Audio library for playing and recording sound.
 
 A standalone, per-board "picofuse"
 installation is built, together with its headers and `pkg-config` metadata,
