@@ -708,7 +708,12 @@ static bool _net_mqtt_poll_read_publish(net_mqtt_t *mqtt) {
   uint32_t timeout_ms = mqtt->timeout_ms;
 
   uint8_t first_byte;
-  uint32_t remaining_length;
+  // Always written by _net_mqtt_poll_read_length() before it returns
+  // true, and never read below unless it did - genuinely always
+  // initialized by then, but the zero silences a false-positive
+  // -Wmaybe-uninitialized from GCC losing track of that across the
+  // short-circuit && and this function's .constprop/.isra cloning.
+  uint32_t remaining_length = 0;
   if (!_net_mqtt_read_exact(conn, &first_byte, sizeof(first_byte), timeout_ms) ||
       !_net_mqtt_poll_read_length(conn, timeout_ms, &remaining_length)) {
     _net_mqtt_abort_connection_locked(mqtt);

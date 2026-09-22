@@ -159,6 +159,8 @@ add_subdirectory(examples/pitft)
 add_subdirectory(examples/presto)
 add_subdirectory(examples/wifi)
 add_subdirectory(examples/echo/server)
+add_subdirectory(examples/rotel)
+
 if(NOT DEFINED PICO_BOARD)
     # A --server command-line argument doesn't fit Pico (no argv, no
     # interactive terminal) - host-only, like test/CMakeLists.txt's own

@@ -58,3 +58,6 @@ dkms.conf
 build*/
 doc/
 Testing/
+
+# other crap
+._*
