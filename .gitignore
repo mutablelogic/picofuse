@@ -58,3 +58,8 @@ dkms.conf
 build*/
 doc/
 Testing/
+
+# Miscellaneous
+*.log
+*.tmp
+.DS_Store

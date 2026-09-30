@@ -56,7 +56,9 @@ typedef enum {
 typedef struct {
   bool cs_active_low;    ///< True when chip-select is active low.
   hw_spi_mode_t mode;    ///< SPI mode selection.
-  uint8_t bits_per_word; ///< SPI frame size in bits.
+  uint8_t bits_per_word; ///< SPI frame size in bits (4-16). Above 8 changes
+                        ///< hw_deviceio_xfr()'s own word size for this
+                        ///< device - see its doc.
 } hw_spi_config_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -88,7 +90,8 @@ hw_deviceio_t *hw_spi_init_default(uint32_t baud_rate,
  * @param index SPI adapter index to use.
  * @param sck_pin GPIO handle for SCK.
  * @param tx_pin GPIO handle for MOSI.
- * @param rx_pin GPIO handle for MISO.
+ * @param rx_pin Optional GPIO handle for MISO. Pass `NULL` for a
+ * write-only device with no MISO line (e.g. a 3-wire display panel).
  * @param cs_pin Optional GPIO handle for CS. Pass NULL to leave CS unmanaged.
  * @param baud_rate Desired SPI clock rate in Hz.
  * @param config Optional pointer to extended SPI configuration. Pass `NULL`

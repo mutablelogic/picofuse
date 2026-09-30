@@ -28,6 +28,7 @@ picofuse_library(
         stmpe610/stmpe610.c
         stmpe610/hid.c
         ${_sdl_src}
+        st7701/st7701.c
 )
 
 target_include_directories(picofuse-dev PRIVATE ${CMAKE_SOURCE_DIR}/include)

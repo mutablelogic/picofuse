@@ -227,8 +227,12 @@ hw_deviceio_t *hw_spi_init_device(const char *device, uint32_t baud_rate,
                     : (hw_spi_config_t){.cs_active_low = true,
                                         .mode = hw_spi_mode_0,
                                         .bits_per_word = 8};
+  // This backend's own _hw_spi_ops_xfr() only handles 8-bit words (byte
+  // buffers, tx/rx counted in bytes) - see hw_deviceio_xfr()'s own doc on
+  // word size. Reject anything wider up front rather than silently
+  // under-transferring/misplacing data as if it worked.
   if (device == NULL || device[0] == '\0' || baud_rate == 0 ||
-      settings.bits_per_word == 0) {
+      settings.bits_per_word == 0 || settings.bits_per_word > 8) {
     return NULL;
   }
 
