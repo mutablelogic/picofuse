@@ -1,120 +1,177 @@
-# Captured at parse time: CMAKE_CURRENT_LIST_DIR inside the function below
+# Captured at parse time: CMAKE_CURRENT_LIST_DIR inside the functions below
 # would instead reflect the *caller's* file (functions don't push a new
 # list-file scope the way include()/add_subdirectory() do).
 set(_picosdk_install_dir ${CMAKE_CURRENT_LIST_DIR})
 
-# picofuse_install_package(NAME [DESCRIPTION <text>] [VERSION <ver>]
-#                           [REQUIRES <pkg> ...] [REQUIRES_PRIVATE <pkg> ...]
-#                           [PUBLIC_HEADER_DIRS <subdir-of-project-include> ...])
+# picofuse_install()
 #
-# Installs <NAME>_static (built via picofuse_add_pico_sdk_library()/_bundle()/
-# picofuse_library()) as a standalone, pkg-config-discoverable package under
-# CMAKE_INSTALL_PREFIX: lib/lib<NAME>.a, whatever linker-script fragments it
-# needs under lib/picosdk/src, and lib/pkgconfig/<NAME>.pc capturing all of
-# it. A consumer elsewhere then just needs `pkg-config <NAME>` — nothing it
-# doesn't already carry.
+# Installs everything a project outside this source tree needs to build
+# against picofuse, under CMAKE_INSTALL_PREFIX:
 #
-# Without PUBLIC_HEADER_DIRS, this package is "unscoped": its full
-# transitive header set merges into the shared include/ tree, and its .pc
-# Cflags is a single -I there — appropriate for an SDK bundle like picosdk,
-# whose whole point is exposing that surface. With PUBLIC_HEADER_DIRS, only
-# those specific subdirectories of the project's own include/ get installed,
-# into a package-private lib/<NAME>/include instead — for a package like
-# picofuse_sys_pico whose own actual API is just picofuse/, not the raw SDK
-# headers its own INTERFACE_INCLUDE_DIRECTORIES also happens to carry
-# (privately linking picosdk_static to build it pulls those in too).
+#   include/picofuse/                    the public headers
+#   lib/<target>/lib<name>.a             every picofuse_library()
+#   lib/<target>/pkgconfig/<name>.pc     its flags and dependencies
+#   cmake/picofuse_executable.cmake
 #
-# REQUIRES_PRIVATE (unlike REQUIRES) never becomes a pkg-config
-# Requires.private: line at all — pkgconf (the pkg-config implementation
-# actually in use) merges a private dependency's Cflags into a consumer's
-# normal --cflags output regardless, only gating its Libs behind --static,
-# which is backwards from what's needed here (picosdk's Libs, to link, but
-# not its Cflags/headers). It only drives dedup: this package's own
-# captured includes/defines/linkopts get REQUIRES_PRIVATE's subtracted out
-# so they aren't baked in twice. Getting picosdk's Libs onto a consumer is
-# handled explicitly by picofuse_executable.cmake instead, which
-# pkg_check_modules()s both packages directly.
-function(picofuse_install_package NAME)
-    cmake_parse_arguments(_ARG "" "DESCRIPTION;VERSION" "REQUIRES;REQUIRES_PRIVATE;PUBLIC_HEADER_DIRS" ${ARGN})
-    if(NOT _ARG_DESCRIPTION)
-        set(_ARG_DESCRIPTION "picofuse ${NAME}")
-    endif()
-    if(NOT _ARG_VERSION)
-        set(_ARG_VERSION "0.1.0")
-    endif()
-
-    set(_static ${NAME}_static)
-    if(NOT TARGET ${_static})
-        message(FATAL_ERROR "picofuse_install_package: ${NAME} was not built via picofuse_add_pico_sdk_library()/picofuse_add_pico_sdk_bundle()/picofuse_library()")
-    endif()
-
-    # Only generator expressions can see a target's fully-resolved
-    # transitive properties, and only at CMake's generate step — so capture
-    # them to files now; the actual .pc text-processing (LINKER:X -> -Wl,X,
-    # path rewriting) happens later, from install(CODE), where real string
-    # processing is available.
-    set(_capture_dir ${CMAKE_BINARY_DIR}/picofuse_package/${NAME})
-    file(GENERATE OUTPUT ${_capture_dir}/includes.txt CONTENT "$<TARGET_PROPERTY:${_static},INCLUDE_DIRECTORIES>")
-    file(GENERATE OUTPUT ${_capture_dir}/defines.txt CONTENT "$<TARGET_PROPERTY:${_static},COMPILE_DEFINITIONS>")
-    file(GENERATE OUTPUT ${_capture_dir}/linkopts.txt CONTENT "$<TARGET_PROPERTY:${_static},LINK_OPTIONS>")
-
-    # bs2_default_library's compiled boot2 object reaches an in-tree
-    # executable only via CMake's real LINK_LIBRARIES forwarding through
-    # pico_standard_link (INTERFACE) -> ${_static} (STATIC) -> the final
-    # executable — never folded into ${_static}'s own archive, so
-    # install(TARGETS ...) alone won't carry it. Capture its build-tree path
-    # directly (rather than trying to discover it generically out of
-    # LINK_LIBRARIES) so it can be copied into the install tree and wired
-    # into this package's own Libs: below.
-    set(_boot2_object_file "")
-    if(TARGET bs2_default_library)
-        set(_boot2_object_file ${_capture_dir}/boot2.txt)
-        file(GENERATE OUTPUT ${_boot2_object_file} CONTENT "$<TARGET_OBJECTS:bs2_default_library>")
-    endif()
-
-    install(TARGETS ${_static} ARCHIVE DESTINATION lib)
-
-    list(JOIN _ARG_REQUIRES " " _requires_str)
-    list(JOIN _ARG_REQUIRES_PRIVATE " " _requires_private_str)
-    list(JOIN _ARG_PUBLIC_HEADER_DIRS " " _public_header_dirs_str)
-
-    # A required package's own .pc already carries these via pkg-config's
-    # own dependency resolution (Requires:/Requires.private:) — passing its
-    # capture dir lets picofuse_write_pkgconfig() subtract whatever it
-    # already provides, rather than duplicating it verbatim in this
-    # package's own Cflags/Libs.
-    set(_requires_capture_dirs "")
-    foreach(_req IN LISTS _ARG_REQUIRES _ARG_REQUIRES_PRIVATE)
-        list(APPEND _requires_capture_dirs "${CMAKE_BINARY_DIR}/picofuse_package/${_req}")
+# and, on a PICO_BOARD build only, lib/<target>/libpicosdk.a, picosdk.pc,
+# picosdk-headers.pc, and (under lib/<target>/picosdk/) the SDK headers, linker
+# scripts and boot2 object - see picofuse_install_picosdk().
+#
+# <target> is PICOFUSE_TARGET: the board, or the host's system and processor.
+# The rest is the same for all of them, so any number can be installed into
+# one prefix.
+#
+# Call once, after every picofuse_library(). Nothing installed refers to the
+# source or build tree, and the .pc files find their prefix relative to
+# themselves, so an installed prefix can be moved.
+function(picofuse_install)
+    get_property(_libs GLOBAL PROPERTY PICOFUSE_SDK_LIBRARIES)
+    foreach(_lib IN LISTS _libs)
+        if(_lib STREQUAL "picosdk_static")
+            picofuse_install_picosdk()
+        else()
+            picofuse_install_library(${_lib})
+        endif()
     endforeach()
-    list(JOIN _requires_capture_dirs " " _requires_capture_dirs_str)
 
+    install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/picofuse
+        DESTINATION include
+        FILES_MATCHING PATTERN "*.h")
+
+    # The downstream-facing picofuse_executable(), never include()'d alongside
+    # the in-tree one in picosdk_executable.cmake - no name collision, since a
+    # consumer include()s this from their own, separate CMake process.
+    install(FILES ${_picosdk_install_dir}/picofuse_executable.cmake DESTINATION cmake)
+endfunction()
+
+# picofuse_install_library(NAME)
+#
+# Installs the picofuse_library() target NAME, with a .pc file whose
+# dependencies are read off what NAME links to, so they're only ever stated
+# once. These are static libraries, which carry none of their dependencies, so
+# the .pc uses Requires/Libs and not their .private forms: a consumer needn't
+# remember to pass --static.
+function(picofuse_install_library NAME)
+    install(TARGETS ${NAME} ARCHIVE DESTINATION lib/${PICOFUSE_TARGET})
+
+    set(_requires)
+    set(_link)
+    get_target_property(_deps ${NAME} LINK_LIBRARIES)
+    if(NOT _deps)
+        set(_deps)
+    endif()
+    foreach(_dep IN LISTS _deps)
+        if(_dep MATCHES "^picofuse-")
+            list(APPEND _requires ${_dep})
+        elseif(_dep STREQUAL "picosdk_static")
+            list(APPEND _requires picosdk)
+        elseif(_dep MATCHES "_headers$")
+            # Headers-only SDK target, needed only to compile NAME itself.
+        elseif(_dep STREQUAL "OpenSSL::Crypto")
+            # Prefer OpenSSL's own .pc to the path find_package() resolved,
+            # which under Homebrew names an exact version.
+            find_package(PkgConfig QUIET)
+            if(PkgConfig_FOUND)
+                pkg_check_modules(PICOFUSE_LIBCRYPTO QUIET libcrypto)
+            endif()
+            if(PICOFUSE_LIBCRYPTO_FOUND)
+                list(APPEND _requires libcrypto)
+            else()
+                list(APPEND _link "${OPENSSL_CRYPTO_LIBRARY}")
+            endif()
+        elseif(_dep STREQUAL "PkgConfig::SDL2")
+            list(APPEND _requires sdl2)
+        elseif(_dep STREQUAL "usb-1.0")
+            list(APPEND _requires libusb-1.0)
+        elseif(_dep STREQUAL "Threads::Threads")
+            list(APPEND _link "-pthread")
+        elseif(_dep MATCHES "::|\\$<")
+            message(FATAL_ERROR "picofuse_install_library(${NAME}): don't know how to express ${_dep} in a .pc file")
+        elseif(_dep MATCHES "^[-/]")
+            list(APPEND _link "${_dep}")
+        else()
+            list(APPEND _link "-l${_dep}")
+        endif()
+    endforeach()
+
+    set(_requires_line "")
+    if(_requires)
+        list(REMOVE_DUPLICATES _requires)
+        list(JOIN _requires " " _requires)
+        set(_requires_line "Requires: ${_requires}\n")
+    endif()
+    list(JOIN _link " " _link)
+
+    # SYSTEM_NAME_* because the public headers test it (see sys/hash.h), so a
+    # consumer has to agree with how the library itself was built.
+    picofuse_pkgconfig_version(_version)
+    set(_pc ${CMAKE_BINARY_DIR}/picofuse_package/${NAME}.pc)
+    file(WRITE ${_pc}
+"prefix=\${pcfiledir}/../../..
+libdir=\${prefix}/lib/${PICOFUSE_TARGET}
+includedir=\${prefix}/include
+
+Name: ${NAME}
+Description: ${NAME} library for ${PICOFUSE_TARGET}
+Version: ${_version}
+${_requires_line}Cflags: -I\${includedir} -DSYSTEM_NAME_${SYSTEM_NAME_UPPER}
+Libs: -L\${libdir} -l${NAME} ${_link}
+")
+    install(FILES ${_pc} DESTINATION lib/${PICOFUSE_TARGET}/pkgconfig)
+endfunction()
+
+# picofuse_install_picosdk()
+#
+# Installs the picosdk bundle as two packages:
+#
+#   picosdk          what's needed to link: the archive, boot2, the linker
+#                    scripts and flags, plus the CPU flags every translation
+#                    unit has to share. Every picofuse library requires it.
+#   picosdk-headers  the SDK's headers and defines. Nothing requires it, so
+#                    raw SDK headers never leak into a consumer that only
+#                    asked for picofuse.
+function(picofuse_install_picosdk)
+    install(TARGETS picosdk_static ARCHIVE DESTINATION lib/${PICOFUSE_TARGET})
+
+    # Only generator expressions can see a target's fully-resolved transitive
+    # properties, and only at CMake's generate step - so capture them to files
+    # now; the text-processing happens later, from install(CODE).
+    set(_capture_dir ${CMAKE_BINARY_DIR}/picofuse_package/picosdk)
+    foreach(_prop INCLUDE_DIRECTORIES COMPILE_DEFINITIONS LINK_OPTIONS)
+        file(GENERATE OUTPUT ${_capture_dir}/${_prop}.txt
+            CONTENT "$<TARGET_PROPERTY:picosdk_static,${_prop}>")
+    endforeach()
+
+    # boot2 reaches an in-tree executable as an object file, through
+    # pico_standard_link's LINK_LIBRARIES. It's never a member of the archive.
+    set(_boot2)
+    if(TARGET bs2_default_library)
+        set(_boot2 ${_capture_dir}/boot2.txt)
+        file(GENERATE OUTPUT ${_boot2} CONTENT "$<TARGET_OBJECTS:bs2_default_library>")
+    endif()
+
+    picofuse_pkgconfig_version(_version)
     install(CODE "
-        include(\"${_picosdk_install_dir}/picosdk_install_helpers.cmake\")
-        picofuse_write_pkgconfig(
-            NAME [[${NAME}]]
-            VERSION [[${_ARG_VERSION}]]
-            DESCRIPTION [[${_ARG_DESCRIPTION}]]
-            REQUIRES [[${_requires_str}]]
-            REQUIRES_PRIVATE [[${_requires_private_str}]]
-            REQUIRES_CAPTURE_DIRS [[${_requires_capture_dirs_str}]]
-            PUBLIC_HEADER_DIRS [[${_public_header_dirs_str}]]
-            INCLUDES_FILE [[${_capture_dir}/includes.txt]]
-            DEFINES_FILE [[${_capture_dir}/defines.txt]]
-            LINKOPTS_FILE [[${_capture_dir}/linkopts.txt]]
-            BOOT2_OBJECT_FILE [[${_boot2_object_file}]]
-            SDK_SRC_DIR [[${PICO_SDK_PATH}/src]]
+        include([[${_picosdk_install_dir}/picosdk_install_helpers.cmake]])
+        picofuse_write_picosdk(
+            VERSION [[${_version}]]
+            BOARD [[${PICO_BOARD}]]
+            PLATFORM [[${PICO_PLATFORM}]]
+            CPU_FLAGS [[${CMAKE_C_FLAGS}]]
+            CAPTURE_DIR [[${_capture_dir}]]
+            BOOT2_FILE [[${_boot2}]]
+            SDK_DIR [[${PICO_SDK_PATH}/src]]
             BUILD_SDK_DIR [[${CMAKE_BINARY_DIR}/pico-sdk/src]]
             PROJECT_INCLUDE_DIR [[${CMAKE_SOURCE_DIR}/include]]
-            CPU_FLAGS [[${CMAKE_C_FLAGS}]]
-            PREFIX \"\${CMAKE_INSTALL_PREFIX}\"
+            PREFIX \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}\"
         )
     ")
 endfunction()
 
-# The downstream-facing picofuse_executable() (finds picofuse_sys_pico via
-# pkg-config, unrelated to and never include()'d alongside the in-tree
-# picofuse_executable() in picosdk_executable.cmake — no name collision,
-# since a downstream consumer include()s this from their own, separate
-# CMake process).
-install(FILES ${_picosdk_install_dir}/picofuse_executable.cmake DESTINATION cmake)
+function(picofuse_pkgconfig_version OUT)
+    if(PROGRAM_VERSION)
+        set(${OUT} "${PROGRAM_VERSION}" PARENT_SCOPE)
+    else()
+        set(${OUT} "0.0.0" PARENT_SCOPE)
+    endif()
+endfunction()

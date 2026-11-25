@@ -55,6 +55,20 @@ and summarized here:
   `third_party/pico-sdk/lib/btstack/LICENSE`); commercial licensing is
   available directly from BlueKitchen GmbH
 
+## picotool
+
+- Path: `third_party/picotool`
+- Copyright: Copyright 2020 (c) 2020 Raspberry Pi (Trading) Ltd.
+- License: BSD-3-Clause (see `third_party/picotool/LICENSE.TXT`)
+- A separate program, installed alongside picofuse and not linked with it
+
+## libusb
+
+- Not included in this repository. On a Mac, a copy of the library which
+  `picotool` was built with is installed, unmodified other than its install
+  name and signature
+- License: LGPL-2.1-or-later (see <https://github.com/libusb/libusb>)
+
 ---
 
 Not all of the above are linked into every build - cyw43-driver and lwIP
