@@ -1,6 +1,6 @@
 # Installation prefix and build directory
 BUILD_DIR ?= build
-PREFIX ?= $(BUILD_DIR)
+PREFIX ?= /opt/picofuse
 CMAKE_BUILD_TYPE ?= Release
 
 # Tools

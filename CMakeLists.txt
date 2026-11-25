@@ -12,6 +12,19 @@ if(DEFINED PICO_BOARD)
     include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
 endif()
 
+# On a Mac, build for the major version of macOS, and not exactly the version
+# that's running, which is the default for Apple's compiler but not for GCC: the
+# linker warns about every object that's newer than what it's linked into.
+# Override with CMAKE_OSX_DEPLOYMENT_TARGET or MACOSX_DEPLOYMENT_TARGET.
+if(CMAKE_HOST_APPLE AND NOT DEFINED PICO_BOARD
+        AND NOT CMAKE_OSX_DEPLOYMENT_TARGET AND NOT DEFINED ENV{MACOSX_DEPLOYMENT_TARGET})
+    execute_process(COMMAND sw_vers -productVersion
+        OUTPUT_VARIABLE _macos OUTPUT_STRIP_TRAILING_WHITESPACE)
+    string(REGEX REPLACE "^([0-9]+).*$" "\\1.0" _macos "${_macos}")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "${_macos}" CACHE STRING
+        "Oldest version of macOS to build for" FORCE)
+endif()
+
 project(picofuse C CXX ASM)
 
 option(PICOFUSE_WIFI "Enable real Wi-Fi networking backends" OFF)
@@ -133,6 +146,14 @@ string(TOLOWER ${CMAKE_SYSTEM_NAME} SYSTEM_NAME_LOWER)
 string(TOUPPER ${CMAKE_SYSTEM_NAME} SYSTEM_NAME_UPPER)
 string(TOLOWER ${CMAKE_SYSTEM_PROCESSOR} PROCESSOR_NAME_LOWER)
 
+# What's being built for, which is where libraries are installed: the board
+# (e.g. pico2_w), or else the host (e.g. darwin-arm64, linux-x86_64)
+if(DEFINED PICO_BOARD)
+    set(PICOFUSE_TARGET ${PICO_BOARD})
+else()
+    set(PICOFUSE_TARGET ${SYSTEM_NAME_LOWER}-${PROCESSOR_NAME_LOWER})
+endif()
+
 # Set include directories for project headers
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/picosdk_executable.cmake)
 
@@ -178,10 +199,9 @@ include(CTest)
 add_subdirectory("test")
 
 # Install
-# Installable package: lib/, include/, lib/pkgconfig/*.pc
-#include(${CMAKE_CURRENT_LIST_DIR}/cmake/picosdk_install.cmake)
-#picofuse_install_package(picosdk DESCRIPTION "picofuse pico-sdk runtime bundle")
-#picofuse_install_package(picofuse_sys DESCRIPTION "picofuse-sys"
-#    REQUIRES_PRIVATE picosdk
-#    PUBLIC_HEADER_DIRS picofuse
-#)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/picosdk_install.cmake)
+picofuse_install()
+if(NOT DEFINED PICO_BOARD)
+    include(${CMAKE_CURRENT_LIST_DIR}/cmake/picotool.cmake)
+    picofuse_install_picotool()
+endif()

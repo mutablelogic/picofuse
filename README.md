@@ -69,20 +69,24 @@ include(/opt/picofuse/cmake/picofuse_executable.cmake)
 
 picofuse_executable(
     NAME helloworld
-    LIBRARIES picofuse-sys
+    LIBRARIES picofuse-app picofuse-hw picofuse-hid
     SOURCES helloworld.c
 )
 ```
 
-The following shell commands set up the environment for building the example:
+Then build the example:
 
 ```sh
-export PKG_CONFIG_PATH=/opt/picofuse/lib/pkgconfig
-# Use -DPICO_BOARD=<board> to specify the target board
-cmake -S . -B build
+# Host
+cmake -S . -B build && cmake --build build
 
-# Build
-cmake --build build
+# Pico: set the board, and cross-compile
+cmake -S . -B build-pico \
+    -D PICO_BOARD=pico \
+    -D CMAKE_SYSTEM_NAME=Generic \
+    -D CMAKE_C_COMPILER=arm-none-eabi-gcc \
+    -D CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
+cmake --build build-pico
 ```
 
 The aim is that prototyping can be performed on a host computer, while deployment to the target hardware (such as Raspberry Pi or Pico)
@@ -113,7 +117,7 @@ are only needed to enable the corresponding feature:
 | OpenSSL (required) | `brew install openssl@3` | `sudo apt install libssl-dev` |
 | WPA Supplicant (optional, for WiFi support) | N/A | `sudo apt install libwpa-client-dev` |
 | Mosquitto (optional, for MQTT support) | `brew install mosquitto` | `sudo apt install libmosquitto-dev` |
-| USB (optional, for USB support) | `brew install libusb pkgconf` | `sudo apt install libusb-1.0-0-dev` |
+| USB (optional, for USB support, and for `picotool` to access devices) | `brew install libusb pkgconf` | `sudo apt install libusb-1.0-0-dev` |
 
 ### Build & Install
 
@@ -153,24 +157,40 @@ Install with:
 make install
 ```
 
-This builds and installs into `PREFIX` (defaults to `BUILD_DIR`, i.e.
-`build/`). Combine with `PICO_BOARD` and `BUILD_DIR`/`PREFIX` to install a
-per-board prefix, e.g.:
+This builds and installs into `PREFIX` (defaults to `/opt/picofuse`). The host
+and any number of boards can be installed into the same prefix:
 
 ```sh
-make PICO_BOARD=pico BUILD_DIR=build-pico PREFIX=/opt/picofuse/pico install
+# Host, and the tools
+make install
+
+# Pico (RP2040)
+make PICO_BOARD=pico BUILD_DIR=build-pico install
 ```
 
-Installing produces, under the chosen prefix:
+Installing produces, under the prefix:
 
-* `lib/libpicosdk.a`, `lib/libpicofuse_sys_pico.a`
-* `include/` - every SDK module's headers merged into one consolidated tree,
-  plus `picofuse/` and `runtime/`
-* `lib/pkgconfig/picosdk.pc`, `lib/pkgconfig/picofuse_sys_pico.pc`
-  (the latter `Requires: picosdk`, so pulling it in via `pkg-config` also
-  pulls in picosdk's own flags)
-* `lib/picosdk/src/` - the linker script fragments the `.pc` file's `Libs`
-  point at
+* `bin/` - `testrunner` and `picotool`, from the host build
+* `include/picofuse/` - the public headers
+* `cmake/picofuse_executable.cmake`
+* `lib/<target>/` - the libraries, with a `pkg-config` file for each in
+  `lib/<target>/pkgconfig/`
+
+`<target>` is the board (e.g. `pico2_w`) or the host (e.g. `darwin-arm64`,
+`linux-x86_64`). For a board, it also has:
+
+* `libpicosdk.a` and `picosdk.pc`, which the other `.pc` files require - linking
+  needs no pico-sdk checkout
+* `picosdk/` - the linker scripts, boot2 object and SDK headers. The SDK
+  headers are only visible to code which asks for `picosdk-headers`
+
+A prefix can be moved once installed. On a Pico, compile with the flags from
+`pkg-config --cflags`: they include `-fshort-enums`, which `clang` needs in order
+to agree with the libraries about the layout of structures.
+
+`picotool` is built from the `third_party/picotool` submodule. It needs
+`libusb` in order to access devices: on a Mac a copy is installed with the
+libraries, and on Linux the system's is used.
 
 We'd like to provide pre-compiled per-board libraries (so consumers don't
 need to build pico-sdk themselves) soon.
