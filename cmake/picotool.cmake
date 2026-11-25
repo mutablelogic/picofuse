@@ -33,10 +33,21 @@ function(picofuse_install_picotool)
         list(APPEND _args -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET})
     endif()
 
+    # picotool's own build doesn't work with a multi-config generator: it runs a
+    # program it has just built from the directory of the first configuration,
+    # whichever is being built. It also puts picotool in a directory which depends
+    # on the configuration.
+    set(_generator)
+    get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(_multi_config)
+        set(_generator CMAKE_GENERATOR "Unix Makefiles")
+    endif()
+
     include(ExternalProject)
     ExternalProject_Add(picotool
         SOURCE_DIR ${_source}
         BINARY_DIR ${_build}
+        ${_generator}
         CMAKE_ARGS ${_args}
         INSTALL_COMMAND ""
     )
@@ -56,7 +67,7 @@ function(picofuse_install_picotool)
                 set(_dest \"\${_prefix}/lib/${PICOFUSE_TARGET}\")
                 file(REAL_PATH \"\${_lib}\" _real)
                 file(MAKE_DIRECTORY \"\${_dest}\")
-                file(COPY_FILE \"\${_real}\" \"\${_dest}/\${_name}\")
+                configure_file(\"\${_real}\" \"\${_dest}/\${_name}\" COPYONLY) # file(COPY_FILE) needs CMake 3.21
                 file(CHMOD \"\${_dest}/\${_name}\" PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
                 execute_process(COMMAND install_name_tool -id \"@rpath/\${_name}\" \"\${_dest}/\${_name}\" ERROR_QUIET COMMAND_ERROR_IS_FATAL ANY)
                 execute_process(COMMAND install_name_tool -change \"\${_lib}\" \"@loader_path/../lib/${PICOFUSE_TARGET}/\${_name}\" \"\${_picotool}\" ERROR_QUIET COMMAND_ERROR_IS_FATAL ANY)
