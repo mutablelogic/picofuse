@@ -56,6 +56,18 @@ test_main_sys(0) {
   test_assert(parse("0.000000001s") == NS);
   test_assert(parse("0.0000000019s") == NS);
   test_assert(parse("1.5ns") == NS);
+
+  // Long fractions are truncated, not rounded
+  test_assert(parse("0.99999999999999999s") == 999999999 * NS);
+  test_assert(parse("0.9999999999999999999999999999999999999s") ==
+              999999999 * NS);
+  test_assert(parse("0.99999999999999999999999d") == D - NS);
+  test_assert(parse("1.99999999999999999h") == 2 * H - NS);
+  test_assert(parse("0.1s") == 100 * MS);
+  test_assert(parse("0.3s") == 300 * MS);
+  test_assert(parse("0.7h") == 42 * M);
+  test_assert(parse("0.000000000999999999999s") == 0);
+  test_assert(parse("0.1d") == 144 * M);
   test_assert(parse("2.25h") == 2 * H + 15 * M);
   test_assert(parse("-250ms") == -250 * MS);
   test_assert(parse("+1m") == M);

@@ -43,7 +43,8 @@ bool sys_string_parse_duration(const char *str, size_t len, int64_t *ns) {
   bool any = false;
   while (pos < end || !any) {
 
-    // The whole number, and the fraction, of which at most 18 digits count
+    // The whole number, and the digits of the fraction, of which those past
+    // the 32nd are too small to count
     uint64_t whole = 0;
     bool digits = false;
     while (pos < end && _sys_string_isdigit(*pos)) {
@@ -54,16 +55,13 @@ bool sys_string_parse_duration(const char *str, size_t len, int64_t *ns) {
       digits = true;
       pos++;
     }
-    uint64_t fraction = 0;
-    double scale = 1;
+    uint8_t fraction[32];
+    size_t count = 0;
     if (pos < end && *pos == '.') {
       pos++;
-      int count = 0;
       while (pos < end && _sys_string_isdigit(*pos)) {
-        if (count < 18) {
-          fraction = fraction * 10 + (uint64_t)(*pos - '0');
-          scale *= 10;
-          count++;
+        if (count < sizeof(fraction)) {
+          fraction[count++] = (uint8_t)(*pos - '0');
         }
         digits = true;
         pos++;
@@ -91,14 +89,19 @@ bool sys_string_parse_duration(const char *str, size_t len, int64_t *ns) {
       return false;
     }
 
-    // Add it, truncating any part of a nanosecond
-    uint64_t value;
-    if (__builtin_mul_overflow(whole, unit, &value)) {
-      return false;
+    // The fraction of the unit, truncated to a whole nanosecond, from the
+    // last digit to the first: dividing by ten at each step, and dropping
+    // the remainder, gives the same as dropping it once at the end. Each step
+    // is less than ten units, so it can't overflow.
+    uint64_t part = 0;
+    while (count > 0) {
+      part = (fraction[--count] * unit + part) / 10;
     }
-    double part = (double)fraction * ((double)unit / scale);
-    if (part >= (double)UINT64_MAX ||
-        __builtin_add_overflow(value, (uint64_t)part, &value) ||
+
+    // Add it
+    uint64_t value;
+    if (__builtin_mul_overflow(whole, unit, &value) ||
+        __builtin_add_overflow(value, part, &value) ||
         __builtin_add_overflow(total, value, &total) || total > limit) {
       return false;
     }
