@@ -153,6 +153,16 @@ test_main_sys(0) {
     test_assert(sys_date_to_string(&date, sys_date_format_iso8601, buf,
                                    sizeof(buf)) == 0);
 
+    // The largest offsets, which are written without overflowing
+    date = (sys_date_t){.seconds = 0, .tzoffset = INT32_MIN};
+    test_assert(sys_date_to_string(&date, sys_date_format_iso8601, buf,
+                                   sizeof(buf)) == 29);
+    test_assert_strequal(buf, "1901-12-13T20:45:52-596523:14");
+    date.tzoffset = INT32_MAX;
+    test_assert(sys_date_to_string(&date, sys_date_format_iso8601, buf,
+                                   sizeof(buf)) == 29);
+    test_assert_strequal(buf, "2038-01-19T03:14:07+596523:14");
+
     // Setting the date or time of one out of range
     date = (sys_date_t){.seconds = LAST + 1};
     test_assert(!sys_date_set_time_utc(&date, 0, 0, 0));

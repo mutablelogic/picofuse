@@ -423,7 +423,7 @@ size_t sys_date_to_string(const sys_date_t *date, sys_date_format_t format,
                        (unsigned)hours, (unsigned)minutes, (unsigned)seconds);
   }
 
-  int32_t off = date->tzoffset;
+  int64_t off = date->tzoffset; // so that INT32_MIN can be negated
   char sign = (off < 0) ? '-' : '+';
   if (off < 0) {
     off = -off;
