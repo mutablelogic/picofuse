@@ -41,8 +41,9 @@ typedef enum {
                                ///< always rendered in UTC regardless of
                                ///< the date's own tzoffset.
   sys_date_format_log = 2,     ///< "2026-09-06 11:37:05" - a plain,
-                               ///< sortable form for logs/debug output, in
-                               ///< whatever timezone tzoffset represents.
+                               ///< sortable form for logs/debug output,
+                               ///< always in UTC regardless of the date's
+                               ///< own tzoffset.
 } sys_date_format_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -180,6 +181,32 @@ bool sys_date_add_ns(sys_date_t *date, int64_t ns);
  * `sys_sprintf()` - or 0 if @p date was `NULL` and the current time
  * couldn't be read, or its year isn't in the range 0-65535.
  */
+/**
+ * @brief Parse a date written in one of the formats.
+ * @ingroup SystemTime
+ * @param str The date. The whole of it must be in the format:
+ * - sys_date_format_iso8601: "2026-09-06T11:37:05Z", with an optional
+ *   fraction of a second up to nanoseconds ("11:37:05.25Z"), and "Z" or an
+ *   offset ("+01:00", "-05:30", from -23:59 to +23:59). "T" and "Z" can be
+ *   lowercase. Or just a date, "2026-09-06", which is midnight UTC.
+ * - sys_date_format_rfc2822: "Sun, 06 Sep 2026 11:37:05 GMT", where the
+ *   weekday is optional but must be right if it's there, the day can be
+ *   one digit, the seconds are optional, and the zone is "GMT", "UTC",
+ *   "UT", "Z" or an offset ("+0100", "-0530").
+ * - sys_date_format_log: "2026-09-06 11:37:05", in UTC.
+ *
+ * Years are from 0 to 65535, with four or five digits.
+ * @param len The date's exact length in bytes, or 0 for str's length up to
+ * its own NUL terminator. With len set, str need not be NUL-terminated.
+ * @param format Which format it's in.
+ * @param date Receives the date, with tzoffset set to its offset, or 0.
+ * Left unchanged on a parse error.
+ * @return `true` if it was parsed, or `false` if it isn't in the format or
+ * isn't a date which exists.
+ */
+bool sys_date_parse(const char *str, size_t len, sys_date_format_t format,
+                    sys_date_t *date);
+
 size_t sys_date_to_string(const sys_date_t *date, sys_date_format_t format,
                           char *buf, size_t buf_size);
 

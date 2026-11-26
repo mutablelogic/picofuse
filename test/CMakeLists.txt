@@ -609,6 +609,16 @@ picofuse_test(sys_111
 	sys_111/main.c
 )
 
+# sys_string_parse_duration
+picofuse_test(sys_112
+	sys_112/main.c
+)
+
+# sys_date_parse, in every format
+picofuse_test(sys_113
+	sys_113/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001

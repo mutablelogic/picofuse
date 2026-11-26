@@ -402,21 +402,25 @@ size_t sys_date_to_string(const sys_date_t *date, sys_date_format_t format,
                        (unsigned)hours, (unsigned)minutes, (unsigned)seconds);
   }
 
-  // iso8601/log both render in whatever timezone tzoffset represents.
+  if (format == sys_date_format_log) {
+    // Always UTC, so that it can be read back
+    if (!_sys_date_extract(date->seconds, &hours, &minutes, &seconds, &year,
+                           &month, &day, &weekday)) {
+      goto fail;
+    }
+    return sys_sprintf(buf, buf_size, "%04u-%02u-%02u %02u:%02u:%02u",
+                       (unsigned)year, (unsigned)month, (unsigned)day,
+                       (unsigned)hours, (unsigned)minutes, (unsigned)seconds);
+  }
+
+  // sys_date_format_iso8601 (also the default for any unrecognized value),
+  // in whatever timezone tzoffset represents.
   int64_t local;
   if (__builtin_add_overflow(date->seconds, (int64_t)date->tzoffset, &local) ||
       !_sys_date_extract(local, &hours, &minutes, &seconds, &year, &month, &day,
                          &weekday)) {
     goto fail;
   }
-
-  if (format == sys_date_format_log) {
-    return sys_sprintf(buf, buf_size, "%04u-%02u-%02u %02u:%02u:%02u",
-                       (unsigned)year, (unsigned)month, (unsigned)day,
-                       (unsigned)hours, (unsigned)minutes, (unsigned)seconds);
-  }
-
-  // sys_date_format_iso8601 (also the default for any unrecognized value).
   if (date->tzoffset == 0) {
     return sys_sprintf(buf, buf_size, "%04u-%02u-%02uT%02u:%02u:%02uZ",
                        (unsigned)year, (unsigned)month, (unsigned)day,
@@ -438,4 +442,262 @@ fail:
     buf[0] = '\0';
   }
   return 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PARSING
+
+// Reads between min and max decimal digits into *value, and returns whether
+// there were enough
+static bool _sys_date_digits(const char **pos, const char *end, int min,
+                             int max, uint32_t *value) {
+  uint32_t v = 0;
+  int count = 0;
+  while (count < max && *pos < end && **pos >= '0' && **pos <= '9') {
+    v = v * 10u + (uint32_t)(**pos - '0');
+    (*pos)++;
+    count++;
+  }
+  *value = v;
+  return count >= min;
+}
+
+// Reads a character, if it's next
+static bool _sys_date_char(const char **pos, const char *end, char c) {
+  if (*pos < end && **pos == c) {
+    (*pos)++;
+    return true;
+  }
+  return false;
+}
+
+// Reads one or more spaces
+static bool _sys_date_spaces(const char **pos, const char *end) {
+  if (!_sys_date_char(pos, end, ' ')) {
+    return false;
+  }
+  while (_sys_date_char(pos, end, ' ')) {
+  }
+  return true;
+}
+
+// Reads a word, if it's next
+static bool _sys_date_word(const char **pos, const char *end,
+                           const char *word) {
+  size_t n = sys_string_bytes(word);
+  if ((size_t)(end - *pos) < n || __builtin_memcmp(*pos, word, n) != 0) {
+    return false;
+  }
+  *pos += n;
+  return true;
+}
+
+// Reads "YYYY-MM-DD"
+static bool _sys_date_parse_ymd(const char **pos, const char *end,
+                                uint32_t *year, uint32_t *month,
+                                uint32_t *day) {
+  return _sys_date_digits(pos, end, 4, 5, year) && *year <= UINT16_MAX &&
+         _sys_date_char(pos, end, '-') &&
+         _sys_date_digits(pos, end, 2, 2, month) &&
+         _sys_date_char(pos, end, '-') && _sys_date_digits(pos, end, 2, 2, day);
+}
+
+// Reads "hh:mm" and, if they're required or there, ":ss"
+static bool _sys_date_parse_hms(const char **pos, const char *end,
+                                bool seconds_required, uint32_t *hours,
+                                uint32_t *minutes, uint32_t *seconds) {
+  *seconds = 0;
+  if (!_sys_date_digits(pos, end, 2, 2, hours) ||
+      !_sys_date_char(pos, end, ':') ||
+      !_sys_date_digits(pos, end, 2, 2, minutes)) {
+    return false;
+  }
+  if (_sys_date_char(pos, end, ':')) {
+    return _sys_date_digits(pos, end, 2, 2, seconds);
+  }
+  return !seconds_required;
+}
+
+// Makes the date from its parts, in a time zone, and returns whether it
+// exists
+static bool _sys_date_parse_make(uint32_t year, uint32_t month, uint32_t day,
+                                 uint32_t hours, uint32_t minutes,
+                                 uint32_t seconds, int32_t nanoseconds,
+                                 int32_t offset, sys_date_t *date) {
+  int64_t local;
+  if (month > 12 || day > 31 || hours > 23 || minutes > 59 || seconds > 59 ||
+      !_sys_date_make_utc_seconds((uint16_t)year, (uint8_t)month,
+                                  (uint8_t)day, (uint8_t)hours,
+                                  (uint8_t)minutes, (uint8_t)seconds,
+                                  &local)) {
+    return false;
+  }
+  date->seconds = local - offset;
+  date->nanoseconds = nanoseconds;
+  date->tzoffset = offset;
+  return true;
+}
+
+static bool _sys_date_parse_iso8601(const char *pos, const char *end,
+                                    sys_date_t *date) {
+  uint32_t year, month, day, hours, minutes, seconds;
+  if (!_sys_date_parse_ymd(&pos, end, &year, &month, &day)) {
+    return false;
+  }
+  if (pos == end) {
+    return _sys_date_parse_make(year, month, day, 0, 0, 0, 0, 0, date);
+  }
+  if (!(_sys_date_char(&pos, end, 'T') || _sys_date_char(&pos, end, 't')) ||
+      !_sys_date_parse_hms(&pos, end, true, &hours, &minutes, &seconds)) {
+    return false;
+  }
+
+  // A fraction of a second, of which digits past nanoseconds are dropped
+  int32_t nanoseconds = 0;
+  if (_sys_date_char(&pos, end, '.')) {
+    int count = 0;
+    while (pos < end && *pos >= '0' && *pos <= '9') {
+      if (count < 9) {
+        nanoseconds = nanoseconds * 10 + (*pos - '0');
+      }
+      count++;
+      pos++;
+    }
+    if (count == 0) {
+      return false;
+    }
+    for (; count < 9; count++) {
+      nanoseconds *= 10;
+    }
+  }
+
+  // "Z", or an offset
+  int32_t offset = 0;
+  if (_sys_date_char(&pos, end, 'Z') || _sys_date_char(&pos, end, 'z')) {
+    offset = 0;
+  } else if (pos < end && (*pos == '+' || *pos == '-')) {
+    bool negative = (*pos == '-');
+    pos++;
+    uint32_t oh, om;
+    if (!_sys_date_digits(&pos, end, 2, 2, &oh) ||
+        !_sys_date_char(&pos, end, ':') ||
+        !_sys_date_digits(&pos, end, 2, 2, &om) || oh > 23 || om > 59) {
+      return false;
+    }
+    offset = (int32_t)(oh * 3600u + om * 60u);
+    offset = negative ? -offset : offset;
+  } else {
+    return false;
+  }
+  return pos == end && _sys_date_parse_make(year, month, day, hours, minutes,
+                                            seconds, nanoseconds, offset, date);
+}
+
+static bool _sys_date_parse_rfc2822(const char *pos, const char *end,
+                                    sys_date_t *date) {
+  // The weekday, which is checked once the date is known
+  int weekday = -1;
+  for (int i = 0; i < 7; i++) {
+    if (_sys_date_word(&pos, end, _sys_date_weekday_names[i])) {
+      if (!_sys_date_char(&pos, end, ',') || !_sys_date_spaces(&pos, end)) {
+        return false;
+      }
+      weekday = i;
+      break;
+    }
+  }
+
+  // "06 Sep 2026"
+  uint32_t day, month = 0, year, hours, minutes, seconds;
+  if (!_sys_date_digits(&pos, end, 1, 2, &day) ||
+      !_sys_date_spaces(&pos, end)) {
+    return false;
+  }
+  for (uint32_t i = 0; i < 12; i++) {
+    if (_sys_date_word(&pos, end, _sys_date_month_names[i])) {
+      month = i + 1;
+      break;
+    }
+  }
+  if (month == 0 || !_sys_date_spaces(&pos, end) ||
+      !_sys_date_digits(&pos, end, 4, 5, &year) || year > UINT16_MAX ||
+      !_sys_date_spaces(&pos, end) ||
+      !_sys_date_parse_hms(&pos, end, false, &hours, &minutes, &seconds) ||
+      !_sys_date_spaces(&pos, end)) {
+    return false;
+  }
+
+  // The zone
+  int32_t offset = 0;
+  if (pos < end && (*pos == '+' || *pos == '-')) {
+    bool negative = (*pos == '-');
+    pos++;
+    uint32_t oh, om;
+    if (!_sys_date_digits(&pos, end, 2, 2, &oh) ||
+        !_sys_date_digits(&pos, end, 2, 2, &om) || oh > 23 || om > 59) {
+      return false;
+    }
+    offset = (int32_t)(oh * 3600u + om * 60u);
+    offset = negative ? -offset : offset;
+  } else if (!(_sys_date_word(&pos, end, "GMT") ||
+               _sys_date_word(&pos, end, "UTC") ||
+               _sys_date_word(&pos, end, "UT") ||
+               _sys_date_word(&pos, end, "Z"))) {
+    return false;
+  }
+  sys_date_t parsed;
+  if (pos != end || !_sys_date_parse_make(year, month, day, hours, minutes,
+                                          seconds, 0, offset, &parsed)) {
+    return false;
+  }
+
+  // The weekday must be the one in the date's own zone
+  if (weekday >= 0) {
+    uint8_t actual;
+    if (!_sys_date_extract(parsed.seconds + offset, NULL, NULL, NULL, NULL,
+                           NULL, NULL, &actual) ||
+        actual != (uint8_t)weekday) {
+      return false;
+    }
+  }
+  *date = parsed;
+  return true;
+}
+
+static bool _sys_date_parse_log(const char *pos, const char *end,
+                                sys_date_t *date) {
+  uint32_t year, month, day, hours, minutes, seconds;
+  return _sys_date_parse_ymd(&pos, end, &year, &month, &day) &&
+         _sys_date_char(&pos, end, ' ') &&
+         _sys_date_parse_hms(&pos, end, true, &hours, &minutes, &seconds) &&
+         pos == end &&
+         _sys_date_parse_make(year, month, day, hours, minutes, seconds, 0, 0,
+                              date);
+}
+
+bool sys_date_parse(const char *str, size_t len, sys_date_format_t format,
+                    sys_date_t *date) {
+  if (str == NULL || date == NULL) {
+    return false;
+  }
+  const char *end = (len != 0) ? (str + len) : (str + sys_string_bytes(str));
+  sys_date_t parsed;
+  bool ok;
+  switch (format) {
+  case sys_date_format_iso8601:
+    ok = _sys_date_parse_iso8601(str, end, &parsed);
+    break;
+  case sys_date_format_rfc2822:
+    ok = _sys_date_parse_rfc2822(str, end, &parsed);
+    break;
+  case sys_date_format_log:
+    ok = _sys_date_parse_log(str, end, &parsed);
+    break;
+  default:
+    ok = false;
+  }
+  if (ok) {
+    *date = parsed;
+  }
+  return ok;
 }

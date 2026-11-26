@@ -48,6 +48,7 @@ picofuse_library(
         ../string/quoted.c
         ../string/int.c
         ../string/float.c
+        ../string/duration.c
         ../string/has.c
         ../string/scanner.c
         ../string/iostream.c
