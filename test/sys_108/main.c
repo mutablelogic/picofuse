@@ -19,13 +19,13 @@ test_main_sys(0) {
                                  sizeof(buf)) == 19);
   test_assert_strequal(buf, "2026-09-06 11:59:25");
 
-  // Non-zero tzoffset shifts iso8601/log, but never rfc2822 (always GMT).
+  // Non-zero tzoffset shifts iso8601, but never rfc2822 or log (UTC).
   sys_date_t date_tz = {
       .seconds = 1788695965, .nanoseconds = 0, .tzoffset = 3600};
   sys_date_to_string(&date_tz, sys_date_format_iso8601, buf, sizeof(buf));
   test_assert_strequal(buf, "2026-09-06T12:59:25+01:00");
   sys_date_to_string(&date_tz, sys_date_format_log, buf, sizeof(buf));
-  test_assert_strequal(buf, "2026-09-06 12:59:25");
+  test_assert_strequal(buf, "2026-09-06 11:59:25");
   sys_date_to_string(&date_tz, sys_date_format_rfc2822, buf, sizeof(buf));
   test_assert_strequal(buf, "Sun, 06 Sep 2026 11:59:25 GMT");
 

@@ -359,6 +359,28 @@ extern bool sys_string_parse_float32(const char *str, size_t len, float *value);
 extern bool sys_string_parse_float64(const char *str, size_t len,
                                      double *value);
 
+/**
+ * @brief Parse a duration into nanoseconds.
+ * @ingroup SystemDataString
+ * @param str Pointer to the duration: an optional '+' or '-', then one or
+ * more amounts, each a number followed by a unit, without spaces, such as
+ * "1h30m", "1.5s", "-250ms" or "1d2h3m". A number can have a fraction
+ * ("1.5" or ".5"), of which any part of a nanosecond is dropped. The units
+ * are
+ * "d", "day" or "days", "h", "m", "s", "ms", "us" (or "\xC2\xB5s") and
+ * "ns".
+ * @param len The duration's exact length in bytes, or 0 for str's length
+ * up to its own NUL terminator. Either way, str must contain exactly one
+ * duration and nothing else. With len set, str need not be
+ * NUL-terminated at all.
+ * @param ns Pointer to store the nanoseconds. Left unchanged on a parse
+ * error.
+ * @return true if str is a well-formed duration which fits in an int64_t
+ * (about 292 years), false otherwise.
+ */
+extern bool sys_string_parse_duration(const char *str, size_t len,
+                                      int64_t *ns);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 #ifdef __cplusplus

@@ -139,8 +139,10 @@ test_main_sys(0) {
     date.tzoffset = 3600;
     test_assert(!sys_date_get_date_local(&date, &year, NULL, NULL, NULL));
     test_assert(!sys_date_get_time_local(&date, &hours, NULL, NULL));
-    test_assert(sys_date_to_string(&date, sys_date_format_log, buf,
+    test_assert(sys_date_to_string(&date, sys_date_format_iso8601, buf,
                                    sizeof(buf)) == 0);
+    test_assert(sys_date_to_string(&date, sys_date_format_log, buf,
+                                   sizeof(buf)) == 20);
     test_assert(sys_date_get_date_utc(&date, &year, NULL, NULL, NULL));
 
     // The largest dates, where an offset would overflow
