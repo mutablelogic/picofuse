@@ -599,6 +599,11 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
+# sys_date_add_ns, sys_date_compare_ns saturating, and years out of range
+picofuse_test(sys_110
+	sys_110/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
