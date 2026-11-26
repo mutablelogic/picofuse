@@ -34,6 +34,7 @@ sys_iostream_t *_sys_iostream_alloc(const sys_iostream_ops_t *ops) {
     if (!_pool[i].in_use) {
       _pool[i].ops = ops;
       _pool[i].in_use = true;
+      _pool[i].peeked = SYS_IOSTREAM_EOF;
       slot = &_pool[i];
       break;
     }
@@ -66,6 +67,14 @@ size_t sys_iostream_read(sys_iostream_t *s, char *buf, size_t n) {
   if (s == NULL || n == 0) {
     return 0;
   }
+
+  // A byte which was peeked at comes first, on its own, as reading any more
+  // from a stream which can't seek might wait
+  if (s->peeked != SYS_IOSTREAM_EOF) {
+    buf[0] = (char)s->peeked;
+    s->peeked = SYS_IOSTREAM_EOF;
+    return 1;
+  }
   return s->ops->read(s, buf, n);
 }
 
@@ -80,7 +89,26 @@ ptrdiff_t sys_iostream_seek(sys_iostream_t *s, ptrdiff_t offset, bool abs) {
   if (s == NULL) {
     return -1;
   }
-  return s->ops->seek(s, offset, abs);
+  if (s->peeked == SYS_IOSTREAM_EOF) {
+    return s->ops->seek(s, offset, abs);
+  }
+
+  // The backend is a byte ahead of where the stream is, because of a byte
+  // which was peeked at. Only a stream which can't seek has one, so this is
+  // in case it can seek after all.
+  if (!abs && offset == 0) {
+    ptrdiff_t position = s->ops->seek(s, 0, false);
+    return position < 0 ? position : position - 1;
+  }
+  if (!abs && offset == PTRDIFF_MIN) {
+    return -1; // it can't be a byte further back
+  }
+  ptrdiff_t position =
+      abs ? s->ops->seek(s, offset, true) : s->ops->seek(s, offset - 1, false);
+  if (position >= 0) {
+    s->peeked = SYS_IOSTREAM_EOF;
+  }
+  return position;
 }
 
 bool sys_iostream_set_callback(sys_iostream_t *s,
@@ -93,7 +121,7 @@ bool sys_iostream_set_callback(sys_iostream_t *s,
 }
 
 bool sys_iostream_eof(sys_iostream_t *s) {
-  if (s == NULL || s->ops->eof == NULL) {
+  if (s == NULL || s->ops->eof == NULL || s->peeked != SYS_IOSTREAM_EOF) {
     return false;
   }
   return s->ops->eof(s);
@@ -103,11 +131,17 @@ int sys_iostream_peek(sys_iostream_t *s) {
   if (s == NULL) {
     return SYS_IOSTREAM_EOF;
   }
+  if (s->peeked != SYS_IOSTREAM_EOF) {
+    return s->peeked;
+  }
   char c;
   if (s->ops->read(s, &c, 1) == 0) {
     return SYS_IOSTREAM_EOF;
   }
-  // Every backend must be able to undo the single-byte read it just did.
-  s->ops->seek(s, -1, false);
+
+  // Put the byte back if the backend can, or else keep it until it's read
+  if (s->ops->seek(s, -1, false) < 0) {
+    s->peeked = (int)(uint8_t)c;
+  }
   return (int)(uint8_t)c;
 }
