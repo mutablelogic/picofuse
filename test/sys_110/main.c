@@ -40,6 +40,14 @@ test_main_sys(0) {
     test_assert(date.nanoseconds ==
                 (int32_t)(1000000000LL + INT64_MIN % 1000000000LL));
 
+    // A carry which cancels out the seconds of the duration
+    date = (sys_date_t){.seconds = INT64_MIN, .nanoseconds = 1500000000};
+    test_assert(sys_date_add_ns(&date, -1000000000LL));
+    test_assert(date.seconds == INT64_MIN && date.nanoseconds == 500000000);
+    date = (sys_date_t){.seconds = INT64_MAX, .nanoseconds = -500000000};
+    test_assert(sys_date_add_ns(&date, 1000000000LL));
+    test_assert(date.seconds == INT64_MAX && date.nanoseconds == 500000000);
+
     // Nanoseconds out of range are put right
     date = (sys_date_t){.seconds = 0, .nanoseconds = 1500000000};
     test_assert(sys_date_add_ns(&date, 0));
@@ -75,6 +83,19 @@ test_main_sys(0) {
                 INT64_MAX / 1000000000LL * 1000000000LL);
     test_assert(sys_date_compare_ns(&a, &far) == INT64_MAX);
     test_assert(sys_date_compare_ns(&far, &a) == INT64_MIN);
+    // The largest differences which fit, where the nanoseconds take it back
+    // into range
+    sys_date_t b = {.seconds = 0, .nanoseconds = 999999999};
+    sys_date_t c = {.seconds = 9223372037, .nanoseconds = 0};
+    test_assert(sys_date_compare_ns(&b, &c) == 9223372036000000001LL);
+    test_assert(sys_date_compare_ns(&c, &b) == -9223372036000000001LL);
+    sys_date_t d = {.seconds = 9223372036, .nanoseconds = 854775807};
+    test_assert(sys_date_compare_ns(&a, &d) == INT64_MAX);
+    d.nanoseconds = 854775808;
+    test_assert(sys_date_compare_ns(&a, &d) == INT64_MAX);
+    sys_date_t e = {.seconds = -9223372036, .nanoseconds = 0};
+    sys_date_t f = {.seconds = 0, .nanoseconds = 854775808};
+    test_assert(sys_date_compare_ns(&f, &e) == INT64_MIN);
     sys_date_t min = {.seconds = INT64_MIN};
     sys_date_t max = {.seconds = INT64_MAX, .nanoseconds = 999999999};
     test_assert(sys_date_compare_ns(&min, &max) == INT64_MAX);

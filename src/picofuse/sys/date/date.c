@@ -315,13 +315,28 @@ int64_t sys_date_compare_ns(const sys_date_t *start, const sys_date_t *end) {
 
   // Saturate rather than overflow, for dates more than about 292 years apart
   int64_t sec_diff;
-  int64_t ns_diff;
-  if (__builtin_sub_overflow(end->seconds, start->seconds, &sec_diff) ||
-      __builtin_mul_overflow(sec_diff, 1000000000LL, &ns_diff) ||
-      __builtin_add_overflow(
-          ns_diff, (int64_t)end->nanoseconds - (int64_t)start->nanoseconds,
-          &ns_diff)) {
+  if (__builtin_sub_overflow(end->seconds, start->seconds, &sec_diff)) {
     return end->seconds < start->seconds ? INT64_MIN : INT64_MAX;
+  }
+
+  // Carry whole seconds of the nanoseconds into the seconds, and give both the
+  // same sign, so that multiplying only overflows if the result would
+  int64_t frac = (int64_t)end->nanoseconds - (int64_t)start->nanoseconds;
+  if (__builtin_add_overflow(sec_diff, frac / 1000000000LL, &sec_diff)) {
+    return frac < 0 ? INT64_MIN : INT64_MAX;
+  }
+  frac %= 1000000000LL;
+  if (sec_diff > 0 && frac < 0) {
+    sec_diff -= 1;
+    frac += 1000000000LL;
+  } else if (sec_diff < 0 && frac > 0) {
+    sec_diff += 1;
+    frac -= 1000000000LL;
+  }
+  int64_t ns_diff;
+  if (__builtin_mul_overflow(sec_diff, 1000000000LL, &ns_diff) ||
+      __builtin_add_overflow(ns_diff, frac, &ns_diff)) {
+    return sec_diff < 0 || (sec_diff == 0 && frac < 0) ? INT64_MIN : INT64_MAX;
   }
   return ns_diff;
 }
@@ -340,9 +355,10 @@ bool sys_date_add_ns(sys_date_t *date, int64_t ns) {
     total_ns += 1000000000LL;
     carry -= 1;
   }
+  // Both are far from overflowing, so only adding them to the date can
   int64_t seconds;
-  if (__builtin_add_overflow(date->seconds, ns / 1000000000LL, &seconds) ||
-      __builtin_add_overflow(seconds, carry, &seconds)) {
+  if (__builtin_add_overflow(date->seconds, ns / 1000000000LL + carry,
+                             &seconds)) {
     return false;
   }
   date->seconds = seconds;
