@@ -381,6 +381,42 @@ extern bool sys_string_parse_float64(const char *str, size_t len,
 extern bool sys_string_parse_duration(const char *str, size_t len,
                                       int64_t *ns);
 
+/**
+ * @brief Encode bytes as base64.
+ * @ingroup SystemDataString
+ * @param data The bytes, or NULL if size is 0.
+ * @param size The number of bytes.
+ * @param buf Destination buffer, or NULL to write nothing and just get the
+ * length.
+ * @param cap Capacity of buf, including the NUL terminator, which is always
+ * written if cap is more than 0.
+ * @return The length of the encoding, without the NUL terminator, which may
+ * be more than fits - the same as sys_sprintf(). It's in the standard RFC 4648
+ * alphabet ("A-Z", "a-z", "0-9", "+" and "/"), padded with "=" to a multiple
+ * of four characters.
+ */
+extern size_t sys_string_base64_encode(const void *data, size_t size,
+                                       char *buf, size_t cap);
+
+/**
+ * @brief Decode base64 into bytes.
+ * @ingroup SystemDataString
+ * @param str The base64, in the standard RFC 4648 alphabet, with or without
+ * "=" padding. Nothing else is allowed, such as spaces or line breaks.
+ * @param len The length of str in bytes, or 0 for its length up to its NUL
+ * terminator. With len set, str need not be NUL-terminated.
+ * @param out Destination buffer, or NULL to write nothing and just get the
+ * length.
+ * @param cap Capacity of out.
+ * @return The number of bytes decoded, which may be more than cap, in which
+ * case only cap of them are written, or -1 if str isn't base64: a character
+ * which isn't in the alphabet, padding which doesn't make a multiple of four
+ * characters, a length which can't be base64, or bits left over at the end
+ * which aren't zero.
+ */
+extern ptrdiff_t sys_string_parse_base64(const char *str, size_t len,
+                                         void *out, size_t cap);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 #ifdef __cplusplus

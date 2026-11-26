@@ -624,6 +624,11 @@ picofuse_test(sys_114
 	sys_114/main.c
 )
 
+# sys_string_base64_encode and sys_string_parse_base64
+picofuse_test(sys_115
+	sys_115/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
