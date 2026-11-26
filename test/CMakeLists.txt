@@ -619,6 +619,11 @@ picofuse_test(sys_113
 	sys_113/main.c
 )
 
+# sys_scanner_dates and sys_scanner_durations
+picofuse_test(sys_114
+	sys_114/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001

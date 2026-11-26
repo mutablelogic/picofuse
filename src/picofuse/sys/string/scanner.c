@@ -376,6 +376,92 @@ static bool scan_number(sys_iostream_t *stream, rune_t r,
   return true;
 }
 
+// The most bytes a date or duration token can have
+#define _SCAN_DATE_MAX 64
+
+// Returns whether a byte can be part of a date or duration ("\xC2\xB5" is
+// the "µ" of "µs")
+static bool is_date_byte(char c) {
+  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
+         (c >= 'A' && c <= 'Z') || c == '-' || c == '+' || c == ':' ||
+         c == '.' || c == '\xC2' || c == '\xB5';
+}
+
+// Returns whether a token can end before buf[n]: at the end, or before a
+// character which isn't a letter or digit, so it doesn't carry on a word or a
+// number. Something which isn't UTF-8 isn't a boundary.
+static bool is_date_boundary(const char *buf, size_t n, size_t got) {
+  if (n == got) {
+    return true;
+  }
+  char rune[5] = {0};
+  for (size_t i = 0; i < 4 && n + i < got; i++) {
+    rune[i] = buf[n + i];
+  }
+  rune_t r;
+  if (sys_rune_next(rune, &r) == NULL || r == RUNE_ERROR) {
+    return false;
+  }
+  return !(sys_rune_is_alpha(r) || sys_rune_is_digit(r));
+}
+
+// r is the rune at start, which the stream is positioned after. Tries to
+// read a date (if r is a digit) and then a duration, as the longest that can
+// be parsed, and sets *out_bytes and *out_isa. If it can't, returns false,
+// and restores the stream to right after r.
+static bool scan_date_or_duration(sys_iostream_t *stream, ptrdiff_t start,
+                                  rune_t r, size_t width,
+                                  sys_scanner_flags_t flags, size_t *out_bytes,
+                                  sys_scanner_class_t *out_isa) {
+  bool digit = r >= '0' && r <= '9';
+  bool dates = (flags & sys_scanner_dates_iso8601) && digit;
+  bool durations = (flags & sys_scanner_durations) &&
+                   (digit || r == '.' || r == '+' || r == '-');
+  if (!dates && !durations) {
+    return false;
+  }
+
+  // Read what could be part of one, and enough to decode the character after
+  char buf[_SCAN_DATE_MAX + 4];
+  sys_iostream_seek(stream, start, true);
+  size_t got = 0;
+  while (got < sizeof(buf)) {
+    size_t n = sys_iostream_read(stream, buf + got, sizeof(buf) - got);
+    if (n == 0) {
+      break;
+    }
+    got += n;
+  }
+  size_t run = 0;
+  while (run < got && run < _SCAN_DATE_MAX && is_date_byte(buf[run])) {
+    run++;
+  }
+
+  // The longest date, and then the longest duration
+  for (size_t n = run; dates && n >= 10; n--) {
+    sys_date_t date;
+    if (is_date_boundary(buf, n, got) &&
+        sys_date_parse(buf, n, sys_date_format_iso8601, &date)) {
+      *out_bytes = n;
+      *out_isa = sys_scanner_date;
+      sys_iostream_seek(stream, start + (ptrdiff_t)n, true);
+      return true;
+    }
+  }
+  for (size_t n = run; durations && n >= 2; n--) {
+    int64_t ns;
+    if (is_date_boundary(buf, n, got) &&
+        sys_string_parse_duration(buf, n, &ns)) {
+      *out_bytes = n;
+      *out_isa = sys_scanner_duration;
+      sys_iostream_seek(stream, start + (ptrdiff_t)n, true);
+      return true;
+    }
+  }
+  sys_iostream_seek(stream, start + (ptrdiff_t)width, true);
+  return false;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -448,6 +534,28 @@ bool sys_scanner_next(sys_scanner_t *it) {
     // Not a recognized comment start - fall through and tokenize '/'
     // as ordinary punctuation instead. match_slash_comment() already
     // restored the stream to right after the first '/'.
+  }
+
+  if (it->flags & (sys_scanner_dates | sys_scanner_durations)) {
+    size_t bytes;
+    sys_scanner_class_t isa;
+    if (scan_date_or_duration(it->stream, start, r, width, it->flags, &bytes,
+                              &isa)) {
+      // Every byte is a rune, apart from the two of "µ"
+      size_t runes = bytes;
+      char c;
+      sys_iostream_seek(it->stream, start, true);
+      for (size_t i = 0; i < bytes; i++) {
+        if (sys_iostream_read(it->stream, &c, 1) == 1 && c == '\xC2') {
+          runes--;
+        }
+      }
+      it->start = start;
+      it->bytes = bytes;
+      it->runes = runes;
+      it->isa = isa;
+      return true;
+    }
   }
 
   if ((it->flags & sys_scanner_numbers) && is_number_start(r)) {
