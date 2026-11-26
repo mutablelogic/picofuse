@@ -156,6 +156,12 @@ static bool _sys_date_extract(int64_t time_sec, uint8_t *hours,
     days -= 1;
   }
 
+  // The year has to fit in a uint16_t, so only 0000-01-01 to 65535-12-31
+  if (days < _sys_date_days_from_civil(0, 1, 1) ||
+      days > _sys_date_days_from_civil(UINT16_MAX, 12, 31)) {
+    return false;
+  }
+
   if (hours != NULL) {
     *hours = (uint8_t)(secs_of_day / 3600);
   }
@@ -202,8 +208,12 @@ bool sys_date_get_time_local(const sys_date_t *date, uint8_t *hours,
     date = &now;
   }
 
-  return _sys_date_extract(date->seconds + date->tzoffset, hours, minutes,
-                           seconds, NULL, NULL, NULL, NULL);
+  int64_t local;
+  if (__builtin_add_overflow(date->seconds, (int64_t)date->tzoffset, &local)) {
+    return false;
+  }
+  return _sys_date_extract(local, hours, minutes, seconds, NULL, NULL, NULL,
+                           NULL);
 }
 
 bool sys_date_get_date_utc(const sys_date_t *date, uint16_t *year,
@@ -230,8 +240,11 @@ bool sys_date_get_date_local(const sys_date_t *date, uint16_t *year,
     date = &now;
   }
 
-  return _sys_date_extract(date->seconds + date->tzoffset, NULL, NULL, NULL,
-                           year, month, day, weekday);
+  int64_t local;
+  if (__builtin_add_overflow(date->seconds, (int64_t)date->tzoffset, &local)) {
+    return false;
+  }
+  return _sys_date_extract(local, NULL, NULL, NULL, year, month, day, weekday);
 }
 
 bool sys_date_set_time_utc(sys_date_t *date, uint8_t hours, uint8_t minutes,
@@ -300,10 +313,57 @@ int64_t sys_date_compare_ns(const sys_date_t *start, const sys_date_t *end) {
     start = &now;
   }
 
-  int64_t sec_diff = end->seconds - start->seconds;
-  int64_t ns_diff = sec_diff * 1000000000LL;
-  ns_diff += (int64_t)end->nanoseconds - (int64_t)start->nanoseconds;
+  // Saturate rather than overflow, for dates more than about 292 years apart
+  int64_t sec_diff;
+  if (__builtin_sub_overflow(end->seconds, start->seconds, &sec_diff)) {
+    return end->seconds < start->seconds ? INT64_MIN : INT64_MAX;
+  }
+
+  // Carry whole seconds of the nanoseconds into the seconds, and give both the
+  // same sign, so that multiplying only overflows if the result would
+  int64_t frac = (int64_t)end->nanoseconds - (int64_t)start->nanoseconds;
+  if (__builtin_add_overflow(sec_diff, frac / 1000000000LL, &sec_diff)) {
+    return frac < 0 ? INT64_MIN : INT64_MAX;
+  }
+  frac %= 1000000000LL;
+  if (sec_diff > 0 && frac < 0) {
+    sec_diff -= 1;
+    frac += 1000000000LL;
+  } else if (sec_diff < 0 && frac > 0) {
+    sec_diff += 1;
+    frac -= 1000000000LL;
+  }
+  int64_t ns_diff;
+  if (__builtin_mul_overflow(sec_diff, 1000000000LL, &ns_diff) ||
+      __builtin_add_overflow(ns_diff, frac, &ns_diff)) {
+    return sec_diff < 0 || (sec_diff == 0 && frac < 0) ? INT64_MIN : INT64_MAX;
+  }
   return ns_diff;
+}
+
+bool sys_date_add_ns(sys_date_t *date, int64_t ns) {
+  if (date == NULL) {
+    return false;
+  }
+
+  // Floor-divide so that the nanoseconds end up in 0-999999999, whatever they
+  // were before
+  int64_t total_ns = (int64_t)date->nanoseconds + ns % 1000000000LL;
+  int64_t carry = total_ns / 1000000000LL;
+  total_ns %= 1000000000LL;
+  if (total_ns < 0) {
+    total_ns += 1000000000LL;
+    carry -= 1;
+  }
+  // Both are far from overflowing, so only adding them to the date can
+  int64_t seconds;
+  if (__builtin_add_overflow(date->seconds, ns / 1000000000LL + carry,
+                             &seconds)) {
+    return false;
+  }
+  date->seconds = seconds;
+  date->nanoseconds = (int32_t)total_ns;
+  return true;
 }
 
 static const char *const _sys_date_weekday_names[7] = {"Sun", "Mon", "Tue",
@@ -332,8 +392,10 @@ size_t sys_date_to_string(const sys_date_t *date, sys_date_format_t format,
   if (format == sys_date_format_rfc2822) {
     // Always GMT, regardless of date->tzoffset - see sys_date_format_t's
     // own doc (RFC 7231 mandates it).
-    _sys_date_extract(date->seconds, &hours, &minutes, &seconds, &year,
-                      &month, &day, &weekday);
+    if (!_sys_date_extract(date->seconds, &hours, &minutes, &seconds, &year,
+                           &month, &day, &weekday)) {
+      goto fail;
+    }
     return sys_sprintf(buf, buf_size, "%s, %02u %s %04u %02u:%02u:%02u GMT",
                        _sys_date_weekday_names[weekday], (unsigned)day,
                        _sys_date_month_names[month - 1u], (unsigned)year,
@@ -341,8 +403,12 @@ size_t sys_date_to_string(const sys_date_t *date, sys_date_format_t format,
   }
 
   // iso8601/log both render in whatever timezone tzoffset represents.
-  _sys_date_extract(date->seconds + date->tzoffset, &hours, &minutes,
-                    &seconds, &year, &month, &day, &weekday);
+  int64_t local;
+  if (__builtin_add_overflow(date->seconds, (int64_t)date->tzoffset, &local) ||
+      !_sys_date_extract(local, &hours, &minutes, &seconds, &year, &month, &day,
+                         &weekday)) {
+    goto fail;
+  }
 
   if (format == sys_date_format_log) {
     return sys_sprintf(buf, buf_size, "%04u-%02u-%02u %02u:%02u:%02u",
@@ -366,4 +432,10 @@ size_t sys_date_to_string(const sys_date_t *date, sys_date_format_t format,
                      (unsigned)year, (unsigned)month, (unsigned)day,
                      (unsigned)hours, (unsigned)minutes, (unsigned)seconds,
                      sign, (unsigned)(off / 3600), (unsigned)((off % 3600) / 60));
+
+fail:
+  if (buf != NULL && buf_size > 0) {
+    buf[0] = '\0';
+  }
+  return 0;
 }

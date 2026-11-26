@@ -599,6 +599,11 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
+# sys_date_add_ns, sys_date_compare_ns saturating, and years out of range
+picofuse_test(sys_110
+	sys_110/main.c
+)
+
 # sys_iostream_peek on a stream which can't seek back (issue #26)
 picofuse_test(sys_111
 	sys_111/main.c
