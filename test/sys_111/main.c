@@ -44,6 +44,8 @@ test_main_sys(0) {
     test_assert(sys_iostream_seek(sys_stdin, 0, false) < 0);
     test_assert(sys_iostream_seek(sys_stdin, 1, false) < 0);
     test_assert(sys_iostream_seek(sys_stdin, 0, true) < 0);
+    test_assert(sys_iostream_seek(sys_stdin, PTRDIFF_MIN, false) < 0);
+    test_assert(sys_iostream_seek(sys_stdin, PTRDIFF_MAX, false) < 0);
     test_assert(sys_iostream_peek(sys_stdin) == 'a');
     char buf[8] = {0};
     test_assert(sys_iostream_read(sys_stdin, buf, sizeof(buf)) == 1);

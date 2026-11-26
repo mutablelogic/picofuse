@@ -100,6 +100,9 @@ ptrdiff_t sys_iostream_seek(sys_iostream_t *s, ptrdiff_t offset, bool abs) {
     ptrdiff_t position = s->ops->seek(s, 0, false);
     return position < 0 ? position : position - 1;
   }
+  if (!abs && offset == PTRDIFF_MIN) {
+    return -1; // it can't be a byte further back
+  }
   ptrdiff_t position =
       abs ? s->ops->seek(s, offset, true) : s->ops->seek(s, offset - 1, false);
   if (position >= 0) {
