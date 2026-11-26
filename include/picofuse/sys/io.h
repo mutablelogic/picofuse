@@ -120,7 +120,9 @@ extern void sys_iostream_close(sys_iostream_t *s);
  * @return The next unread byte, as an unsigned value 0-255, or
  * SYS_IOSTREAM_EOF if the stream is at its end. Calling this repeatedly
  * without an intervening sys_iostream_read() returns the same byte every
- * time.
+ * time. If the stream can't seek back, such as standard input from a pipe,
+ * the byte is kept until it's read, and the next sys_iostream_read()
+ * returns only that byte.
  */
 extern int sys_iostream_peek(sys_iostream_t *s);
 

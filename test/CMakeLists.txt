@@ -599,6 +599,11 @@ if(DEFINED PICO_BOARD)
 	)
 endif()
 
+# sys_iostream_peek on a stream which can't seek back (issue #26)
+picofuse_test(sys_111
+	sys_111/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001

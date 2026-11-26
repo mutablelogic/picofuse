@@ -32,6 +32,9 @@ typedef struct sys_iostream_ops_t {
 struct sys_iostream_t {
   const sys_iostream_ops_t *ops;
   bool in_use;
+  int peeked; // a byte sys_iostream_peek() read but the backend couldn't put
+              // back, which sys_iostream_read() returns first, or
+              // SYS_IOSTREAM_EOF
   union {
     struct {
       const char *start; // original string, for absolute seeks
