@@ -77,6 +77,8 @@ typedef enum {
   sys_scanner_string,    ///< a quoted string - sys_scanner_quotes
   sys_scanner_comment,   ///< a comment - sys_scanner_comments
   sys_scanner_number,    ///< a number - sys_scanner_numbers
+  sys_scanner_date,      ///< a date - sys_scanner_dates
+  sys_scanner_duration,  ///< a duration - sys_scanner_durations
 } sys_scanner_class_t;
 
 /**
@@ -158,6 +160,20 @@ typedef enum {
    * exponent ("1e10", "1.5e-3"). Doesn't apply to octal/binary/hex
    * numbers. */
   sys_scanner_numbers_float = sys_scanner_numbers | (1 << 14),
+
+  /** Recognize an ISO 8601 date, as sys_date_parse() reads it, as a single
+   * sys_scanner_date token, such as "2026-09-06T11:37:05Z" or
+   * "2026-09-06". It's tried before a duration or a number. */
+  sys_scanner_dates_iso8601 = 1 << 15,
+
+  /** Every date format a scanner recognizes - at present only
+   * sys_scanner_dates_iso8601, as the others have spaces in them. */
+  sys_scanner_dates = sys_scanner_dates_iso8601,
+
+  /** Recognize a duration, as sys_string_parse_duration() reads it, as a
+   * single sys_scanner_duration token, such as "1h30m", "1.5s" or
+   * "-250ms". It's tried before a number. */
+  sys_scanner_durations = 1 << 16,
 } sys_scanner_flags_t;
 
 /**
