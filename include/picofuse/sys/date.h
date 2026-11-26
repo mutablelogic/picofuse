@@ -75,7 +75,8 @@ bool sys_date_set_now(const sys_date_t *date);
  * @param hours Receives hours in the range 0-23 when non-NULL.
  * @param minutes Receives minutes in the range 0-59 when non-NULL.
  * @param seconds Receives seconds in the range 0-59 when non-NULL.
- * @return `true` on success, `false` on error.
+ * @return `true` on success, `false` on error, or if the year isn't in the
+ * range 0-65535.
  */
 bool sys_date_get_time_utc(const sys_date_t *date, uint8_t *hours,
                             uint8_t *minutes, uint8_t *seconds);
@@ -87,7 +88,8 @@ bool sys_date_get_time_utc(const sys_date_t *date, uint8_t *hours,
  * @param hours Receives hours in the range 0-23 when non-NULL.
  * @param minutes Receives minutes in the range 0-59 when non-NULL.
  * @param seconds Receives seconds in the range 0-59 when non-NULL.
- * @return `true` on success, `false` on error.
+ * @return `true` on success, `false` on error, or if the year isn't in the
+ * range 0-65535.
  */
 bool sys_date_get_time_local(const sys_date_t *date, uint8_t *hours,
                               uint8_t *minutes, uint8_t *seconds);
@@ -100,7 +102,8 @@ bool sys_date_get_time_local(const sys_date_t *date, uint8_t *hours,
  * @param month Receives the month in the range 1-12 when non-NULL.
  * @param day Receives the day of month in the range 1-31 when non-NULL.
  * @param weekday Receives the weekday in the range 0-6 when non-NULL.
- * @return `true` on success, `false` on error.
+ * @return `true` on success, `false` on error, or if the year isn't in the
+ * range 0-65535.
  */
 bool sys_date_get_date_utc(const sys_date_t *date, uint16_t *year,
                             uint8_t *month, uint8_t *day, uint8_t *weekday);
@@ -113,7 +116,8 @@ bool sys_date_get_date_utc(const sys_date_t *date, uint16_t *year,
  * @param month Receives the month in the range 1-12 when non-NULL.
  * @param day Receives the day of month in the range 1-31 when non-NULL.
  * @param weekday Receives the weekday in the range 0-6 when non-NULL.
- * @return `true` on success, `false` on error.
+ * @return `true` on success, `false` on error, or if the year isn't in the
+ * range 0-65535.
  */
 bool sys_date_get_date_local(const sys_date_t *date, uint16_t *year,
                               uint8_t *month, uint8_t *day, uint8_t *weekday);
@@ -148,9 +152,21 @@ bool sys_date_set_date_utc(sys_date_t *date, uint16_t year, uint8_t month,
  * @param start Start time, or `NULL` to use the current system time.
  * @param end End time, or `NULL` to return 0.
  * @return Signed nanosecond difference between `start` and `end`, or 0 when
- * `end` is `NULL`.
+ * `end` is `NULL`. It's INT64_MAX or INT64_MIN if they're more than about 292
+ * years apart.
  */
 int64_t sys_date_compare_ns(const sys_date_t *start, const sys_date_t *end);
+
+/**
+ * @brief Add nanoseconds to a date.
+ * @ingroup SystemTime
+ * @param date Date to change. Its nanoseconds are afterwards in the range
+ * 0-999999999, with any more carried into its seconds.
+ * @param ns Nanoseconds to add, which are subtracted if negative.
+ * @return `true` on success, or `false` if @p date is `NULL` or its seconds
+ * would overflow, in which case it's unchanged.
+ */
+bool sys_date_add_ns(sys_date_t *date, int64_t ns);
 
 /**
  * @brief Format a date as a human-readable string.
@@ -162,7 +178,7 @@ int64_t sys_date_compare_ns(const sys_date_t *start, const sys_date_t *end);
  * @return Number of characters that would have been written to @p buf, not
  * counting the null terminator, same truncation semantics as
  * `sys_sprintf()` - or 0 if @p date was `NULL` and the current time
- * couldn't be read.
+ * couldn't be read, or its year isn't in the range 0-65535.
  */
 size_t sys_date_to_string(const sys_date_t *date, sys_date_format_t format,
                           char *buf, size_t buf_size);
