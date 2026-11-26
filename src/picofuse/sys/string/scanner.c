@@ -387,15 +387,22 @@ static bool is_date_byte(char c) {
          c == '.' || c == '\xC2' || c == '\xB5';
 }
 
-// Returns whether a token can end before this byte, which mustn't carry on a
-// word or a number
+// Returns whether a token can end before buf[n]: at the end, or before a
+// character which isn't a letter or digit, so it doesn't carry on a word or a
+// number. Something which isn't UTF-8 isn't a boundary.
 static bool is_date_boundary(const char *buf, size_t n, size_t got) {
   if (n == got) {
     return true;
   }
-  char c = buf[n];
-  return !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
-           (c >= 'A' && c <= 'Z') || c == '\xC2');
+  char rune[5] = {0};
+  for (size_t i = 0; i < 4 && n + i < got; i++) {
+    rune[i] = buf[n + i];
+  }
+  rune_t r;
+  if (sys_rune_next(rune, &r) == NULL || r == RUNE_ERROR) {
+    return false;
+  }
+  return !(sys_rune_is_alpha(r) || sys_rune_is_digit(r));
 }
 
 // r is the rune at start, which the stream is positioned after. Tries to
@@ -414,8 +421,8 @@ static bool scan_date_or_duration(sys_iostream_t *stream, ptrdiff_t start,
     return false;
   }
 
-  // Read what could be part of one
-  char buf[_SCAN_DATE_MAX + 1];
+  // Read what could be part of one, and enough to decode the character after
+  char buf[_SCAN_DATE_MAX + 4];
   sys_iostream_seek(stream, start, true);
   size_t got = 0;
   while (got < sizeof(buf)) {

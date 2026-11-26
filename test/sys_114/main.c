@@ -54,12 +54,22 @@ test_main_sys(0) {
   SCAN("2026-09-06,2026-09-07", all, {sys_scanner_date, "2026-09-06", 10},
        {sys_scanner_punct, ",", 1}, {sys_scanner_date, "2026-09-07", 10});
 
-  // Not dates: one which doesn't exist, and one which runs into a word
+  // Before a no-break space, and other characters which aren't letters
+  SCAN("2026-09-06\xC2\xA0" "5s\xC2\xA0" "1h\xE2\x80\x94", all,
+       {sys_scanner_date, "2026-09-06", 10}, {sys_scanner_space, "\xC2\xA0", 1},
+       {sys_scanner_duration, "5s", 2}, {sys_scanner_space, "\xC2\xA0", 1},
+       {sys_scanner_duration, "1h", 2}, {sys_scanner_other, "\xE2\x80\x94", 1});
+
+  // Not dates: one which doesn't exist, and those which run into a word
   SCAN("2026-02-30", all, {sys_scanner_number, "2026", 4},
        {sys_scanner_number, "-02", 3}, {sys_scanner_number, "-30", 3});
   SCAN("2026-09-06x", all, {sys_scanner_number, "2026", 4},
        {sys_scanner_number, "-09", 3}, {sys_scanner_number, "-06", 3},
        {sys_scanner_keyword, "x", 1});
+  SCAN("2026-09-06\xC3\xA9", sys_scanner_dates, {sys_scanner_digit, "2026", 4},
+       {sys_scanner_punct, "-", 1}, {sys_scanner_digit, "09", 2},
+       {sys_scanner_punct, "-", 1}, {sys_scanner_digit, "06", 2},
+       {sys_scanner_alpha, "\xC3\xA9", 1});
 
   ///////////////////////////////////////////////////////////////////////
   // Durations, before numbers
@@ -76,7 +86,10 @@ test_main_sys(0) {
        {sys_scanner_duration, "1d2h3m4s5ms6us7ns", 17});
   SCAN("3\xC2\xB5s", all, {sys_scanner_duration, "3\xC2\xB5s", 3});
 
-  // Not durations: no unit, a unit which runs into a word, and spaces
+  // Not durations: one which runs into an accented letter, no unit, a unit
+  // which runs into a word, and spaces
+  SCAN("5s\xC3\xA9", sys_scanner_durations, {sys_scanner_digit, "5", 1},
+       {sys_scanner_alpha, "s\xC3\xA9", 2});
   SCAN("1.5 10min 1 s", all, {sys_scanner_number, "1.5", 3}, SP,
        {sys_scanner_number, "10", 2}, {sys_scanner_keyword, "min", 3}, SP,
        {sys_scanner_number, "1", 1}, SP, {sys_scanner_keyword, "s", 1});
