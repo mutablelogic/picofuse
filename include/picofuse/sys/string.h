@@ -363,10 +363,10 @@ extern bool sys_string_parse_float64(const char *str, size_t len,
  * @brief Parse a duration into nanoseconds.
  * @ingroup SystemDataString
  * @param str Pointer to the duration: an optional '+' or '-', then one or
- * more amounts, each a number followed by a unit, such as "1h30m",
- * "1.5s", "-250ms" or "1 day 2h 3m". Spaces are allowed between amounts,
- * and between a number and its unit. A number can have a fraction ("1.5"
- * or ".5"), of which any part of a nanosecond is dropped. The units are
+ * more amounts, each a number followed by a unit, without spaces, such as
+ * "1h30m", "1.5s", "-250ms" or "1d2h3m". A number can have a fraction
+ * ("1.5" or ".5"), of which any part of a nanosecond is dropped. The units
+ * are
  * "d", "day" or "days", "h", "m", "s", "ms", "us" (or "\xC2\xB5s") and
  * "ns".
  * @param len The duration's exact length in bytes, or 0 for str's length

@@ -21,14 +21,6 @@ static const struct {
 
 static inline bool _sys_string_isdigit(char c) { return c >= '0' && c <= '9'; }
 
-static inline const char *_sys_string_skip_spaces(const char *pos,
-                                                  const char *end) {
-  while (pos < end && *pos == ' ') {
-    pos++;
-  }
-  return pos;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -50,13 +42,6 @@ bool sys_string_parse_duration(const char *str, size_t len, int64_t *ns) {
   uint64_t total = 0;
   bool any = false;
   while (pos < end || !any) {
-    // Spaces between amounts, but not after the last
-    if (any) {
-      pos = _sys_string_skip_spaces(pos, end);
-      if (pos == end) {
-        return false;
-      }
-    }
 
     // The whole number, and the fraction, of which at most 18 digits count
     uint64_t whole = 0;
@@ -88,8 +73,7 @@ bool sys_string_parse_duration(const char *str, size_t len, int64_t *ns) {
       return false;
     }
 
-    // The unit, which may have spaces before it
-    pos = _sys_string_skip_spaces(pos, end);
+    // The unit
     uint64_t unit = 0;
     for (size_t i = 0; i < sizeof(_sys_string_duration_units) /
                                sizeof(_sys_string_duration_units[0]);

@@ -39,14 +39,13 @@ test_main_sys(0) {
   test_assert(parse("0s") == 0);
 
   ///////////////////////////////////////////////////////////////////////
-  // More than one, with and without spaces, as NXDurationDescription
-  // writes them
+  // More than one, without spaces
 
   test_assert(parse("1h30m") == H + 30 * M);
-  test_assert(parse("1 day 2h 3m 4s 5ms 6us 7ns") == INT64_C(93784005006007));
-  test_assert(parse("2 days 1h") == 2 * D + H);
-  test_assert(parse("1h 1h") == 2 * H);
-  test_assert(parse("90 s") == 90 * S);
+  test_assert(parse("1d2h3m4s5ms6us7ns") == INT64_C(93784005006007));
+  test_assert(parse("2days1h") == 2 * D + H);
+  test_assert(parse("1day1h") == D + H);
+  test_assert(parse("1h1h") == 2 * H);
 
   ///////////////////////////////////////////////////////////////////////
   // Fractions, and signs
@@ -72,7 +71,7 @@ test_main_sys(0) {
   invalid("9223372036854775808ns");
   invalid("-9223372036854775809ns");
   invalid("106752d");
-  invalid("106751d 106751d");
+  invalid("106751d106751d");
   invalid("99999999999999999999ns");
 
   ///////////////////////////////////////////////////////////////////////
@@ -85,11 +84,11 @@ test_main_sys(0) {
   ///////////////////////////////////////////////////////////////////////
   // Those which aren't durations
 
-  const char *bad[] = {"",     " ",    "1",     "s",    "1x",    "1 s ",
-                       " 1s",  "1min", "1sec",  "1hours", "1H",  "1S",
-                       "-",    "+",    "--1s",  "1s-1s", ".s",   "1..5s",
-                       "1.5",  "1,5s", "1h 30", "1h,30m", "1 2s", "1 d ay",
-                       "0x1s", "1e3s", "\xC2\xB5s"};
+  const char *bad[] = {"",      " ",      "1",      "s",       "1x",    "1s ",
+                       " 1s",   "1 s",    "1h 30m", "1 day",   "1min",  "1sec",
+                       "1hours", "1H",    "1S",     "-",       "+",     "--1s",
+                       "1s-1s", ".s",     "1..5s",  "1.5",     "1,5s",  "1h30",
+                       "1h,30m", "12s3",  "0x1s",   "1e3s",    "\xC2\xB5s", "1dd"};
   for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
     invalid(bad[i]);
   }
