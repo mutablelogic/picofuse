@@ -70,6 +70,14 @@ test_main_sys(0) {
   test_assert(sys_string_base64_encode("foobar", 6, buf, 5) == 8);
   test_assert_strequal(buf, "Zm9v");
   test_assert(sys_string_base64_encode("foobar", 6, buf, 0) == 8);
+  test_assert(sys_string_base64_encode("foobar", 6, buf, 1) == 8 && buf[0] == '\0');
+  test_assert(sys_string_base64_encode("foobar", 6, buf, 3) == 8);
+  test_assert_strequal(buf, "Zm");
+
+  // Only the length, without reading the bytes, which here aren't there
+  const void *nowhere = (const void *)(uintptr_t)16;
+  test_assert(sys_string_base64_encode(nowhere, 3000, NULL, 0) == 4000);
+  test_assert(sys_string_base64_encode(nowhere, 3000, buf, 0) == 4000);
   __builtin_memset(bytes, 0xAA, sizeof(bytes));
   test_assert(sys_string_parse_base64("Zm9vYmFy", 0, bytes, 4) == 6);
   test_assert(__builtin_memcmp(bytes, "foob", 4) == 0 && bytes[4] == 0xAA);

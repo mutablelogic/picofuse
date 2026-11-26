@@ -39,8 +39,15 @@ size_t sys_string_base64_encode(const void *data, size_t size, char *buf,
   }
   const uint8_t *bytes = data;
   size_t length = (size + 2) / 3 * 4;
+
+  // The length is known without reading the bytes, if nothing can be written
+  if (buf == NULL || cap == 0) {
+    return length;
+  }
+
+  // Only as much as fits, with the NUL terminator
   size_t written = 0;
-  for (size_t i = 0; i < size; i += 3) {
+  for (size_t i = 0; i < size && written + 1 < cap; i += 3) {
     uint32_t group = (uint32_t)bytes[i] << 16;
     if (i + 1 < size) {
       group |= (uint32_t)bytes[i + 1] << 8;
@@ -52,15 +59,11 @@ size_t sys_string_base64_encode(const void *data, size_t size, char *buf,
                    _sys_base64_alphabet[(group >> 12) & 0x3F],
                    i + 1 < size ? _sys_base64_alphabet[(group >> 6) & 0x3F] : '=',
                    i + 2 < size ? _sys_base64_alphabet[group & 0x3F] : '='};
-    for (size_t j = 0; j < 4; j++, written++) {
-      if (buf != NULL && written + 1 < cap) {
-        buf[written] = out[j];
-      }
+    for (size_t j = 0; j < 4 && written + 1 < cap; j++, written++) {
+      buf[written] = out[j];
     }
   }
-  if (buf != NULL && cap > 0) {
-    buf[written < cap ? written : cap - 1] = '\0';
-  }
+  buf[written] = '\0';
   return length;
 }
 
