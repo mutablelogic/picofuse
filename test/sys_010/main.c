@@ -3,8 +3,9 @@
 #include <test/test.h>
 
 // %p zero-pads to the native pointer width, which is architecture-dependent:
-// 8 hex digits on the 32-bit pico target, 16 on a 64-bit host.
-#if defined(SYSTEM_NAME_PICO)
+// 8 hex digits with 32-bit pointers (the Pico, or a 32-bit host), 16 with
+// 64-bit pointers.
+#if UINTPTR_MAX <= UINT32_MAX
 #define PTR_HEX_DIGITS 8
 #define PTR_PAD_1234 "0x00001234"
 #define PTR_PAD_ZERO "0x00000000"

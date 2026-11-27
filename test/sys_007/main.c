@@ -53,9 +53,10 @@ test_main_sys(0) {
   test_assert_strequal(buf, "5000000000");
 
   // %zu tracks the platform's native size_t width (unlike %lu, which is
-  // always 64-bit): on pico's 32-bit size_t, 5000000000 doesn't fit, so use
-  // SIZE_MAX there instead to still exercise the full native width.
-#if defined(SYSTEM_NAME_PICO)
+  // always 64-bit): with a 32-bit size_t (the Pico, or a 32-bit host),
+  // 5000000000 doesn't fit, so use SIZE_MAX there instead to still exercise
+  // the full native width.
+#if SIZE_MAX <= UINT32_MAX
   sys_sprintf(buf, sizeof(buf), "%zu", (size_t)SIZE_MAX);
   test_assert_strequal(buf, "4294967295");
 #else
@@ -97,9 +98,10 @@ test_main_sys(0) {
   test_assert_strequal(buf, "-5000000000");
 
   // %zd tracks the platform's native ptrdiff_t width (unlike %ld, which is
-  // always 64-bit): on pico's 32-bit ptrdiff_t, -5000000000 doesn't fit, so
-  // use INT32_MIN there instead to still exercise the full native width.
-#if defined(SYSTEM_NAME_PICO)
+  // always 64-bit): with a 32-bit ptrdiff_t (the Pico, or a 32-bit host),
+  // -5000000000 doesn't fit, so use INT32_MIN there instead to still
+  // exercise the full native width.
+#if PTRDIFF_MAX <= INT32_MAX
   sys_sprintf(buf, sizeof(buf), "%zd", (ptrdiff_t)INT32_MIN);
   test_assert_strequal(buf, "-2147483648");
 #else
