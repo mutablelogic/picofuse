@@ -1033,6 +1033,12 @@ picofuse_test(hid_011
 	LIBRARIES picofuse-hw picofuse-hid
 )
 
+# Timers firing at once, on threads of their own on a host, never share an event slot
+picofuse_test(hid_012
+	hid_012/main.c
+	LIBRARIES picofuse-hw picofuse-hid
+)
+
 # app_main()'s lifecycle: sys/hw/hid wired up automatically, app_hid()/
 # app_led()/app_wifi() accessors, APP_FLAG_SIGNAL/_USER_BUTTON/_TEMPERATURE
 # registration, userdata passed through to on_start(), and a clean
