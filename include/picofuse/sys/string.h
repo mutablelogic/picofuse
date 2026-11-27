@@ -197,6 +197,11 @@ extern bool sys_string_parse_escape(const char *str, size_t len, rune_t *rune);
  * @brief Parse "true" or "false" into a bool.
  * @ingroup SystemDataString
  * @param str String to parse, or NULL.
+ * @param len The string's exact length in bytes, or 0 for str's length
+ * up to its own NUL terminator. Either way, str must be exactly "true" or
+ * "false" and nothing else - trailing content, including a zero byte
+ * within len, is a parse error. With len set, str need not be
+ * NUL-terminated at all, and nothing past str[len - 1] is read.
  * @param out Pointer to store the result. Left unchanged on a parse
  * error - there's no reserved error value for bool the way RUNE_ERROR is
  * for rune_t.
@@ -204,7 +209,7 @@ extern bool sys_string_parse_escape(const char *str, size_t len, rune_t *rune);
  * nothing else in str), false otherwise - any other value, including
  * "True"/"FALSE" or trailing content, is a parse error.
  */
-extern bool sys_string_parse_bool(const char *str, bool *out);
+extern bool sys_string_parse_bool(const char *str, size_t len, bool *out);
 
 /**
  * @brief Decode a quoted string into its unescaped content.

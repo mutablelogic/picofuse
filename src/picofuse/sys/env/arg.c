@@ -112,7 +112,7 @@ static bool _sys_env_validate(sys_env_arg_type_t type, const char *value) {
     return true;
   case sys_env_arg_type_bool: {
     bool out;
-    return sys_string_parse_bool(value, &out);
+    return sys_string_parse_bool(value, 0, &out);
   }
   case sys_env_arg_type_int: {
     int64_t out;
@@ -293,7 +293,7 @@ bool sys_env_arg_parse_bool(sys_env_arg_t *args, const char *name,
     *value = false; // declared but no default and never matched
     return true;
   }
-  return sys_string_parse_bool(flag->value, value);
+  return sys_string_parse_bool(flag->value, 0, value);
 }
 
 bool sys_env_arg_parse_int32(sys_env_arg_t *args, const char *name,
