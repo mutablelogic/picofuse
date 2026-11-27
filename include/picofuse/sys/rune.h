@@ -76,8 +76,11 @@ extern bool sys_rune_valid(const char *str);
 //
 // These classify ASCII plus the Latin-1 Supplement block (0x80-0xFF) -
 // accented Western European letters and their punctuation/space/control
-// characters are recognized, but every other script (Greek, Cyrillic, CJK,
-// etc.) is out of scope and reports false from all of them.
+// characters are recognized. Beyond Latin-1, spaces are all of Unicode's
+// White_Space characters, and punctuation and symbols include the General
+// Punctuation block (U+2000-U+206F: dashes, curly quotes, ellipsis, bullet).
+// Every other script's letters and punctuation (Greek, Cyrillic, CJK, etc.)
+// are out of scope and report false from all of them.
 
 /**
  * @brief Reports whether r is a decimal digit.
@@ -86,8 +89,12 @@ extern bool sys_rune_valid(const char *str);
 static inline bool sys_rune_is_digit(rune_t r) { return r >= '0' && r <= '9'; }
 
 /**
- * @brief Reports whether r is a space character (space, \\t, \\n, \\v, \\f,
- * \\r, U+0085 NEL, or U+00A0 NBSP).
+ * @brief Reports whether r is a space character: Unicode's White_Space
+ * characters, which are space, \\t, \\n, \\v, \\f, \\r, U+0085 NEL,
+ * U+00A0 NBSP, U+1680 Ogham space mark, U+2000-U+200A (en, em, thin and
+ * other spaces), U+2028 line separator, U+2029 paragraph separator, U+202F
+ * narrow NBSP, U+205F medium mathematical space and U+3000 ideographic
+ * space.
  * @ingroup SystemDataRune
  */
 static inline bool sys_rune_is_space(rune_t r) {
@@ -100,9 +107,15 @@ static inline bool sys_rune_is_space(rune_t r) {
   case '\r':
   case 0x0085: // NEL
   case 0x00A0: // NBSP
+  case 0x1680: // Ogham space mark
+  case 0x2028: // line separator
+  case 0x2029: // paragraph separator
+  case 0x202F: // narrow NBSP
+  case 0x205F: // medium mathematical space
+  case 0x3000: // ideographic space
     return true;
   default:
-    return false;
+    return r >= 0x2000 && r <= 0x200A; // en quad - hair space
   }
 }
 
@@ -231,7 +244,10 @@ static inline bool sys_rune_is_punct(rune_t r) {
   case 0x00BF: // inverted question mark
     return true;
   default:
-    return false;
+    // General Punctuation, except its spaces, format characters and the
+    // two symbols U+2044 fraction slash and U+2052 commercial minus sign
+    return (r >= 0x2010 && r <= 0x2027) || (r >= 0x2030 && r <= 0x2043) ||
+           (r >= 0x2045 && r <= 0x2051) || (r >= 0x2053 && r <= 0x205E);
   }
 }
 
@@ -241,7 +257,9 @@ static inline bool sys_rune_is_punct(rune_t r) {
  * @ingroup SystemDataRune
  *
  * The complement of sys_rune_is_punct() within the printable
- * ASCII/Latin-1 range - together they partition it.
+ * ASCII/Latin-1 range - together they partition it. Also U+2044 fraction
+ * slash and U+2052 commercial minus sign, the General Punctuation block's
+ * two symbols.
  */
 static inline bool sys_rune_is_symbol(rune_t r) {
   switch (r) {
@@ -270,6 +288,8 @@ static inline bool sys_rune_is_symbol(rune_t r) {
   case 0x00B8: // cedilla
   case 0x00D7: // multiplication sign
   case 0x00F7: // division sign
+  case 0x2044: // fraction slash
+  case 0x2052: // commercial minus sign
     return true;
   default:
     return false;

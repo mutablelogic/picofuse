@@ -629,6 +629,11 @@ picofuse_test(sys_115
 	sys_115/main.c
 )
 
+# rune classes beyond Latin-1: Unicode spaces and General Punctuation
+picofuse_test(sys_117
+	sys_117/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
