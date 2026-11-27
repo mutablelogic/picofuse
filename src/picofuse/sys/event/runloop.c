@@ -348,6 +348,12 @@ void sys_runloop_shutdown(uint32_t exit_value) {
  * wait, so it can be called from an interrupt: sys_event_queue_try_push() is safe there.
  */
 bool sys_runloop_post(sys_event_t event) {
+  // Not counted if it's already stopped, so posts which can only fail never hold up a
+  // run which is ending. The queue is read again once counted, as it may have stopped
+  // since.
+  if (__atomic_load_n(&_sys_runloop.queue, __ATOMIC_SEQ_CST) == NULL) {
+    return false;
+  }
   __atomic_add_fetch(&_sys_runloop_posting, 1, __ATOMIC_SEQ_CST);
   sys_event_queue_t *queue = __atomic_load_n(&_sys_runloop.queue, __ATOMIC_SEQ_CST);
   bool posted = queue != NULL && sys_event_queue_try_push(queue, event);

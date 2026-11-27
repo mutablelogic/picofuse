@@ -22,9 +22,13 @@ static sys_atomic_t _late;     // posts accepted after that, which mustn't happe
 
 static void on_timer(sys_timer_t *timer) {
   (void)timer;
+
+  // Whether the run had returned before this post started: a post which started before
+  // can still be accepted, and this callback paused before it's counted
+  bool stopped = sys_atomic_get(&_stopped) != 0;
   if (sys_runloop_post((sys_event_t)(uintptr_t)1)) {
     sys_atomic_inc(&_accepted);
-    if (sys_atomic_get(&_stopped) != 0) {
+    if (stopped) {
       sys_atomic_inc(&_late);
     }
   } else {
