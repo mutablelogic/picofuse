@@ -205,26 +205,37 @@ test_main_sys(0) {
   }
 
   ///////////////////////////////////////////////////////////////////////
-  // cap truncation - silent, matching sys_scanner_token()'s convention.
+  // cap truncation - only cap bytes are written, but the whole decoded
+  // length is returned, as sys_string_parse_base64() does
 
   {
     char buf[5];
     ptrdiff_t n = sys_string_parse_quoted("\"hello world\"", 0, buf, sizeof(buf));
-    test_assert(n == 5);
+    test_assert(n == 11);
     test_assert(memcmp(buf, "hello", 5) == 0);
   }
 
-  // cap == 0 with out == NULL is safe - min(actual, cap) is 0, same as
-  // sys_scanner_token() with cap == 0, not the true decoded length.
-  {
-    test_assert(sys_string_parse_quoted("\"hello\"", 0, NULL, 0) == 0);
-  }
+  ///////////////////////////////////////////////////////////////////////
+  // The decoded length is returned even when it doesn't all fit, so a
+  // NULL out (or no room) sizes a buffer first (#32)
 
-  // out == NULL with a nonzero (inconsistent, but not the caller's
-  // fault to get right) cap doesn't crash - cap is ignored entirely
-  // whenever out is NULL, same as if it had been passed as 0.
+  test_assert(sys_string_parse_quoted("\"hello\"", 0, NULL, 0) == 5);
+  test_assert(sys_string_parse_quoted("\"hello\"", 0, NULL, 16) == 5);
+  test_assert(sys_string_parse_quoted("\"a\\'bc\\u00e9\"", 0, NULL, 0) == 6);
+  test_assert(sys_string_parse_quoted("\"\"", 0, NULL, 0) == 0);
+  test_assert(sys_string_parse_quoted("\"a\\qb\"", 0, NULL, 0) == -1);
+  test_assert(sys_string_parse_quoted("\"abc", 0, NULL, 0) == -1);
   {
-    test_assert(sys_string_parse_quoted("\"hello\"", 0, NULL, 64) == 0);
+    char buf[4] = {'x', 'x', 'x', 'x'};
+    test_assert(sys_string_parse_quoted("\"hello\"", 0, buf, 0) == 5);
+    test_assert(memcmp(buf, "xxxx", 4) == 0);
+    test_assert(sys_string_parse_quoted("\"hello\"", 0, buf, 3) == 5);
+    test_assert(memcmp(buf, "helx", 4) == 0);
   }
-
+  {
+    // Truncated in the middle of a multi-byte character: only cap bytes
+    char buf[4] = {'x', 'x', 'x', 'x'};
+    test_assert(sys_string_parse_quoted("\"\\u4e2d\"", 0, buf, 2) == 3);
+    test_assert(memcmp(buf, "\xE4\xB8xx", 4) == 0);
+  }
 }
