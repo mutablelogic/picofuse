@@ -629,6 +629,13 @@ picofuse_test(sys_115
 	sys_115/main.c
 )
 
+# sys_hash_update_bytes (openssl on darwin/linux, mbedtls on pico)
+if(_picofuse_hash_backend STREQUAL "openssl" OR _picofuse_hash_backend STREQUAL "mbedtls")
+	picofuse_test(sys_116
+		sys_116/main.c
+	)
+endif()
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001

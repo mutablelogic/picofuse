@@ -31,6 +31,13 @@ bool sys_hash_update(sys_hash_t *hash, sys_iostream_t *stream, size_t size) {
   return false;
 }
 
+bool sys_hash_update_bytes(sys_hash_t *hash, const void *bytes, size_t length) {
+  (void)hash;
+  (void)bytes;
+  (void)length;
+  return false;
+}
+
 const uint8_t *sys_hash_finalize(sys_hash_t *hash) {
   (void)hash;
   return NULL;

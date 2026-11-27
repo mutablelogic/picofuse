@@ -157,6 +157,16 @@ bool sys_hash_update(sys_hash_t *hash, sys_iostream_t *stream, size_t size) {
   return ok;
 }
 
+bool sys_hash_update_bytes(sys_hash_t *hash, const void *bytes, size_t length) {
+  sys_assert(_sys_hash_owned(hash));
+
+  if (!_sys_hash_valid(hash) || hash->algorithm == 0 ||
+      (bytes == NULL && length > 0)) {
+    return false;
+  }
+  return length == 0 || _sys_hash_update_chunk(hash, bytes, length);
+}
+
 const uint8_t *sys_hash_finalize(sys_hash_t *hash) {
   sys_assert(_sys_hash_owned(hash));
 
