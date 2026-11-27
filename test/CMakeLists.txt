@@ -1027,6 +1027,12 @@ picofuse_test(hid_010
 	LIBRARIES picofuse-hw picofuse-hid
 )
 
+# hid_event_owned: telling HID's events from others in the same queue
+picofuse_test(hid_011
+	hid_011/main.c
+	LIBRARIES picofuse-hw picofuse-hid
+)
+
 # app_main()'s lifecycle: sys/hw/hid wired up automatically, app_hid()/
 # app_led()/app_wifi() accessors, APP_FLAG_SIGNAL/_USER_BUTTON/_TEMPERATURE
 # registration, userdata passed through to on_start(), and a clean

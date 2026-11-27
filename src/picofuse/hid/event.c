@@ -297,6 +297,21 @@ bool hid_event_queue_time(hid_device_t *device, const sys_date_t *date) {
   return _hid_event_push(event);
 }
 
+bool hid_event_owned(const hid_t *instance, sys_event_t event) {
+  if (instance == NULL || event == NULL) {
+    return false;
+  }
+
+  // Compare addresses as integers, as they may not point into the same object
+  uintptr_t start = (uintptr_t)instance->events;
+  uintptr_t at = (uintptr_t)event;
+  if (at < start || at - start >= sizeof(instance->events) ||
+      (at - start) % sizeof(hid_event_t) != 0) {
+    return false;
+  }
+  return ((const hid_event_t *)event)->type != hid_event_type_none;
+}
+
 void hid_event_free(hid_event_t *event) {
   // A one-shot timer's sys_timer_t is already gone by the time its event
   // reaches here (see timer.c's _hid_timer_callback) - this is what
