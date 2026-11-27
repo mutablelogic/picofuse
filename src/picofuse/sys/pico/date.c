@@ -66,11 +66,19 @@ bool sys_date_set_now(const sys_date_t *date) {
   }
 
   // The date in microseconds, which must fit, as must the offset to it
-  // from the boot clock
+  // from the boot clock. For a date before 1970, the fraction is taken
+  // from the next second up, so that both have the same sign and a date
+  // just inside the lower limit isn't refused when its seconds alone
+  // wouldn't fit
+  int64_t seconds = date->seconds;
+  int64_t fraction_us = date->nanoseconds / 1000;
+  if (seconds < 0 && fraction_us > 0) {
+    seconds += 1;
+    fraction_us -= 1000000;
+  }
   int64_t desired_us;
-  if (__builtin_mul_overflow(date->seconds, (int64_t)1000000, &desired_us) ||
-      __builtin_add_overflow(desired_us, (int64_t)(date->nanoseconds / 1000),
-                             &desired_us)) {
+  if (__builtin_mul_overflow(seconds, (int64_t)1000000, &desired_us) ||
+      __builtin_add_overflow(desired_us, fraction_us, &desired_us)) {
     return false;
   }
 
