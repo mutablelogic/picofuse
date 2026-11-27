@@ -244,6 +244,30 @@ bool sys_hash_update(sys_hash_t *hash, sys_iostream_t *stream, size_t size) {
   return ok;
 }
 
+/** @brief Updates the given hash context with bytes in memory, without
+ * copying them. Returns true on success, false on failure.
+ */
+bool sys_hash_update_bytes(sys_hash_t *hash, const void *bytes, size_t length) {
+  sys_assert(_sys_hash_owned(hash));
+
+  if (!_sys_hash_owned(hash) || (bytes == NULL && length > 0)) {
+    return false;
+  }
+
+  int lock_result = pthread_mutex_lock(&_sys_hash_pool_lock);
+  sys_assert(lock_result == 0);
+  if (lock_result != 0) {
+    return false;
+  }
+
+  bool ok = _sys_hash_valid(hash) && hash->ctx != NULL &&
+            (length == 0 || EVP_DigestUpdate(hash->ctx, bytes, length) == 1);
+
+  int unlock_result = pthread_mutex_unlock(&_sys_hash_pool_lock);
+  sys_assert(unlock_result == 0);
+  return ok;
+}
+
 /** @brief Finalizes the given hash context and returns a pointer to the digest.
  * Returns NULL on failure.
  */
