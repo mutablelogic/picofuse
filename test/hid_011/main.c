@@ -32,11 +32,12 @@ test_main_sys(0) {
   test_assert(!hid_event_owned(instance, NULL));
   test_assert(!hid_event_owned(NULL, event));
 
-  // Once it's freed, its slot isn't in use
+  // Once it's freed, its slot isn't in use. The timer is stopped first, so it can't
+  // take the slot again before that's checked.
+  test_assert(hid_deregister(instance, device));
   hid_event_free(event);
   test_assert(!hid_event_owned(instance, event));
 
-  test_assert(hid_deregister(instance, device));
   while ((event = sys_event_queue_try_pop(queue)) != NULL) {
     if (hid_event_owned(instance, event)) {
       hid_event_free(event);
