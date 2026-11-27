@@ -39,9 +39,9 @@ static inline size_t _sys_string_utf8_encode(rune_t r, char *buf) {
  * @brief Parse a quoted string, unescaping its content.
  * @param str String to parse, or NULL.
  * @param len Length of the string, or 0 if unknown (NULL-terminated).
- * @param out Buffer to write the unescaped content to.
+ * @param out Buffer to write the unescaped content to, or NULL.
  * @param cap Capacity of the output buffer.
- * @return The number of bytes written to out, or -1 on error.
+ * @return The decoded length, which may be more than cap, or -1 on error.
  */
 ptrdiff_t sys_string_parse_quoted(const char *str, size_t len, char *out,
                                   size_t cap) {
@@ -55,9 +55,8 @@ ptrdiff_t sys_string_parse_quoted(const char *str, size_t len, char *out,
 
   // A NULL out is only safe to write through when cap is also 0 - clamp
   // it here rather than trusting the caller to keep the two consistent,
-  // so _sys_string_append() below never dereferences NULL, and the
-  // final min(written, cap) below correctly reports 0 bytes copied (not
-  // the true decoded length) when nothing was actually written anywhere.
+  // so _sys_string_append() below never dereferences NULL. The decoded
+  // length is still counted, so it can be returned.
   if (out == NULL) {
     cap = 0;
   }
@@ -116,5 +115,7 @@ ptrdiff_t sys_string_parse_quoted(const char *str, size_t len, char *out,
     return -1;
   }
 
-  return (ptrdiff_t)(written < cap ? written : cap);
+  // The decoded length, even when it didn't all fit, so that a caller can
+  // size a buffer - the same as sys_string_parse_base64()
+  return (ptrdiff_t)written;
 }

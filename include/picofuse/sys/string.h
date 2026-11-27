@@ -219,14 +219,14 @@ extern bool sys_string_parse_bool(const char *str, bool *out);
  * quote is a parse error, and so is never finding one.
  * @param out Destination buffer for the unescaped content, or NULL to
  * write nothing and just get the decoded length (cap is then ignored,
- * as if it were 0, regardless of what's passed). May also be str itself,
+ * as if it were 0, regardless of what's passed). The content isn't
+ * NUL-terminated. May also be str itself,
  * decoding in place - decoding never expands content (every escape's
  * decoded form is no longer than the escape it came from), so writing
  * into str as it's read never overtakes what's still being read.
  * @param cap Capacity of out.
- * @return The number of bytes written to out (min(actual, cap); cap ==
- * 0, out == NULL, or cap too small all silently truncate, same as
- * sys_scanner_token()), or -1
+ * @return The decoded length, which may be more than cap, in which case
+ * only cap bytes are written (the same as sys_string_parse_base64()), or -1
  * on a parse error: str doesn't start with ' or ", no closing quote was
  * found, or an escape inside is malformed. \\' is recognized here (it
  * isn't part of sys_string_parse_escape()'s JSON-derived table, but
