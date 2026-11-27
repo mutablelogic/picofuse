@@ -636,6 +636,11 @@ if(_picofuse_hash_backend STREQUAL "openssl" OR _picofuse_hash_backend STREQUAL 
 	)
 endif()
 
+# rune classes beyond Latin-1: Unicode spaces and General Punctuation
+picofuse_test(sys_117
+	sys_117/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001

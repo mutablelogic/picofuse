@@ -54,11 +54,11 @@ test_main_sys(0) {
   SCAN("2026-09-06,2026-09-07", all, {sys_scanner_date, "2026-09-06", 10},
        {sys_scanner_punct, ",", 1}, {sys_scanner_date, "2026-09-07", 10});
 
-  // Before a no-break space, and other characters which aren't letters
-  SCAN("2026-09-06\xC2\xA0" "5s\xC2\xA0" "1h\xE2\x80\x94", all,
+  // Before a no-break space, an ideographic space, and an em dash
+  SCAN("2026-09-06\xC2\xA0" "5s\xE3\x80\x80" "1h\xE2\x80\x94", all,
        {sys_scanner_date, "2026-09-06", 10}, {sys_scanner_space, "\xC2\xA0", 1},
-       {sys_scanner_duration, "5s", 2}, {sys_scanner_space, "\xC2\xA0", 1},
-       {sys_scanner_duration, "1h", 2}, {sys_scanner_other, "\xE2\x80\x94", 1});
+       {sys_scanner_duration, "5s", 2}, {sys_scanner_space, "\xE3\x80\x80", 1},
+       {sys_scanner_duration, "1h", 2}, {sys_scanner_punct, "\xE2\x80\x94", 1});
 
   // Not dates: one which doesn't exist, and those which run into a word
   SCAN("2026-02-30", all, {sys_scanner_number, "2026", 4},
