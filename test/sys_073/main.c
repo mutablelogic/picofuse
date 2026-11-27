@@ -1,6 +1,14 @@
 #include <picofuse/sys.h>
 #include <test/test.h>
 
+#ifdef SYSTEM_NAME_PICO
+// Whether two dates are within ms milliseconds of each other
+static bool within_ms(const sys_date_t *a, const sys_date_t *b, int64_t ms) {
+  int64_t diff = sys_date_compare_ns(a, b);
+  return (diff < 0 ? -diff : diff) < ms * 1000000;
+}
+#endif
+
 test_main_sys(0) {
 
   ///////////////////////////////////////////////////////////////////////
@@ -46,9 +54,62 @@ test_main_sys(0) {
 
     sys_date_t after = {0};
     test_assert(sys_date_get_now(&after));
-    int64_t diff = sys_date_compare_ns(&target, &after);
-    test_assert((diff < 0 ? -diff : diff) < 500000000LL);
     test_assert(after.tzoffset == target.tzoffset);
+
+    // To within a few milliseconds, not a second (#37)
+    test_assert(within_ms(&target, &after, 5));
+  }
+
+  ///////////////////////////////////////////////////////////////////////
+  // The issue's example: a whole second, set when the boot clock is part
+  // way through one, reads back as that second - not up to 999 ms early
+
+  {
+    sys_date_t target = {.seconds = 1788694625, .nanoseconds = 0};
+    test_assert(sys_date_set_now(&target));
+    sys_date_t after = {0};
+    test_assert(sys_date_get_now(&after));
+    test_assert(within_ms(&target, &after, 5));
+  }
+
+  ///////////////////////////////////////////////////////////////////////
+  // Before 1970, and before the boot clock started, it's out in neither
+  // direction, and nanoseconds stay well-formed
+
+  {
+    sys_date_t target = {.seconds = -100, .nanoseconds = 750000000};
+    test_assert(sys_date_set_now(&target));
+    sys_date_t after = {0};
+    test_assert(sys_date_get_now(&after));
+    test_assert(after.nanoseconds >= 0 && after.nanoseconds < 1000000000);
+    test_assert(within_ms(&target, &after, 5));
+
+    // And it keeps time
+    sys_sleep_ms(100);
+    test_assert(sys_date_get_now(&after));
+    int64_t ms = sys_date_compare_ns(&target, &after) / 1000000;
+    test_assert(ms >= 100 && ms < 110);
+  }
+
+  ///////////////////////////////////////////////////////////////////////
+  // Dates which don't fit in microseconds are refused, and the clock is
+  // left as it was
+
+  {
+    sys_date_t target = {.seconds = 1788694625, .nanoseconds = 0};
+    test_assert(sys_date_set_now(&target));
+
+    sys_date_t huge = {.seconds = INT64_MAX, .nanoseconds = 0};
+    test_assert(!sys_date_set_now(&huge));
+    huge.seconds = INT64_MIN;
+    test_assert(!sys_date_set_now(&huge));
+    huge.seconds = INT64_MAX / 1000000; // fits, but not with the nanoseconds
+    huge.nanoseconds = 999999999;
+    test_assert(!sys_date_set_now(&huge));
+
+    sys_date_t after = {0};
+    test_assert(sys_date_get_now(&after));
+    test_assert(within_ms(&target, &after, 5));
   }
 #endif
 
