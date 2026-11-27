@@ -7,8 +7,15 @@
  * Atomic values that can be safely updated across threads.
  *
  * A uint32_t value maintained safely across threads, with get, set,
- * increment, and decrement operations. For the increment
+ * increment, decrement and compare-and-swap operations. The increment
  * and decrement operations return the new value.
+ *
+ * sys_atomic_get() acquires and sys_atomic_set() releases, so a thread
+ * which sets a value after writing other data, and a thread which gets
+ * that value and then reads the data, see the data as it was written.
+ * sys_atomic_compare_swap() does both. Increment, decrement and the bit
+ * operations are relaxed, which is enough for counts and flags but orders
+ * nothing else.
  */
 #pragma once
 #include <stdbool.h>
@@ -62,12 +69,11 @@ static inline void sys_atomic_init(sys_atomic_t *a, uint32_t initial) {
  * @param a Pointer to the atomic value (must be non-NULL).
  * @return The current 32-bit value.
  *
- * This is a relaxed load; it does not establish synchronization with
- * other memory operations. If you need acquire semantics, introduce
- * an explicit fence in the caller.
+ * This is an acquire load: what the thread which set the value wrote
+ * before it did is seen by reads after this.
  */
 static inline uint32_t sys_atomic_get(const sys_atomic_t *a) {
-  return __atomic_load_n(&a->value, __ATOMIC_RELAXED);
+  return __atomic_load_n(&a->value, __ATOMIC_ACQUIRE);
 }
 
 /**
@@ -77,11 +83,32 @@ static inline uint32_t sys_atomic_get(const sys_atomic_t *a) {
  * @param a Pointer to the atomic value (must be non-NULL).
  * @param v The value to store.
  *
- * This is a relaxed store; it does not order or publish other writes.
- * If you need release semantics, introduce an explicit fence in the caller.
+ * This is a release store: what this thread wrote before it is seen by a
+ * thread which gets the value afterwards.
  */
 static inline void sys_atomic_set(sys_atomic_t *a, uint32_t v) {
-  __atomic_store_n(&a->value, v, __ATOMIC_RELAXED);
+  __atomic_store_n(&a->value, v, __ATOMIC_RELEASE);
+}
+
+/**
+ * @brief Atomically replace the value, if it is what's expected.
+ * @ingroup SystemAtomic
+ *
+ * @param a Pointer to the atomic value (must be non-NULL).
+ * @param expected Pointer to the value expected (must be non-NULL). If the
+ * value is something else, that's stored here.
+ * @param desired The value to store if the value is *expected.
+ * @return true if the value was *expected and is now desired, false if it
+ * wasn't and nothing was stored.
+ *
+ * Acquires and releases when it succeeds, and acquires when it doesn't, so
+ * it can guard other data, as a lock does. On targets without atomic
+ * instructions (RP2040), it is implemented with a spin lock.
+ */
+static inline bool sys_atomic_compare_swap(sys_atomic_t *a, uint32_t *expected,
+                                           uint32_t desired) {
+  return __atomic_compare_exchange_n(&a->value, expected, desired, false,
+                                     __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
 }
 
 /**
