@@ -3,6 +3,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// clang warns that atomics aren't lock-free on an RP2040, where pico-sdk implements
+// them with a spin lock, which is safe in an interrupt
+#if defined(__clang__)
+#pragma clang diagnostic ignored "-Watomic-alignment"
+#endif
+
 #ifdef SYSTEM_NAME_PICO
 #include "../pico/flash_pause.h"
 #define _SYS_RUNLOOP_WORKER_WAIT_MS 10u
@@ -87,6 +93,13 @@ static sys_runloop_t _sys_runloop = {0};
 // _sys_runloop_module_init(), called from sys_init() before any
 // application thread can exist.
 static sys_mutex_t *_sys_runloop_lock = NULL;
+
+// sys_runloop_post() can be called from an interrupt, so it doesn't take the lock: it
+// reads `_sys_runloop.queue` atomically, and counts itself here while it uses the
+// queue, so _sys_runloop_deinit() can wait until no post is using the queue before the
+// caller of sys_runloop_run() deinitializes it. A post never waits, so an interrupt
+// which posts during that wait always finishes.
+static uint32_t _sys_runloop_posting = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
@@ -180,11 +193,11 @@ static bool _sys_runloop_claim(sys_event_queue_t *queue,
     return false;
   }
 
-  _sys_runloop.queue = queue;
   _sys_runloop.init_fn = init_fn;
   _sys_runloop.event_fn = event_fn;
   _sys_runloop.poll_fn = poll_fn;
   _sys_runloop.exit_fn = exit_fn;
+  __atomic_store_n(&_sys_runloop.queue, queue, __ATOMIC_SEQ_CST); // last: posts can start
 
   sys_mutex_unlock(_sys_runloop_lock);
   return true;
@@ -234,12 +247,16 @@ static uint32_t _sys_runloop_deinit(void) {
   uint32_t exit_value = sys_atomic_get(&_sys_runloop.exit_value);
 
   sys_mutex_lock(_sys_runloop_lock);
-  _sys_runloop.queue = NULL;
+  __atomic_store_n(&_sys_runloop.queue, NULL, __ATOMIC_SEQ_CST);
   _sys_runloop.init_fn = NULL;
   _sys_runloop.event_fn = NULL;
   _sys_runloop.poll_fn = NULL;
   _sys_runloop.exit_fn = NULL;
   sys_mutex_unlock(_sys_runloop_lock);
+
+  // Wait for any post which read the queue before it was cleared
+  while (__atomic_load_n(&_sys_runloop_posting, __ATOMIC_SEQ_CST) != 0) {
+  }
 
   return exit_value;
 }
@@ -327,15 +344,13 @@ void sys_runloop_shutdown(uint32_t exit_value) {
   sys_event_queue_shutdown(queue);
 }
 
-/** @brief Posts an event to the run loop (see sys/runloop.h). */
+/** @brief Posts an event to the run loop (see sys/runloop.h). It doesn't take a lock or
+ * wait, so it can be called from an interrupt: sys_event_queue_try_push() is safe there.
+ */
 bool sys_runloop_post(sys_event_t event) {
-  sys_mutex_lock(_sys_runloop_lock);
-  sys_event_queue_t *queue = _sys_runloop.queue;
-  sys_mutex_unlock(_sys_runloop_lock);
-
-  if (queue == NULL) {
-    return false;
-  }
-
-  return sys_event_queue_try_push(queue, event);
+  __atomic_add_fetch(&_sys_runloop_posting, 1, __ATOMIC_SEQ_CST);
+  sys_event_queue_t *queue = __atomic_load_n(&_sys_runloop.queue, __ATOMIC_SEQ_CST);
+  bool posted = queue != NULL && sys_event_queue_try_push(queue, event);
+  __atomic_sub_fetch(&_sys_runloop_posting, 1, __ATOMIC_SEQ_CST);
+  return posted;
 }
