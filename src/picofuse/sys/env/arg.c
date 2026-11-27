@@ -25,6 +25,9 @@ static char **_sys_env_argv = NULL;
 // comment for why this is never pool-allocated.
 static sys_env_arg_t _sys_env_arg_result;
 
+// Why the last sys_env_arg_parse() failed, or empty if it didn't
+static char _sys_env_arg_error[96];
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -126,6 +129,14 @@ static bool _sys_env_validate(sys_env_arg_type_t type, const char *value) {
     double out;
     return sys_string_parse_float64(value, 0, &out);
   }
+  case sys_env_arg_type_date: {
+    sys_date_t out;
+    return sys_date_parse(value, 0, sys_date_format_iso8601, &out);
+  }
+  case sys_env_arg_type_duration: {
+    int64_t out;
+    return sys_string_parse_duration(value, 0, &out);
+  }
   default:
     return false;
   }
@@ -143,6 +154,10 @@ static const char *_sys_env_type_name(sys_env_arg_type_t type) {
     return "uint";
   case sys_env_arg_type_float:
     return "float";
+  case sys_env_arg_type_date:
+    return "date";
+  case sys_env_arg_type_duration:
+    return "duration";
   default:
     return "?";
   }
@@ -155,11 +170,33 @@ void sys_env_set_args(int argc, char *argv[]) {
   _sys_env_set_args(argc, argv);
 }
 
+// What a value of a type is, for an error
+static const char *_sys_env_type_description(sys_env_arg_type_t type) {
+  switch (type) {
+  case sys_env_arg_type_bool:
+    return "true or false";
+  case sys_env_arg_type_int:
+    return "an integer";
+  case sys_env_arg_type_uint:
+    return "an unsigned integer";
+  case sys_env_arg_type_float:
+    return "a number";
+  case sys_env_arg_type_date:
+    return "an ISO 8601 date";
+  case sys_env_arg_type_duration:
+    return "a duration";
+  default:
+    return "a string";
+  }
+}
+
 sys_env_arg_t *sys_env_arg_parse(sys_env_arg_flag_t *flags) {
   _sys_env_arg_result.flags = NULL;
   _sys_env_arg_result.args_count = 0;
+  _sys_env_arg_error[0] = '\0';
 
   if (flags == NULL) {
+    sys_sprintf(_sys_env_arg_error, sizeof(_sys_env_arg_error), "there are no flags");
     return NULL;
   }
 
@@ -180,6 +217,8 @@ sys_env_arg_t *sys_env_arg_parse(sys_env_arg_flag_t *flags) {
 
     if (positional_only || arg[0] != '-') {
       if (_sys_env_arg_result.args_count >= SYS_ENV_ARG_CAPACITY) {
+        sys_sprintf(_sys_env_arg_error, sizeof(_sys_env_arg_error),
+                    "more than %u arguments", (unsigned)SYS_ENV_ARG_CAPACITY);
         return NULL;
       }
       _sys_env_arg_result.args[_sys_env_arg_result.args_count++] = arg;
@@ -194,7 +233,9 @@ sys_env_arg_t *sys_env_arg_parse(sys_env_arg_flag_t *flags) {
     sys_env_arg_flag_t *flag =
         _sys_env_find_flag(flags, is_long, token, &negated, &attached_value);
     if (flag == NULL) {
-      return NULL; // looked like a flag, but nothing declared matches
+      // looked like a flag, but nothing declared matches
+      sys_sprintf(_sys_env_arg_error, sizeof(_sys_env_arg_error), "unknown flag %s", arg);
+      return NULL;
     }
 
     const char *value;
@@ -206,12 +247,17 @@ sys_env_arg_t *sys_env_arg_parse(sys_env_arg_flag_t *flags) {
       value = "true"; // presence alone means "on"
     } else {
       if (i + 1 >= _sys_env_argc) {
-        return NULL; // flag needs a value, but there's nothing left
+        // flag needs a value, but there's nothing left
+        sys_sprintf(_sys_env_arg_error, sizeof(_sys_env_arg_error), "--%s needs a value",
+                    flag->long_name);
+        return NULL;
       }
       value = _sys_env_argv[++i];
     }
 
     if (!_sys_env_validate(flag->type, value)) {
+      sys_sprintf(_sys_env_arg_error, sizeof(_sys_env_arg_error), "--%s: \"%s\" isn't %s",
+                  flag->long_name, value, _sys_env_type_description(flag->type));
       return NULL;
     }
     flag->value = value;
@@ -219,6 +265,10 @@ sys_env_arg_t *sys_env_arg_parse(sys_env_arg_flag_t *flags) {
 
   _sys_env_arg_result.flags = flags;
   return &_sys_env_arg_result;
+}
+
+const char *sys_env_arg_error(void) {
+  return _sys_env_arg_error[0] == '\0' ? NULL : _sys_env_arg_error;
 }
 
 size_t sys_env_arg_count(sys_env_arg_t *args) {
@@ -366,6 +416,30 @@ bool sys_env_arg_parse_float64(sys_env_arg_t *args, const char *name,
     return false;
   }
   return sys_string_parse_float64(flag->value, 0, value);
+}
+
+bool sys_env_arg_parse_date(sys_env_arg_t *args, const char *name,
+                            sys_date_t *value) {
+  if (args == NULL || value == NULL) {
+    return false;
+  }
+  sys_env_arg_flag_t *flag = _sys_env_find_by_name(args->flags, name);
+  if (flag == NULL || flag->value == NULL) {
+    return false;
+  }
+  return sys_date_parse(flag->value, 0, sys_date_format_iso8601, value);
+}
+
+bool sys_env_arg_parse_duration(sys_env_arg_t *args, const char *name,
+                                int64_t *ns) {
+  if (args == NULL || ns == NULL) {
+    return false;
+  }
+  sys_env_arg_flag_t *flag = _sys_env_find_by_name(args->flags, name);
+  if (flag == NULL || flag->value == NULL) {
+    return false;
+  }
+  return sys_string_parse_duration(flag->value, 0, ns);
 }
 
 size_t sys_env_arg_parse_string(sys_env_arg_t *args, const char *name,
