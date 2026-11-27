@@ -34,6 +34,7 @@ void _sys_debugf_impl(const char *context, const char *format, ...) {
   if (len == 0 || format[len - 1] != '\n') {
     sys_putch('\n');
   }
+  sys_puts(NULL); // flush, as sys_vprintf_ex() does
 
   sys_mutex_unlock(_sys_printf_mutex);
 }

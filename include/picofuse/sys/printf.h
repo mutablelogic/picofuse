@@ -100,6 +100,9 @@ extern void sys_putch(const char ch);
  *               arguments are formatted and printed.
  * @param ... Additional arguments corresponding to format specifiers in format.
  * @return The number of characters printed.
+ *
+ * The output is flushed before it returns, so it comes out in order with
+ * what's written to sys_stdout, and isn't lost if the program stops.
  */
 extern size_t sys_printf(const char *format, ...);
 
@@ -109,6 +112,8 @@ extern size_t sys_printf(const char *format, ...);
  * @param format A printf-style format string.
  * @param args A va_list containing the arguments for the format string.
  * @return The number of characters printed.
+ *
+ * The output is flushed before it returns, as sys_printf()'s is.
  */
 extern size_t sys_vprintf(const char *format, va_list args);
 
