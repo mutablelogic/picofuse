@@ -12,8 +12,10 @@ bool _sys_rune_decode(sys_iostream_t *stream, rune_t *r, size_t *width) {
   if (got == 0) {
     return false; // EOF
   }
+  // A zero byte ends a C string, so sys_rune_next() returns NULL for it,
+  // but in a stream it's rune 0, one byte wide
   const char *end = sys_rune_next(raw, r);
-  size_t consumed = (size_t)(end - raw);
+  size_t consumed = end == NULL ? 1 : (size_t)(end - raw);
   if (consumed < got) {
     sys_iostream_seek(stream, -(ptrdiff_t)(got - consumed), false);
   }

@@ -641,6 +641,11 @@ picofuse_test(sys_117
 	sys_117/main.c
 )
 
+# zero bytes in a stream, for the scanner and the rune tokenizer
+picofuse_test(sys_118
+	sys_118/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
