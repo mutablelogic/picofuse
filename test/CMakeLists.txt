@@ -656,6 +656,11 @@ picofuse_test(sys_120
 	sys_120/main.c
 )
 
+# sys_runloop_post() from a timer callback (an interrupt on Pico), as the loop stops
+picofuse_test(sys_121
+	sys_121/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001

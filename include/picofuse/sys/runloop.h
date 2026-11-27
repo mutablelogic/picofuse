@@ -152,8 +152,10 @@ void sys_runloop_shutdown(uint32_t exit_value);
  * @return `true` on success, `false` if the run loop is shut down or the
  *         queue is full.
  *
- * Safe to call from any thread while the run loop is running. Returns
- * `false` if called before sys_runloop_run() or after sys_runloop_shutdown().
+ * Safe to call from any thread while the run loop is running, and from an
+ * interrupt, such as a timer callback on Pico: it doesn't lock or wait.
+ * Returns `false` if called before sys_runloop_run() or after
+ * sys_runloop_shutdown().
  * Events are processed in the order posted.
  */
 bool sys_runloop_post(sys_event_t event);
