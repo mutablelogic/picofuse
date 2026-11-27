@@ -8,11 +8,11 @@
 
 #define TIMES 10000
 
-// Pico has one spare core; hosts spawn several threads
+// Pico has one spare core; hosts spawn as many threads as they're allowed
 #if defined(SYSTEM_NAME_PICO)
 #define NUM_WORKERS 1
 #else
-#define NUM_WORKERS 4
+#define NUM_WORKERS SYS_THREAD_CAPACITY
 #endif
 
 static sys_atomic_t _counter, _lock;
