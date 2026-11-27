@@ -316,3 +316,15 @@ bool hid_event_queue_time(hid_device_t *device, const sys_date_t *date);
  * timer; the device is already gone once this returns.
  */
 void hid_event_free(hid_event_t *event);
+
+/**
+ * @brief Report whether an event is one of a HID instance's own, in use.
+ * @ingroup HIDEvents
+ * @param instance HID instance, or NULL.
+ * @param event An event popped from a queue, which may hold other events as well
+ * as HID's, such as a run loop's.
+ * @return true if @p event is a slot of @p instance's event pool which is in use,
+ * so it can be cast to a `hid_event_t*` and has to be freed with
+ * hid_event_free(); false otherwise, including for NULL.
+ */
+bool hid_event_owned(const hid_t *instance, sys_event_t event);
