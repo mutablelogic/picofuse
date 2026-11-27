@@ -651,6 +651,11 @@ picofuse_test(sys_119
 	sys_119/main.c
 )
 
+# sys_atomic_compare_swap, and a lock made from it, across threads or cores
+picofuse_test(sys_120
+	sys_120/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
