@@ -214,6 +214,10 @@ size_t sys_vprintf_ex(const char *format, va_list args,
 
   sys_mutex_lock(_sys_printf_mutex);
   size_t len = _sys_vprintf(&state, format, &args_copy);
+
+  // Flush, so that what's printed comes out in order with what's written
+  // to sys_stdout, and isn't lost if the program stops
+  sys_puts(NULL);
   sys_mutex_unlock(_sys_printf_mutex);
 
   va_end(args_copy);

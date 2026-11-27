@@ -646,6 +646,11 @@ picofuse_test(sys_118
 	sys_118/main.c
 )
 
+# sys_printf() and sys_debugf() flush, so they're in order with sys_stdout
+picofuse_test(sys_119
+	sys_119/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
