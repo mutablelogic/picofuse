@@ -125,6 +125,20 @@ size_t sys_hash_size(const sys_hash_t *hash);
 bool sys_hash_update(sys_hash_t *hash, sys_iostream_t *stream, size_t size);
 
 /**
+ * @brief Update a hash context with bytes in memory.
+ * @ingroup SystemDataHash
+ * @param hash Pointer to the hash context.
+ * @param bytes The bytes to feed into the hash, which may include zero
+ * bytes. May be `NULL` only when length is 0.
+ * @param length Number of bytes.
+ * @return true on success, false on error.
+ *
+ * The bytes are hashed where they are, without being copied, and calls
+ * can be mixed with sys_hash_update().
+ */
+bool sys_hash_update_bytes(sys_hash_t *hash, const void *bytes, size_t length);
+
+/**
  * @brief Finalize the hash computation.
  * @ingroup SystemDataHash
  * @param hash Pointer to the hash context.

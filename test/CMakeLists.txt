@@ -629,6 +629,11 @@ picofuse_test(sys_115
 	sys_115/main.c
 )
 
+# sys_hash_update_bytes
+picofuse_test(sys_116
+	sys_116/main.c
+)
+
 # hw_gpio_* basic lifecycle
 if(NOT APPLE)
 	picofuse_test(hw_001
