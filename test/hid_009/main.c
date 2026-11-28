@@ -69,6 +69,7 @@ test_main_hw(0) {
     if (event != NULL) {
       test_assert(event->type == hid_event_type_iostream);
       test_assert(event->device == device);
+      test_assert(event->data.iostream.userdata == &userdata_sentinel);
       if ((event->data.iostream.events & sys_iostream_event_read) != 0) {
         got_read_ready = true;
       }
