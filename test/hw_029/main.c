@@ -33,10 +33,11 @@ int main(void) {
 
   if (last != STAGE_TIMEOUT) {
     sys_printf("[TEST] [INIT] %s\n", sys_env_name());
+    // Before the check, so the last run's finished marker doesn't stay if it fails
+    set_stage(STAGE_TIMEOUT);
     if (last == STAGE_FINISHED) {
       test_assert(!did_reset);
     }
-    set_stage(STAGE_TIMEOUT);
     hw_watchdog_enable(watchdog, true);
     for (;;) {
       sys_sleep_ms(100); // not polled, so not fed
