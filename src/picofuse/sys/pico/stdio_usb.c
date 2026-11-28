@@ -28,6 +28,11 @@ static critical_section_t _sys_stdio_usb_lock;
 static uint8_t _sys_stdio_usb_irq = 0;
 static bool _sys_stdio_usb_started = false;
 
+// When output last got into TinyUSB's buffer, across writes, as printf writes a
+// character at a time: once it's been longer than the timeout, writes are dropped
+// until there's room again. It's under the lock.
+static uint64_t _sys_stdio_usb_progress_us = 0;
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -50,26 +55,29 @@ static size_t _sys_stdio_usb_read(sys_iostream_t *stream, char *buf, size_t n) {
   return got;
 }
 
-// Written as the buffer has room, or dropped if nothing is connected, or nothing is
-// read before the timeout
+// Written as the buffer has room, or dropped if nothing is connected, or nothing has
+// been taken from the buffer for longer than the timeout, across writes
 static size_t _sys_stdio_usb_write(sys_iostream_t *stream, const char *buf,
                                    size_t n) {
   (void)stream;
   size_t put = 0;
-  uint64_t deadline = time_us_64() + SYS_STDIO_USB_TIMEOUT_US;
   while (put < n) {
     critical_section_enter_blocking(&_sys_stdio_usb_lock);
     bool connected = tud_cdc_connected();
+    bool timed_out = false;
     if (connected) {
       uint32_t room = tud_cdc_write_available();
+      uint64_t now = time_us_64();
       if (room > 0) {
         put += tud_cdc_write(buf + put, n - put < room ? n - put : room);
-        deadline = time_us_64() + SYS_STDIO_USB_TIMEOUT_US;
+        _sys_stdio_usb_progress_us = now;
+      } else {
+        timed_out = now - _sys_stdio_usb_progress_us > SYS_STDIO_USB_TIMEOUT_US;
       }
       tud_cdc_write_flush();
     }
     critical_section_exit(&_sys_stdio_usb_lock);
-    if (!connected || time_us_64() > deadline) {
+    if (!connected || timed_out) {
       break;
     }
     if (put < n) {
