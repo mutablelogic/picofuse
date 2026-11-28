@@ -96,6 +96,9 @@ typedef struct {
   const char *name; ///< Metric name.
   const char *unit; ///< Metric unit string.
   float value;      ///< Metric value.
+  void *userdata;   ///< The device's userdata when the event was queued, so an event
+                    ///< from a device which has since been deregistered, and whose
+                    ///< slot has been registered again, can be told apart.
 } hid_metric_t;
 
 /**

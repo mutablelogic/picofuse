@@ -170,6 +170,9 @@ bool hid_event_queue_metric_float(hid_device_t *device, const char *name,
   event->data.metric.name = name;
   event->data.metric.unit = unit;
   event->data.metric.value = value;
+  _HID_LOCK();
+  event->data.metric.userdata = device->userdata;
+  _HID_UNLOCK();
   return _hid_event_push(event);
 }
 
