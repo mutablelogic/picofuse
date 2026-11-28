@@ -34,7 +34,7 @@ picofuse_library(
         ../led/default.c
         ../led/neopixel.c
         led_device.c
-        ../stub/adc.c
+        adc.c
         ../stub/flash.c
         ../posix/uart.c
         watchdog.c
