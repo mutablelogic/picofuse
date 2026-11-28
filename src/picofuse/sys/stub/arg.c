@@ -8,6 +8,11 @@
 // report. Matches sys_env_signalhandler()'s stub: always fail/return
 // empty, never crash.
 
+void sys_env_set_args(int argc, char *argv[]) {
+  (void)argc;
+  (void)argv;
+}
+
 // Set once a parse has been tried, as there's never a command line to parse
 static bool _sys_env_arg_tried = false;
 

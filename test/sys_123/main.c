@@ -6,6 +6,10 @@
 test_main_sys(0) {
   test_assert(sys_env_arg_error() == NULL);
 
+  // A command line which is set is still not parsed
+  char *line[] = {"prog", "--when", "2026-09-06", NULL};
+  sys_env_set_args(3, line);
+
   sys_env_arg_flag_t flags[] = {
       {.long_name = "when", .type = sys_env_arg_type_date},
       {.long_name = "every", .type = sys_env_arg_type_duration},
