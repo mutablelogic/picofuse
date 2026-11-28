@@ -19,4 +19,5 @@ if(NOT DEFINED PICO_BOARD)
     # Not install(TARGETS), which would install testrunner-<version> and a link
     # to it, leaving the old one behind each time the version changes.
     install(PROGRAMS $<TARGET_FILE:testrunner> DESTINATION bin RENAME testrunner)
+    install(FILES README.md DESTINATION docs RENAME testrunner.md)
 endif()
