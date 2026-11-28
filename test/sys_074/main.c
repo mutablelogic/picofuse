@@ -9,7 +9,7 @@ static int call_count = 0;
 
 static void record_callback(sys_env_signal_t signal) {
   last_signal = signal;
-  call_count++;
+  __atomic_add_fetch(&call_count, 1, __ATOMIC_RELEASE);
 }
 
 static sys_env_signal_t last_signal_b = sys_env_signal_none;
@@ -17,7 +17,15 @@ static int call_count_b = 0;
 
 static void record_callback_b(sys_env_signal_t signal) {
   last_signal_b = signal;
-  call_count_b++;
+  __atomic_add_fetch(&call_count_b, 1, __ATOMIC_RELEASE);
+}
+
+// The callback runs on a thread of its own, after the signal, so the tests wait for it
+static bool wait_count(int *count, int n) {
+  for (int ms = 0; ms < 1000 && __atomic_load_n(count, __ATOMIC_ACQUIRE) < n; ms++) {
+    sys_sleep_ms(1);
+  }
+  return __atomic_load_n(count, __ATOMIC_ACQUIRE) == n;
 }
 
 // Returns true if sig's current disposition is SIG_DFL, without ever
@@ -46,19 +54,19 @@ test_main_sys(0) {
     call_count = 0;
     test_assert(sys_env_signalhandler(sys_env_signal_term, record_callback));
     raise(SIGTERM);
-    test_assert(call_count == 1 && last_signal == sys_env_signal_term);
+    test_assert(wait_count(&call_count, 1) && last_signal == sys_env_signal_term);
   }
   {
     call_count = 0;
     test_assert(sys_env_signalhandler(sys_env_signal_int, record_callback));
     raise(SIGINT);
-    test_assert(call_count == 1 && last_signal == sys_env_signal_int);
+    test_assert(wait_count(&call_count, 1) && last_signal == sys_env_signal_int);
   }
   {
     call_count = 0;
     test_assert(sys_env_signalhandler(sys_env_signal_quit, record_callback));
     raise(SIGQUIT);
-    test_assert(call_count == 1 && last_signal == sys_env_signal_quit);
+    test_assert(wait_count(&call_count, 1) && last_signal == sys_env_signal_quit);
   }
 
   ///////////////////////////////////////////////////////////////////////
@@ -71,7 +79,7 @@ test_main_sys(0) {
                                        record_callback));
     raise(SIGTERM);
     raise(SIGINT);
-    test_assert(call_count == 2);
+    test_assert(wait_count(&call_count, 2));
     test_assert(last_signal == sys_env_signal_int); // most recent
   }
 
@@ -92,7 +100,7 @@ test_main_sys(0) {
     test_assert(is_default_disposition(SIGTERM));
 
     raise(SIGINT);
-    test_assert(call_count_b == 1 && last_signal_b == sys_env_signal_int);
+    test_assert(wait_count(&call_count_b, 1) && last_signal_b == sys_env_signal_int);
     test_assert(call_count == 0); // the old TERM callback never fires again
   }
 
@@ -106,7 +114,7 @@ test_main_sys(0) {
     raise(SIGTERM);
     raise(SIGINT);
     raise(SIGQUIT);
-    test_assert(call_count == 3);
+    test_assert(wait_count(&call_count, 3));
 
     test_assert(sys_env_signalhandler(0, NULL));
     test_assert(is_default_disposition(SIGTERM));

@@ -5,17 +5,10 @@
 #include <stdint.h>
 #include <string.h>
 
-// Pico is the only platform in this build where the device pool below can
-// genuinely be raced from two physical cores at once - see the same
-// pattern in hw/led/led.c and hw/deviceio/deviceio.c. Host platforms keep
-// the plain unlocked scan.
 #ifdef SYSTEM_NAME_PICO
 #include "../sys/pico/sync.h"
-#define _HID_LOCK() _sys_sync_pool_lock()
-#define _HID_UNLOCK() _sys_sync_pool_unlock()
 #else
-#define _HID_LOCK()
-#define _HID_UNLOCK()
+#include <pthread.h>
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -28,6 +21,17 @@ static hid_t _hw_hid_instance;
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// On a Pico, the critical section shared with the other pools. On a host, timers fire
+// on their own threads (a global dispatch queue, or SIGEV_THREAD), so a mutex.
+#ifdef SYSTEM_NAME_PICO
+void _hid_lock(void) { _sys_sync_pool_lock(); }
+void _hid_unlock(void) { _sys_sync_pool_unlock(); }
+#else
+static pthread_mutex_t _hid_mutex = PTHREAD_MUTEX_INITIALIZER;
+void _hid_lock(void) { pthread_mutex_lock(&_hid_mutex); }
+void _hid_unlock(void) { pthread_mutex_unlock(&_hid_mutex); }
+#endif
 
 // Report whether the singleton is initialized.
 static inline bool _hid_valid(const hid_t *instance) {

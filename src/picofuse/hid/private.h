@@ -58,6 +58,14 @@ struct hid_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 // SHARED INTERNAL HELPERS
+
+// The lock for the device and event pools, which interrupts (on a Pico) and timer
+// threads (on a host) use at the same time as the run loop's workers. It isn't
+// recursive, and backend callbacks never run while it's held.
+void _hid_lock(void);
+void _hid_unlock(void);
+#define _HID_LOCK() _hid_lock()
+#define _HID_UNLOCK() _hid_unlock()
 //
 // hid.c/event.c/timer.c/... are all part of the same module and share
 // these across translation units via this header, the same way

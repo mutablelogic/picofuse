@@ -23,8 +23,9 @@ static const hid_device_callbacks_t _hid_signal_callbacks = {
 ///////////////////////////////////////////////////////////////////////////////
 // CALLBACKS
 
-// Registered process-wide via sys_env_signalhandler() - see its own doc:
-// may run in interrupt context on some platforms, so this stays minimal.
+// Registered process-wide via sys_env_signalhandler(), which calls it on a
+// thread of its own rather than in the signal handler, so it can take HID's
+// lock and the queue's.
 static void _hid_signal_callback(sys_env_signal_t signal) {
   if (_hid_signal_device != NULL && signal != sys_env_signal_none) {
     hid_event_queue_signal(_hid_signal_device, signal);

@@ -5,17 +5,6 @@
 #include <stddef.h>
 #include <string.h>
 
-// Same pico-only critical section as hid.c's device pool - see the note
-// there.
-#ifdef SYSTEM_NAME_PICO
-#include "../sys/pico/sync.h"
-#define _HID_LOCK() _sys_sync_pool_lock()
-#define _HID_UNLOCK() _sys_sync_pool_unlock()
-#else
-#define _HID_LOCK()
-#define _HID_UNLOCK()
-#endif
-
 /**
  * @def HID_GPIO_DEBOUNCE_MS
  * @brief Minimum time between accepted edges on the same gpio-backed HID
