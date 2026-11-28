@@ -14,6 +14,11 @@
 #define RTT_ADDRESS 0x20000000
 #define RTT_SCAN_SIZE 0x40000
 
+// Starts RTT again once OpenOCD has examined a target again, after it reset itself
+#define RTT_RESTART                                                            \
+  "foreach t [target names] { $t configure -event examine-end "               \
+  "{ catch { rtt stop }; catch { rtt start } } }"
+
 extern char **environ;
 
 static void stop_openocd(pid_t pid) {
@@ -83,6 +88,12 @@ bool exec_openocd(const exec_openocd_opts_t *opts) {
       (char *)opts->target,
       "-c",
       "adapter speed 5000",
+      // When the target resets itself, such as from its watchdog, OpenOCD loses it
+      // and then examines it again, but RTT stays on what it had before, so the
+      // rest of the output is lost. So RTT is started again each time. Before it's
+      // set up, below, the start fails, which is caught.
+      "-c",
+      RTT_RESTART,
       "-c",
       command,
       "-c",

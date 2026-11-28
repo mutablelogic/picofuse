@@ -192,7 +192,7 @@ if(NOT DEFINED PICO_BOARD)
 endif()
 
 # Hardware test runner
-add_subdirectory(src/test)
+add_subdirectory(src/testrunner)
 
 # Tests
 include(CTest)

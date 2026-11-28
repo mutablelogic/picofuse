@@ -207,8 +207,13 @@ function(picofuse_test NAME)
         # separate host build tree (see README/build docs), not by this
         # PICO_BOARD-configured one, so its path is taken from a cache
         # variable rather than a target this build knows how to produce.
-        set(PICOFUSE_TESTRUNNER "${CMAKE_SOURCE_DIR}/build/src/test/testrunner"
-            CACHE FILEPATH "Path to the host-built testrunner tool used to run PICO_BOARD tests via openocd")
+        # A cached path which doesn't exist, such as from before it moved from
+        # src/test, is replaced with the default.
+        set(_testrunner_default "${CMAKE_SOURCE_DIR}/build/src/testrunner/testrunner")
+        if(NOT PICOFUSE_TESTRUNNER OR NOT EXISTS "${PICOFUSE_TESTRUNNER}")
+            set(PICOFUSE_TESTRUNNER "${_testrunner_default}" CACHE FILEPATH
+                "Path to the host-built testrunner tool used to run PICO_BOARD tests via openocd" FORCE)
+        endif()
 
         if(PICO_RP2040)
             set(_pico_openocd_chip "rp2040")

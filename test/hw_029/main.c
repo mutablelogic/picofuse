@@ -4,8 +4,7 @@
 #include <test/test.h>
 
 // hw_watchdog_did_reset() on a Pico, across a restart, with the stage in watchdog
-// scratch register 0, which is the program's. Run by hand, as the test runner doesn't
-// see RTT after the restart: 0x68773202 is in the register once it has finished.
+// scratch register 0, which is the program's: 0x68773202 once it has finished.
 //   1. The watchdog is enabled and not fed, so it times out. If the last run
 //      finished, its watchdog was disabled, so this boot wasn't the watchdog's, even
 //      though the reason register still says the watchdog reset it.
