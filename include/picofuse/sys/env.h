@@ -147,9 +147,10 @@ typedef struct sys_env_arg_t sys_env_arg_t;
  * Not all platforms support all signal types. Embedded platforms may have
  * limited or no signal support.
  *
- * The signal handler may be called from interrupt context on some platforms.
- * Keep the callback simple and avoid blocking operations, memory allocation,
- * or complex system calls.
+ * On Darwin and Linux, the callback is called shortly after the signal, on a
+ * thread of its own, one signal at a time, so it can take locks. Once this
+ * returns, the previous callback isn't running and won't be called again. A
+ * callback should still be short, as other signals wait for it.
  */
 bool sys_env_signalhandler(sys_env_signal_t mask,
                            sys_env_signal_callback_t callback);
