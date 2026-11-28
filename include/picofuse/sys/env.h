@@ -34,6 +34,7 @@
  */
 
 #pragma once
+#include "date.h"
 #include "io.h"
 #include <stdbool.h>
 #include <stddef.h>
@@ -81,6 +82,8 @@ typedef enum {
   sys_env_arg_type_int = 3,    ///< Argument flag expects an integer value.
   sys_env_arg_type_uint = 4,   ///< Argument flag expects an unsigned integer value.
   sys_env_arg_type_float = 5,  ///< Argument flag expects a floating-point value.
+  sys_env_arg_type_date = 6,     ///< Argument flag expects an ISO 8601 date.
+  sys_env_arg_type_duration = 7, ///< Argument flag expects a duration, such as 1h30m.
 } sys_env_arg_type_t;
 
 /**
@@ -225,6 +228,15 @@ void sys_env_set_args(int argc, char *argv[]);
 sys_env_arg_t *sys_env_arg_parse(sys_env_arg_flag_t *flags);
 
 /**
+ * @brief Return why the last sys_env_arg_parse() failed.
+ * @ingroup SystemEnv
+ * @return A message such as `unknown flag --x`, `--count needs a value` or
+ * `--count: "abc" isn't an integer`, or NULL if the last parse succeeded or
+ * there hasn't been one. It's kept until the next parse.
+ */
+const char *sys_env_arg_error(void);
+
+/**
  * @brief Return the number of positional arguments.
  * @ingroup SystemEnv
  * @param args The parse result returned by `sys_env_arg_parse()`.
@@ -343,6 +355,32 @@ bool sys_env_arg_parse_float32(sys_env_arg_t *args, const char *name,
  */
 bool sys_env_arg_parse_float64(sys_env_arg_t *args, const char *name,
                                double *value);
+
+/**
+ * @brief Look up a parsed flag's value as a date, in ISO 8601, such as
+ * "2026-09-06T11:37:05Z" or "2026-09-06".
+ * @ingroup SystemEnv
+ * @param args The parse result returned by `sys_env_arg_parse()`.
+ * @param name The flag's long or short name.
+ * @param value Where the date is stored.
+ * @return true if the flag was found and successfully parsed, or false if the
+ * flag wasn't found or `sys_env_arg_parse()` hasn't succeeded yet.
+ */
+bool sys_env_arg_parse_date(sys_env_arg_t *args, const char *name,
+                            sys_date_t *value);
+
+/**
+ * @brief Look up a parsed flag's value as a duration, such as "1h30m" or
+ * "1.5s", in nanoseconds.
+ * @ingroup SystemEnv
+ * @param args The parse result returned by `sys_env_arg_parse()`.
+ * @param name The flag's long or short name.
+ * @param ns Where the nanoseconds are stored.
+ * @return true if the flag was found and successfully parsed, or false if the
+ * flag wasn't found or `sys_env_arg_parse()` hasn't succeeded yet.
+ */
+bool sys_env_arg_parse_duration(sys_env_arg_t *args, const char *name,
+                                int64_t *ns);
 
 /**
  * @brief Look up a parsed flag's value as a string.

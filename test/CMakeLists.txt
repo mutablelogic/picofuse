@@ -403,6 +403,16 @@ if(NOT DEFINED PICO_BOARD)
 	picofuse_test(sys_077
 		sys_077/main.c
 	)
+
+	# sys_env_arg_error: why sys_env_arg_parse failed
+	picofuse_test(sys_122
+		sys_122/main.c
+	)
+else()
+	# The argument functions without a command line
+	picofuse_test(sys_123
+		sys_123/main.c
+	)
 endif()
 
 # sys_string_open

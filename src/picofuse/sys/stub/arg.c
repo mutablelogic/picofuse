@@ -8,8 +8,13 @@
 // report. Matches sys_env_signalhandler()'s stub: always fail/return
 // empty, never crash.
 
+// Set once a parse has been tried, as there's never a command line to parse
+static bool _sys_env_arg_tried = false;
+
+
 sys_env_arg_t *sys_env_arg_parse(sys_env_arg_flag_t *flags) {
   (void)flags;
+  _sys_env_arg_tried = true;
   return NULL;
 }
 
@@ -93,4 +98,24 @@ size_t sys_env_arg_parse_string(sys_env_arg_t *args, const char *name,
   (void)value;
   (void)cap;
   return 0;
+}
+
+bool sys_env_arg_parse_date(sys_env_arg_t *args, const char *name,
+                            sys_date_t *value) {
+  (void)args;
+  (void)name;
+  (void)value;
+  return false;
+}
+
+bool sys_env_arg_parse_duration(sys_env_arg_t *args, const char *name,
+                                int64_t *ns) {
+  (void)args;
+  (void)name;
+  (void)ns;
+  return false;
+}
+
+const char *sys_env_arg_error(void) {
+  return _sys_env_arg_tried ? "there's no command line on this platform" : NULL;
 }
