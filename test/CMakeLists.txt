@@ -890,6 +890,15 @@ if(DEFINED PICO_BOARD)
 	target_link_libraries(hw_029 PRIVATE hardware_watchdog_headers)
 endif()
 
+# The internal temperature sensor on a host: a Linux thermal zone or hwmon sensor, if
+# there's one - see hw_030/main.c
+if(NOT DEFINED PICO_BOARD)
+	picofuse_test(hw_030
+		hw_030/main.c
+		LIBRARIES picofuse-hw
+	)
+endif()
+
 # hw_usb_device_class_to_string() (always available), plus hw_usb_* init/
 # enumerate/deinit lifecycle - stub (always NULL) by default, real libusb
 # backend if PICOFUSE_USB=ON and libusb-1.0 was found - see hw_023/main.c.
