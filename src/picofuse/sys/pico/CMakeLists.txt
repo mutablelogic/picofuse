@@ -18,6 +18,7 @@ picofuse_library(
         stdio.c
         stdio_uart.c
         stdio_rtt.c
+        stdio_usb.c
         puts.c
         random.c
         timestamp.c

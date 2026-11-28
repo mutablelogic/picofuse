@@ -22,7 +22,10 @@ typedef enum sys_stdio_t {
   sys_stdio_none = 0,
   /** @brief UART standard input/output backend. */
   sys_stdio_uart,
-  /** @brief USB standard input/output backend. */
+  /** @brief USB standard input/output backend: on a Pico, a CDC serial port,
+   * unless it's built with PICOFUSE_USB, which has the USB controller for a
+   * host, or without PICOFUSE_STDIO_USB, when it's the UART. Output is dropped
+   * while nothing has the port open. */
   sys_stdio_usb,
   /** @brief SEGGER RTT standard input/output backend. */
   sys_stdio_rtt,
