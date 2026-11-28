@@ -164,6 +164,8 @@ typedef struct {
                                ///< sys_iostream_event_t; may combine
                                ///< sys_iostream_event_read and
                                ///< sys_iostream_event_write.
+  void *userdata;              ///< The device's userdata when the event was
+                               ///< queued, as for hid_metric_t.
 } hid_iostream_t;
 
 /**

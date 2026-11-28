@@ -271,6 +271,9 @@ bool hid_event_queue_iostream(hid_device_t *device,
 
   event->device = device;
   event->data.iostream.events = events;
+  _HID_LOCK();
+  event->data.iostream.userdata = device->userdata;
+  _HID_UNLOCK();
   return _hid_event_push(event);
 }
 
