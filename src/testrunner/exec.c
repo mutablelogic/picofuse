@@ -14,10 +14,17 @@
 #define RTT_ADDRESS 0x20000000
 #define RTT_SCAN_SIZE 0x40000
 
-// Starts RTT again once OpenOCD has examined a target again, after it reset itself
+// Starts RTT again once OpenOCD has examined a target again, after it reset itself.
+// That's straight after the reset, before the program has set RTT up again, so it
+// waits, then tries until it finds the control block, for about 5s. Only once RTT
+// has been set up, which RTT_READY says, so the first examine isn't held up.
 #define RTT_RESTART                                                            \
-  "foreach t [target names] { $t configure -event examine-end "               \
-  "{ catch { rtt stop }; catch { rtt start } } }"
+  "foreach t [target names] { $t configure -event examine-end { "             \
+  "if {[info exists ::picofuse_rtt]} { "                                       \
+  "catch { rtt stop }; sleep 500; "                                            \
+  "for {set i 0} {$i < 20} {incr i} { "                                        \
+  "if {![catch { rtt start }]} { break }; sleep 250 } } } }"
+#define RTT_READY "set ::picofuse_rtt 1"
 
 extern char **environ;
 
@@ -90,8 +97,8 @@ bool exec_openocd(const exec_openocd_opts_t *opts) {
       "adapter speed 5000",
       // When the target resets itself, such as from its watchdog, OpenOCD loses it
       // and then examines it again, but RTT stays on what it had before, so the
-      // rest of the output is lost. So RTT is started again each time. Before it's
-      // set up, below, the start fails, which is caught.
+      // rest of the output is lost. So RTT is started again each time, once it has
+      // been set up below.
       "-c",
       RTT_RESTART,
       "-c",
@@ -102,6 +109,8 @@ bool exec_openocd(const exec_openocd_opts_t *opts) {
       "rtt start",
       "-c",
       rtt_server,
+      "-c",
+      RTT_READY,
       NULL,
   };
 
