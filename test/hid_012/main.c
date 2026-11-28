@@ -17,10 +17,16 @@ static sys_atomic_t popped;
 static sys_atomic_t bad;
 static sys_waitgroup_t *wg;
 
+// A consumer can wait for longer than the timeout while others take every event, as
+// the queue isn't fair, so it's only a stall if nothing was taken in that time
 static void consume(void) {
   while (sys_atomic_get(&popped) < ROUNDS) {
+    uint32_t before = sys_atomic_get(&popped);
     sys_event_t event = sys_event_queue_timed_pop(queue, 500);
     if (event == NULL) {
+      if (sys_atomic_get(&popped) != before) {
+        continue;
+      }
       sys_atomic_inc(&bad);
       break;
     }
