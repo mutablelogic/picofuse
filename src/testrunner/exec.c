@@ -14,10 +14,19 @@
 #define RTT_ADDRESS 0x20000000
 #define RTT_SCAN_SIZE 0x40000
 
-// Starts RTT again once OpenOCD has examined a target again, after it reset itself
+// Starts RTT again once OpenOCD has examined a target again, after it reset itself.
+// That's straight after the reset, before the program has set RTT up again, so it
+// waits, then tries until it finds the control block, for about 5s. Each try sets RTT
+// up again, so it searches for the control block's identifier, rather than reading the
+// address it had, where there may be no control block yet. Only once RTT has been set
+// up, which RTT_READY says, so the first examine isn't held up. The %s is rtt_setup.
 #define RTT_RESTART                                                            \
-  "foreach t [target names] { $t configure -event examine-end "               \
-  "{ catch { rtt stop }; catch { rtt start } } }"
+  "foreach t [target names] { $t configure -event examine-end { "             \
+  "if {[info exists ::picofuse_rtt]} { "                                       \
+  "catch { rtt stop }; sleep 500; "                                            \
+  "for {set i 0} {$i < 20} {incr i} { "                                        \
+  "if {![catch { %s; rtt start }]} { break }; sleep 250 } } } }"
+#define RTT_READY "set ::picofuse_rtt 1"
 
 extern char **environ;
 
@@ -61,6 +70,8 @@ bool exec_openocd(const exec_openocd_opts_t *opts) {
   sys_sprintf(rtt_setup, sizeof(rtt_setup),
               "rtt setup 0x%x 0x%x \"SEGGER RTT\"", (unsigned int)RTT_ADDRESS,
               (unsigned int)RTT_SCAN_SIZE);
+  char rtt_restart[512];
+  sys_sprintf(rtt_restart, sizeof(rtt_restart), RTT_RESTART, rtt_setup);
   char rtt_server[64];
   sys_sprintf(rtt_server, sizeof(rtt_server), "rtt server start %u 0",
               (unsigned int)rtt_port);
@@ -90,10 +101,10 @@ bool exec_openocd(const exec_openocd_opts_t *opts) {
       "adapter speed 5000",
       // When the target resets itself, such as from its watchdog, OpenOCD loses it
       // and then examines it again, but RTT stays on what it had before, so the
-      // rest of the output is lost. So RTT is started again each time. Before it's
-      // set up, below, the start fails, which is caught.
+      // rest of the output is lost. So RTT is started again each time, once it has
+      // been set up below.
       "-c",
-      RTT_RESTART,
+      rtt_restart,
       "-c",
       command,
       "-c",
@@ -102,6 +113,8 @@ bool exec_openocd(const exec_openocd_opts_t *opts) {
       "rtt start",
       "-c",
       rtt_server,
+      "-c",
+      RTT_READY,
       NULL,
   };
 
