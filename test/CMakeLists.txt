@@ -879,6 +879,20 @@ if(NOT DEFINED PICO_BOARD)
 	target_include_directories(hw_022 PRIVATE ${CMAKE_SOURCE_DIR}/include)
 endif()
 
+# hw_watchdog_did_reset() on a Pico, across a timeout, and after a run which finished -
+# see hw_029/main.c. Not registered with ctest: the test runner doesn't see RTT again
+# after the restart, though the program does run through it. Run it by hand, and read
+# watchdog scratch register 0 (0x4005800c): 0x68773202 once it has finished.
+if(DEFINED PICO_BOARD)
+	picofuse_executable(
+		NAME hw_029
+		LIBRARIES picofuse-sys picofuse-hw
+		SOURCES hw_029/main.c
+	)
+	target_include_directories(hw_029 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+	target_link_libraries(hw_029 PRIVATE hardware_watchdog_headers)
+endif()
+
 # hw_usb_device_class_to_string() (always available), plus hw_usb_* init/
 # enumerate/deinit lifecycle - stub (always NULL) by default, real libusb
 # backend if PICOFUSE_USB=ON and libusb-1.0 was found - see hw_023/main.c.

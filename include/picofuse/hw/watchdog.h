@@ -98,8 +98,13 @@ uint32_t hw_watchdog_maxtimeout_ms(void);
  * @brief Report whether the last reboot/reset was caused by the watchdog.
  * @ingroup Watchdog
  * @param watchdog Watchdog handle.
- * @retval true Previous reboot/reset was watchdog-driven.
- * @retval false Previous reboot/reset was not watchdog-driven or unsupported.
+ * @retval true Previous reboot/reset was the watchdog timing out while it was enabled,
+ * or hw_watchdog_reset().
+ * @retval false Previous reboot/reset was something else, such as power, a debugger, or
+ * a reset after the watchdog was disabled, or unsupported.
+ *
+ * On Pico, it's read at the first hw_watchdog_init(), and uses watchdog scratch
+ * register 3, which is set while the watchdog is enabled.
  */
 bool hw_watchdog_did_reset(hw_watchdog_t *watchdog);
 
