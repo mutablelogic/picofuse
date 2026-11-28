@@ -29,6 +29,7 @@ project(picofuse C CXX ASM)
 
 option(PICOFUSE_WIFI "Enable real Wi-Fi networking backends" OFF)
 option(PICOFUSE_USB "Enable USB support" OFF)
+option(PICOFUSE_STDIO_USB "Enable standard input and output over USB on a Pico, without PICOFUSE_USB" ON)
 option(PICOFUSE_BLUETOOTH "Enable Bluetooth support" OFF)
 
 if(APPLE AND PICOFUSE_WIFI)
@@ -89,6 +90,19 @@ if(DEFINED PICO_BOARD)
         add_compile_definitions(PICO_CYW43_SUPPORTED=1)
     endif()
 
+    # Standard input and output over USB (sys/pico/stdio_usb.c), with TinyUSB as a
+    # device. It's left out with PICOFUSE_USB, which has the one USB controller
+    # for a host, and then sys_stdio_usb is the UART.
+    # TinyUSB's device stack, with the SDK's CDC descriptors, but not its
+    # pico_stdio_usb driver, which needs the default alarm pool that's disabled
+    # above. The vendor interface which resets into BOOTSEL is left out. It adds
+    # about 12KB to every program, as the SDK bundle is linked whole, so it can
+    # be turned off.
+    if(PICOFUSE_STDIO_USB AND NOT PICOFUSE_USB)
+        list(APPEND _picosdk_targets tinyusb_device_unmarked pico_unique_id)
+        add_compile_definitions(PICOFUSE_STDIO_USB=1 PICO_ENABLE_USB_RESET_VIA_VENDOR_INTERFACE=0)
+    endif()
+
     if(PICOFUSE_USB)
         # Every RP2040/RP2350 board has the same on-chip dual-role USB
         # controller (unlike CYW43 above, nothing board-specific to check).
@@ -108,6 +122,12 @@ if(DEFINED PICO_BOARD)
         ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/stdout.c # Also stubs newlib's own puts()
         ${CMAKE_CURRENT_LIST_DIR}/src/runtime/pico/mbedtls.c
     )
+    set(_pico_sdk_bundle_headers pico_binary_info_headers pico_runtime_headers)
+    if(PICOFUSE_STDIO_USB AND NOT PICOFUSE_USB)
+        list(APPEND _pico_sdk_bundle_sources
+            ${PICO_SDK_PATH}/src/rp2_common/pico_stdio_usb/stdio_usb_descriptors.c)
+        list(APPEND _pico_sdk_bundle_headers pico_stdio_usb_headers pico_usb_reset_headers)
+    endif()
     # cxa_guard.c was only added in Pico SDK 2.3.0; older SDKs don't need/have it.
     if(EXISTS ${_pico_clib_interface_dir}/cxa_guard.c)
         list(APPEND _pico_sdk_bundle_sources ${_pico_clib_interface_dir}/cxa_guard.c)
@@ -115,7 +135,7 @@ if(DEFINED PICO_BOARD)
     picofuse_add_pico_sdk_bundle(picosdk
         TARGETS ${_picosdk_targets}
         SOURCES ${_pico_sdk_bundle_sources}
-        HEADER_DEPS pico_binary_info_headers pico_runtime_headers
+        HEADER_DEPS ${_pico_sdk_bundle_headers}
     )
 
     # Add the combined pico SDK libraries target
