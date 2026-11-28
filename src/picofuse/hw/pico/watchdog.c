@@ -36,6 +36,23 @@ struct hw_watchdog_t {
 static struct hw_watchdog_t _hw_watchdog = {0};
 static sys_atomic_t _hw_watchdog_active;
 
+// The watchdog's reason register and the SDK's scratch[4] survive resets which aren't
+// a power-on reset, such as a debugger's, and the SDK sets scratch[4] each time it's
+// enabled, so once it has timed out, every later boot looks like it did. So this
+// scratch register is set only while it's enabled, and cleared when it's disabled:
+// a timeout restarted the device only if it was still set. The SDK uses scratch[4] to
+// [7]; [0] to [3] are the program's, and picofuse has this one.
+#define _HW_WATCHDOG_SCRATCH 3
+#define _HW_WATCHDOG_RUNNING 0x70667764u // "pfwd"
+
+// Whether a timeout restarted the device, read once at the first init
+static bool _hw_watchdog_read = false;
+static bool _hw_watchdog_restarted = false;
+
+static void _hw_watchdog_running(bool running) {
+  watchdog_hw->scratch[_HW_WATCHDOG_SCRATCH] = running ? _HW_WATCHDOG_RUNNING : 0u;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE
 
@@ -85,9 +102,20 @@ hw_watchdog_t *hw_watchdog_init(void) {
 
   _HW_WATCHDOG_LOCK();
 
+  // Whether the last reset was a timeout while it ran, which is read before anything
+  // changes it, then cleared
+  if (!_hw_watchdog_read) {
+    _hw_watchdog_restarted =
+        watchdog_caused_reboot() &&
+        watchdog_hw->scratch[_HW_WATCHDOG_SCRATCH] == _HW_WATCHDOG_RUNNING;
+    _hw_watchdog_running(false);
+    _hw_watchdog_read = true;
+  }
+
   // Reset any previous session before reinitializing singleton state.
   if (_hw_watchdog_is_valid(watchdog)) {
     watchdog_disable();
+    _hw_watchdog_running(false);
     memset(watchdog, 0, sizeof(*watchdog));
   }
 
@@ -125,6 +153,7 @@ void hw_watchdog_deinit(hw_watchdog_t *watchdog) {
   }
 
   watchdog_disable();
+  _hw_watchdog_running(false);
   memset(watchdog, 0, sizeof(*watchdog));
   sys_atomic_set(&_hw_watchdog_active, 0u);
   _HW_WATCHDOG_UNLOCK();
@@ -143,7 +172,7 @@ bool hw_watchdog_did_reset(hw_watchdog_t *watchdog) {
     return false;
   }
 
-  did_reset = watchdog_enable_caused_reboot();
+  did_reset = _hw_watchdog_restarted;
   _HW_WATCHDOG_UNLOCK();
   return did_reset;
 }
@@ -158,11 +187,13 @@ void hw_watchdog_enable(hw_watchdog_t *watchdog, bool enable) {
 
   if (enable) {
     watchdog_enable(watchdog->timeout_ms * WATCHDOG_XFACTOR, true);
+    _hw_watchdog_running(true);
     watchdog->disable = false;
     watchdog->last_feed_ms = 0u;
     sys_atomic_set(&_hw_watchdog_active, 1u);
   } else {
     watchdog_disable();
+    _hw_watchdog_running(false);
     watchdog->disable = true;
     sys_atomic_set(&_hw_watchdog_active, 0u);
   }
@@ -184,7 +215,9 @@ void hw_watchdog_reset(hw_watchdog_t *watchdog, uint32_t delay_ms) {
     delay_ms = max_timeout_ms;
   }
 
+  // The watchdog causes this reset too, as it does on Linux
   watchdog_enable(delay_ms * WATCHDOG_XFACTOR, true);
+  _hw_watchdog_running(true);
   watchdog->disable = true;
   sys_atomic_set(&_hw_watchdog_active, 0u);
   _HW_WATCHDOG_UNLOCK();
