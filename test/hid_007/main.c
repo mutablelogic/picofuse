@@ -60,6 +60,7 @@ test_main_hw(0) {
   test_assert(event->type == hid_event_type_metric);
   test_assert(event->device == adc_device);
   test_assert_strequal(event->data.metric.name, "test_adc");
+  test_assert(event->data.metric.userdata == &adc_userdata_sentinel);
   hid_event_free(event);
 
   test_assert(hid_deregister(instance, adc_device));
@@ -87,6 +88,7 @@ test_main_hw(0) {
       test_assert(temp_event->type == hid_event_type_metric);
       test_assert(temp_event->device == temp_device);
       test_assert_strequal(temp_event->data.metric.name, "temp");
+      test_assert(temp_event->data.metric.userdata == &temp_userdata_sentinel);
       test_assert(temp_event->data.metric.value >= -40.0f &&
                   temp_event->data.metric.value <= 125.0f);
       hid_event_free(temp_event);
