@@ -12,8 +12,10 @@ set(_picosdk_install_dir ${CMAKE_CURRENT_LIST_DIR})
 #   lib/<target>/lib<name>.a             every picofuse_library()
 #   lib/<target>/pkgconfig/<name>.pc     its flags and dependencies
 #   cmake/picofuse_executable.cmake
+#   docs/LICENSE, docs/NOTICE.md         the licence, and third-party notices
 #
-# and, on a PICO_BOARD build only, lib/<target>/libpicosdk.a, picosdk.pc,
+# and, on a host build, bin/testrunner and docs/testrunner.md. On a PICO_BOARD
+# build only, lib/<target>/libpicosdk.a, picosdk.pc,
 # picosdk-headers.pc, and (under lib/<target>/picosdk/) the SDK headers, linker
 # scripts and boot2 object - see picofuse_install_picosdk().
 #
@@ -42,6 +44,8 @@ function(picofuse_install)
     # the in-tree one in picosdk_executable.cmake - no name collision, since a
     # consumer include()s this from their own, separate CMake process.
     install(FILES ${_picosdk_install_dir}/picofuse_executable.cmake DESTINATION cmake)
+
+    install(FILES ${CMAKE_SOURCE_DIR}/LICENSE ${CMAKE_SOURCE_DIR}/NOTICE.md DESTINATION docs)
 endfunction()
 
 # picofuse_install_library(NAME)

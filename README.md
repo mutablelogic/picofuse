@@ -226,7 +226,7 @@ Tests also run when cross-compiling for a Pico board (i.e. with
 make PICO_BOARD=pico2 BUILD_DIR=build-pico test
 ```
 
-Each test is flashed and run through [`testrunner`](src/test/README.md),
+Each test is flashed and run through [`testrunner`](src/testrunner/README.md),
 which drives a debug probe via OpenOCD and reports pass/fail from the
 device's own output - see its README for the required OpenOCD build, how
 to write a test, and `testrunner`'s own flags.

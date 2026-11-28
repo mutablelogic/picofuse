@@ -880,16 +880,13 @@ if(NOT DEFINED PICO_BOARD)
 endif()
 
 # hw_watchdog_did_reset() on a Pico, across a timeout, and after a run which finished -
-# see hw_029/main.c. Not registered with ctest: the test runner doesn't see RTT again
-# after the restart, though the program does run through it. Run it by hand, and read
-# watchdog scratch register 0 (0x4005800c): 0x68773202 once it has finished.
+# see hw_029/main.c. A timeout is the watchdog's maximum, about 8s.
 if(DEFINED PICO_BOARD)
-	picofuse_executable(
-		NAME hw_029
-		LIBRARIES picofuse-sys picofuse-hw
-		SOURCES hw_029/main.c
+	picofuse_test(hw_029
+		hw_029/main.c
+		LIBRARIES picofuse-hw
+		TESTRUNNER_TIMEOUT 30
 	)
-	target_include_directories(hw_029 PRIVATE ${CMAKE_SOURCE_DIR}/include)
 	target_link_libraries(hw_029 PRIVATE hardware_watchdog_headers)
 endif()
 

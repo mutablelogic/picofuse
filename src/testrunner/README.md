@@ -20,7 +20,9 @@ Output is read one of two ways:
 
 - **[RTT](https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/) (default)** - `openocd` opens an RTT server against the target's
   `SEGGER RTT` control block and `testrunner` connects to it over TCP. No
-  extra wiring required beyond the debug probe's SWD connection.
+  extra wiring required beyond the debug probe's SWD connection. If the
+  target resets itself, such as from its watchdog, RTT is started again once
+  `openocd` has found the target again, so a test can run through a restart.
 - **Serial** (`--serial <device>`) - `openocd` programs and resets the
   target, then exits immediately (no SWD session stays open), and
   `testrunner` reads the target's UART output directly over a serial device
@@ -76,7 +78,7 @@ Usage: testrunner [options] <elf-file>
 Example, run directly against real hardware:
 
 ```sh
-build/src/test/testrunner --target target/rp2350.cfg \
+build/src/testrunner/testrunner --target target/rp2350.cfg \
     build-pico/test/sys_019.elf
 ```
 
